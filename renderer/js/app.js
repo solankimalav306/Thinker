@@ -325,7 +325,7 @@ function renderThemeSettings() {
   const currentMode = getTheme() || "dark";
   elements.settingsThemeMode.value = currentMode;
   
-  const customColor = localStorage.getItem("custom-accent-color") || "#37c2b5";
+  const customColor = window.electronAPI.getItem("custom-accent-color") || "#37c2b5";
   elements.settingsCustomColor.value = customColor;
 }
 
@@ -462,7 +462,7 @@ async function tryGetEnvApiKey() {
 
 async function boot() {
   applyTheme();
-  const customColor = localStorage.getItem("custom-accent-color");
+  const customColor = window.electronAPI.getItem("custom-accent-color");
   if (customColor) applyCustomColor(customColor);
   
   await tryGetEnvApiKey();
@@ -484,7 +484,9 @@ async function boot() {
     thumbnailList: elements.thumbnailList,
     onStatus: setStatus,
     onPathChange: (name) => {
-      elements.activeFileLabel.textContent = name;
+      if (elements.activeFileLabel) {
+        elements.activeFileLabel.textContent = name;
+      }
     },
     onRendered: (meta) => {
       setActiveModeButton(meta.mode);
@@ -648,19 +650,19 @@ async function boot() {
   elements.settingsThemeMode.addEventListener("change", () => {
     setTheme(elements.settingsThemeMode.value);
     applyTheme();
-    const custom = localStorage.getItem("custom-accent-color");
+    const custom = window.electronAPI.getItem("custom-accent-color");
     if (custom) applyCustomColor(custom);
     renderSettings();
   });
   
   elements.settingsCustomColor.addEventListener("input", (e) => {
     const color = e.target.value;
-    localStorage.setItem("custom-accent-color", color);
+    window.electronAPI.setItem("custom-accent-color", color);
     applyCustomColor(color);
   });
   
   elements.resetColorBtn.addEventListener("click", () => {
-    localStorage.removeItem("custom-accent-color");
+    window.electronAPI.removeItem("custom-accent-color");
     applyTheme();
     renderSettings();
   });

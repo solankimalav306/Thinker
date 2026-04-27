@@ -38,23 +38,23 @@ function normalizeProfile(profile) {
 }
 
 export function getTheme() {
-  return localStorage.getItem(STORAGE_KEYS.theme) || "dark";
+  return window.electronAPI.getItem(STORAGE_KEYS.theme) || "dark";
 }
 
 export function setTheme(theme) {
-  localStorage.setItem(STORAGE_KEYS.theme, theme);
+  window.electronAPI.setItem(STORAGE_KEYS.theme, theme);
 }
 
 export function getThemePalette() {
-  return localStorage.getItem(STORAGE_KEYS.themePalette) || DEFAULT_THEME_PALETTE;
+  return window.electronAPI.getItem(STORAGE_KEYS.themePalette) || DEFAULT_THEME_PALETTE;
 }
 
 export function setThemePalette(palette) {
-  localStorage.setItem(STORAGE_KEYS.themePalette, palette || DEFAULT_THEME_PALETTE);
+  window.electronAPI.setItem(STORAGE_KEYS.themePalette, palette || DEFAULT_THEME_PALETTE);
 }
 
 export function getRecents() {
-  const raw = localStorage.getItem(STORAGE_KEYS.recents);
+  const raw = window.electronAPI.getItem(STORAGE_KEYS.recents);
   if (!raw) {
     return [];
   }
@@ -75,19 +75,19 @@ export function pushRecent(path) {
 
   const recents = getRecents().filter((item) => item !== trimmed);
   recents.unshift(trimmed);
-  localStorage.setItem(STORAGE_KEYS.recents, JSON.stringify(recents.slice(0, RECENT_LIMIT)));
+  window.electronAPI.setItem(STORAGE_KEYS.recents, JSON.stringify(recents.slice(0, RECENT_LIMIT)));
 }
 
 export function getGeminiApiKeyLocal() {
-  return localStorage.getItem(STORAGE_KEYS.geminiApiKey) || "";
+  return window.electronAPI.getItem(STORAGE_KEYS.geminiApiKey) || "";
 }
 
 export function setGeminiApiKeyLocal(key) {
-  localStorage.setItem(STORAGE_KEYS.geminiApiKey, key);
+  window.electronAPI.setItem(STORAGE_KEYS.geminiApiKey, key);
 }
 
 export function getApiProfiles() {
-  const raw = localStorage.getItem(STORAGE_KEYS.apiProfiles);
+  const raw = window.electronAPI.getItem(STORAGE_KEYS.apiProfiles);
   const parsed = raw ? safeParse(raw, []) : [];
   const profiles = Array.isArray(parsed) ? parsed.map(normalizeProfile).filter(Boolean) : [];
 
@@ -105,7 +105,7 @@ export function getApiProfiles() {
 
 export function setApiProfiles(profiles) {
   const normalized = Array.isArray(profiles) ? profiles.map(normalizeProfile).filter(Boolean) : [];
-  localStorage.setItem(STORAGE_KEYS.apiProfiles, JSON.stringify(normalized));
+  window.electronAPI.setItem(STORAGE_KEYS.apiProfiles, JSON.stringify(normalized));
 }
 
 export function upsertApiProfile(profile) {
@@ -130,17 +130,17 @@ export function removeApiProfile(profileId) {
 }
 
 export function getActiveApiProfileId() {
-  return localStorage.getItem(STORAGE_KEYS.activeApiProfileId) || "";
+  return window.electronAPI.getItem(STORAGE_KEYS.activeApiProfileId) || "";
 }
 
 export function setActiveApiProfileId(profileId) {
-  localStorage.setItem(STORAGE_KEYS.activeApiProfileId, profileId || "");
+  window.electronAPI.setItem(STORAGE_KEYS.activeApiProfileId, profileId || "");
 }
 
 export function getChatModel() {
-  return localStorage.getItem(STORAGE_KEYS.chatModel) || DEFAULT_CHAT_MODEL;
+  return window.electronAPI.getItem(STORAGE_KEYS.chatModel) || DEFAULT_CHAT_MODEL;
 }
 
 export function setChatModel(model) {
-  localStorage.setItem(STORAGE_KEYS.chatModel, model || DEFAULT_CHAT_MODEL);
+  window.electronAPI.setItem(STORAGE_KEYS.chatModel, model || DEFAULT_CHAT_MODEL);
 }

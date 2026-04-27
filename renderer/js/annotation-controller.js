@@ -82,7 +82,7 @@ export class AnnotationController {
   }
 
   getStorageData() {
-    const raw = localStorage.getItem(this.getStorageKey());
+    const raw = window.electronAPI.getItem(this.getStorageKey());
     if (!raw) {
       return [];
     }
@@ -101,7 +101,7 @@ export class AnnotationController {
   }
 
   savePageAnnotations() {
-    localStorage.setItem(this.getStorageKey(), JSON.stringify(this.paths));
+    window.electronAPI.setItem(this.getStorageKey(), JSON.stringify(this.paths));
   }
 
   redraw() {

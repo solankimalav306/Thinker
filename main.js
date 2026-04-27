@@ -4,6 +4,13 @@ const fs = require('fs/promises');
 const crypto = require('crypto');
 require('dotenv').config();
 
+const { getItemSync, setItemSync, removeItemSync } = require('./app-storage');
+
+ipcMain.on('storage:getItem', getItemSync);
+ipcMain.on('storage:setItem', setItemSync);
+ipcMain.on('storage:removeItem', removeItemSync);
+
+
 // Keep Chromium cache under this app's writable userData to avoid Windows cache permission issues.
 const sessionDataPath = path.join(app.getPath('userData'), 'session-data');
 const diskCachePath = path.join(sessionDataPath, 'disk-cache');
