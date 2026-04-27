@@ -1,0 +1,21 @@
+{
+  "name": "thinker",
+  "productName": "Thinker",
+  "version": "1.0.0",
+  "description": "",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "electron": "^36.2.1"
+  },
+  "dependencies": {
+    "dotenv": "^16.6.1",
+    "pdf-lib": "^1.17.1"
+  }
+}

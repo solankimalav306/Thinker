@@ -1,0 +1,762 @@
+import { initTheme, applyTheme, THEME_PALETTES } from "./theme.js";
+import {
+  getRecents,
+  pushRecent,
+  getApiProfiles,
+  upsertApiProfile,
+  removeApiProfile,
+  getActiveApiProfileId,
+  setActiveApiProfileId,
+  getChatModel,
+  setChatModel,
+  getThemePalette,
+  setThemePalette,
+  getGeminiApiKeyLocal,
+  getTheme,
+  setTheme
+} from "./state.js";
+import { PdfController } from "./pdf-controller.js";
+import { AnnotationController } from "./annotation-controller.js";
+import { SnipController } from "./snip-controller.js";
+import { ChatController } from "./chat-controller.js";
+
+const elements = {
+  appShell: document.querySelector(".app-shell"),
+  activeFileLabel: document.getElementById("active-file-label"),
+  statusText: document.getElementById("status-text"),
+  statusToast: document.getElementById("status-toast"),
+  controlStrip: document.getElementById("control-strip"),
+  welcomeScreen: document.getElementById("welcome-screen"),
+  settingsScreen: document.getElementById("settings-screen"),
+  recentList: document.getElementById("recent-list"),
+  pdfTabs: document.getElementById("pdf-tabs"),
+  readerLayout: document.getElementById("reader-layout"),
+  pdfStage: document.getElementById("pdf-stage"),
+  multiView: document.getElementById("pdf-multi-view"),
+  readerSidebar: document.getElementById("reader-sidebar"),
+  outlineBlock: document.getElementById("outline-block"),
+  thumbsBlock: document.getElementById("thumbs-block"),
+  outlineList: document.getElementById("outline-list"),
+  thumbnailList: document.getElementById("thumbnail-list"),
+  welcomeOpenBtn: document.getElementById("welcome-open-btn"),
+  welcomeSettingsBtn: document.getElementById("welcome-settings-btn"),
+  welcomeSampleBtn: document.getElementById("welcome-sample-btn"),
+  navHome: document.getElementById("nav-home"),
+  navReader: document.getElementById("nav-reader"),
+  navSettings: document.getElementById("nav-settings"),
+  navOutline: document.getElementById("nav-outline"),
+  navThumbs: document.getElementById("nav-thumbs"),
+  navChat: document.getElementById("nav-chat"),
+  chatPanel: document.getElementById("chat-panel"),
+  prevBtn: document.getElementById("prev-page"),
+  nextBtn: document.getElementById("next-page"),
+  zoomInBtn: document.getElementById("zoom-in"),
+  zoomOutBtn: document.getElementById("zoom-out"),
+  zoomInput: document.getElementById("zoom-percent"),
+  fitModeSelect: document.getElementById("fit-mode"),
+  pageNumEl: document.getElementById("page-num"),
+  pageCountEl: document.getElementById("page-count"),
+  pdfViewer: document.getElementById("pdf-viewer"),
+  canvas: document.getElementById("pdf-render"),
+  textLayer: document.getElementById("text-layer"),
+  annotationCanvas: document.getElementById("annotation-canvas"),
+  snipSelection: document.getElementById("snip-selection"),
+  screenshotBtn: document.getElementById("screenshot-btn"),
+  eraserBtn: document.getElementById("eraser-btn"),
+  modeSingleBtn: document.getElementById("mode-single"),
+  modeTwoBtn: document.getElementById("mode-two"),
+  modeScrollBtn: document.getElementById("mode-scroll"),
+  penControls: document.getElementById("pen-controls"),
+  highlighterControls: document.getElementById("highlighter-controls"),
+  penColorInput: document.getElementById("pen-color"),
+  penWidthInput: document.getElementById("pen-width"),
+  highlighterColorInput: document.getElementById("highlighter-color"),
+  highlighterWidthInput: document.getElementById("highlighter-width"),
+  penButtons: [
+    document.getElementById("pen-1"),
+    document.getElementById("pen-2"),
+    document.getElementById("pen-3")
+  ],
+  highlighterButtons: [
+    document.getElementById("highlighter-1"),
+    document.getElementById("highlighter-2")
+  ],
+  chatHistory: document.getElementById("chat-history"),
+  chatInput: document.getElementById("chat-input"),
+  chatSend: document.getElementById("chat-send"),
+  selectedTextBox: document.getElementById("selected-text-box"),
+  imagePreviewContainer: document.getElementById("image-preview-container"),
+  settingsApiLabel: document.getElementById("settings-api-label"),
+  settingsApiKey: document.getElementById("settings-api-key"),
+  settingsApiAdd: document.getElementById("settings-api-add"),
+  settingsActiveApi: document.getElementById("settings-active-api"),
+  settingsApiList: document.getElementById("settings-api-list"),
+  settingsChatModel: document.getElementById("settings-chat-model"),
+  settingsThemeMode: document.getElementById("settings-theme-mode"),
+  settingsCustomColor: document.getElementById("settings-custom-color"),
+  resetColorBtn: document.getElementById("reset-color-btn"),
+  homeGreeting: document.getElementById("home-greeting"),
+  titleTyping: document.getElementById("title-typing")
+};
+
+let envApiKey = "";
+let openTabs = [];
+let activeTabPath = null;
+let currentView = "home";
+let sidebarVisible = true;
+let sidebarPanel = "outline";
+let chatVisible = true;
+let apiProfiles = [];
+const tabViewState = new Map();
+const tabActionHandlers = {
+  onActivate: null,
+  onHome: null,
+  onSettings: null,
+  onClose: null,
+  onAdd: null
+};
+
+function setStatus(text) {
+  if (elements.statusText) {
+    elements.statusText.textContent = text;
+  }
+  if (elements.statusToast) {
+    elements.statusToast.classList.add("show");
+    clearTimeout(elements.statusToast.hideTimeout);
+    elements.statusToast.hideTimeout = setTimeout(() => {
+      elements.statusToast.classList.remove("show");
+    }, 4000);
+  }
+}
+
+function setActiveNav(button) {
+  [elements.navHome, elements.navReader, elements.navSettings].forEach((item) => item.classList.remove("active"));
+  button.classList.add("active");
+}
+
+function syncLayoutToggles() {
+  const hasPdf = Boolean(activeTabPath);
+  const isReader = currentView === "reader" && hasPdf;
+  const showSidebar = isReader && sidebarVisible;
+  const showChat = isReader && chatVisible;
+
+  elements.welcomeScreen.classList.toggle("visible", currentView === "home");
+  elements.settingsScreen.classList.toggle("visible", currentView === "settings");
+  elements.readerLayout.classList.toggle("visible", isReader);
+  elements.readerLayout.classList.toggle("sidebar-hidden", !showSidebar);
+  elements.readerSidebar.classList.toggle("hidden", !showSidebar);
+  elements.outlineBlock.classList.toggle("visible", showSidebar && sidebarPanel === "outline");
+  elements.thumbsBlock.classList.toggle("visible", showSidebar && sidebarPanel === "thumbs");
+  elements.appShell.classList.toggle("home-mode", currentView !== "reader");
+  elements.appShell.classList.toggle("chat-hidden", !showChat);
+
+  elements.navHome.classList.toggle("active", currentView === "home");
+  elements.navReader.classList.toggle("active", currentView === "reader");
+  elements.navSettings.classList.toggle("active", currentView === "settings");
+  elements.navOutline.classList.toggle("active", showSidebar && sidebarPanel === "outline");
+  elements.navThumbs.classList.toggle("active", showSidebar && sidebarPanel === "thumbs");
+  elements.navChat.classList.toggle("active", showChat);
+}
+
+function showWelcome() {
+  currentView = "home";
+  syncLayoutToggles();
+  renderTabs();
+}
+
+function showSettings() {
+  currentView = "settings";
+  syncLayoutToggles();
+  renderTabs();
+}
+
+function showReader() {
+  currentView = "reader";
+  syncLayoutToggles();
+  renderTabs();
+}
+
+function setActiveModeButton(mode) {
+  const map = {
+    single: elements.modeSingleBtn,
+    two: elements.modeTwoBtn,
+    scroll: elements.modeScrollBtn
+  };
+
+  [elements.modeSingleBtn, elements.modeTwoBtn, elements.modeScrollBtn].forEach((btn) => {
+    btn.classList.remove("active");
+  });
+
+  if (map[mode]) {
+    map[mode].classList.add("active");
+  }
+}
+
+function tabFileName(path) {
+  return path.split(/[/\\]/).pop() || "Untitled";
+}
+
+function renderTabs(
+  onActivate = tabActionHandlers.onActivate,
+  onHome = tabActionHandlers.onHome,
+  onSettings = tabActionHandlers.onSettings,
+  onClose = tabActionHandlers.onClose,
+  onAdd = tabActionHandlers.onAdd
+) {
+  elements.pdfTabs.innerHTML = "";
+
+  const homeTab = document.createElement("button");
+  homeTab.type = "button";
+  homeTab.className = `pdf-tab ${currentView === "home" ? "active" : ""}`;
+  homeTab.innerHTML = `<span class="tab-title"><i class="fa-solid fa-house"></i> Home</span>`;
+  homeTab.addEventListener("click", onHome);
+  elements.pdfTabs.appendChild(homeTab);
+
+  const settingsTab = document.createElement("button");
+  settingsTab.type = "button";
+  settingsTab.className = `pdf-tab ${currentView === "settings" ? "active" : ""}`;
+  settingsTab.innerHTML = `<span class="tab-title"><i class="fa-solid fa-gear"></i> Settings</span>`;
+  settingsTab.addEventListener("click", onSettings);
+  elements.pdfTabs.appendChild(settingsTab);
+
+  openTabs.forEach((path) => {
+    const tab = document.createElement("button");
+    tab.type = "button";
+    tab.className = `pdf-tab ${currentView === "reader" && path === activeTabPath ? "active" : ""}`;
+
+    const title = document.createElement("span");
+    title.className = "tab-title";
+    title.textContent = tabFileName(path);
+    title.title = path;
+    tab.appendChild(title);
+
+    const close = document.createElement("button");
+    close.className = "tab-close";
+    close.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+    close.title = "Close tab";
+    close.addEventListener("click", (event) => {
+      event.stopPropagation();
+      onClose(path);
+    });
+    tab.appendChild(close);
+
+    tab.addEventListener("click", () => onActivate(path));
+    elements.pdfTabs.appendChild(tab);
+  });
+
+  const addTab = document.createElement("button");
+  addTab.type = "button";
+  addTab.className = "pdf-tab tab-add";
+  addTab.title = "Open PDF in new tab";
+  addTab.innerHTML = '<i class="fa-solid fa-plus"></i>';
+  addTab.addEventListener("click", onAdd);
+  elements.pdfTabs.appendChild(addTab);
+}
+
+function renderRecents(onPick) {
+  const recents = getRecents().slice(0, 5);
+  elements.recentList.innerHTML = "";
+
+  if (recents.length === 0) {
+    const item = document.createElement("li");
+    item.textContent = "No recent PDFs yet.";
+    item.style.color = "var(--text-soft)";
+    elements.recentList.appendChild(item);
+    return;
+  }
+
+  recents.forEach((path) => {
+    const li = document.createElement("li");
+    const btn = document.createElement("button");
+    btn.className = "recent-item-btn";
+    btn.innerHTML = `
+      <span class="recent-item-name">${tabFileName(path)}</span>
+      <span class="recent-item-path">${path}</span>
+    `;
+    btn.title = path;
+    btn.addEventListener("click", () => onPick(path));
+    li.appendChild(btn);
+    elements.recentList.appendChild(li);
+  });
+}
+
+function getSelectionTextInTextLayer() {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0) {
+    return "";
+  }
+
+  let node = selection.getRangeAt(0).commonAncestorContainer;
+  while (node) {
+    if (node.classList && node.classList.contains("textLayer")) {
+      return selection.toString().trim();
+    }
+    node = node.parentNode;
+  }
+
+  return "";
+}
+
+function getMaskedKey(key) {
+  if (!key) {
+    return "";
+  }
+
+  if (key.length <= 10) {
+    return "•".repeat(Math.max(4, key.length));
+  }
+
+  return `${key.slice(0, 6)}${"•".repeat(Math.max(6, key.length - 12))}${key.slice(-4)}`;
+}
+
+function getCurrentChatConfig() {
+  const profiles = getApiProfiles();
+  const selectedId = getActiveApiProfileId();
+  const selectedProfile = profiles.find((profile) => profile.id === selectedId) || profiles[0] || null;
+
+  return {
+    apiKey: selectedProfile?.key || envApiKey || getGeminiApiKeyLocal(),
+    apiKeyLabel: selectedProfile?.label || (envApiKey ? "Environment key" : "No key selected"),
+    model: getChatModel()
+  };
+}
+
+function renderThemeSettings() {
+  const currentMode = getTheme() || "dark";
+  elements.settingsThemeMode.value = currentMode;
+  
+  const customColor = localStorage.getItem("custom-accent-color") || "#37c2b5";
+  elements.settingsCustomColor.value = customColor;
+}
+
+function applyCustomColor(color) {
+  document.documentElement.style.setProperty("--accent", color);
+  
+  const adjust = (c, amount) => {
+    return '#' + c.replace(/^#/, '').replace(/../g, c => 
+      ('0'+Math.min(255, Math.max(0, parseInt(c, 16) + amount)).toString(16)).substr(-2)
+    );
+  };
+  document.documentElement.style.setProperty("--accent-strong", adjust(color, -20));
+
+  const mode = document.documentElement.getAttribute("data-theme") || "dark";
+  if (mode === "dark") {
+    document.documentElement.style.setProperty("--chip", `color-mix(in srgb, ${color} 20%, transparent)`);
+    document.documentElement.style.setProperty("--bg", `color-mix(in srgb, ${color} 3%, #0a0e14)`);
+    document.documentElement.style.setProperty("--panel", `color-mix(in srgb, ${color} 5%, #131820)`);
+    document.documentElement.style.setProperty("--panel-soft", `color-mix(in srgb, ${color} 7%, #1a202a)`);
+    document.documentElement.style.setProperty("--line", `color-mix(in srgb, ${color} 15%, #252d3a)`);
+    document.documentElement.style.setProperty("--activity", `color-mix(in srgb, ${color} 4%, #080b10)`);
+  } else {
+    document.documentElement.style.setProperty("--chip", `color-mix(in srgb, ${color} 15%, transparent)`);
+    document.documentElement.style.setProperty("--bg", `color-mix(in srgb, ${color} 3%, #f2f5f9)`);
+    document.documentElement.style.setProperty("--panel", `color-mix(in srgb, ${color} 2%, #ffffff)`);
+    document.documentElement.style.setProperty("--panel-soft", `color-mix(in srgb, ${color} 5%, #f6f8fb)`);
+    document.documentElement.style.setProperty("--line", `color-mix(in srgb, ${color} 12%, #dce2eb)`);
+    document.documentElement.style.setProperty("--activity", `color-mix(in srgb, ${color} 4%, #f8fafd)`);
+  }
+}
+
+function renderSettings() {
+  apiProfiles = getApiProfiles();
+  const activeId = getActiveApiProfileId() || apiProfiles[0]?.id || "";
+  if (activeId && !apiProfiles.some((profile) => profile.id === activeId)) {
+    setActiveApiProfileId(apiProfiles[0]?.id || "");
+  }
+
+  elements.settingsActiveApi.innerHTML = "";
+  if (apiProfiles.length === 0) {
+    const fallback = document.createElement("option");
+    fallback.value = "";
+    fallback.textContent = envApiKey ? "Environment key" : "No key saved";
+    elements.settingsActiveApi.appendChild(fallback);
+  } else {
+    apiProfiles.forEach((profile) => {
+      const option = document.createElement("option");
+      option.value = profile.id;
+      option.textContent = profile.label;
+      elements.settingsActiveApi.appendChild(option);
+    });
+  }
+  elements.settingsActiveApi.value = getActiveApiProfileId() || apiProfiles[0]?.id || "";
+
+  elements.settingsChatModel.value = getChatModel();
+  
+  renderThemeSettings();
+
+  elements.settingsApiList.innerHTML = "";
+  if (apiProfiles.length === 0) {
+    const empty = document.createElement("li");
+    empty.className = "settings-api-item";
+    empty.textContent = "No API keys added yet. Use the form above or rely on the environment key.";
+    elements.settingsApiList.appendChild(empty);
+  } else {
+    apiProfiles.forEach((profile) => {
+      const item = document.createElement("li");
+      item.className = "settings-api-item";
+
+      const meta = document.createElement("div");
+      meta.className = "settings-api-meta";
+      meta.innerHTML = `
+        <div class="settings-api-label">${profile.label}</div>
+        <div class="settings-api-key">${getMaskedKey(profile.key)}</div>
+      `;
+
+      const actions = document.createElement("div");
+      actions.className = "settings-api-actions";
+
+      const useBtn = document.createElement("button");
+      useBtn.className = "btn";
+      useBtn.textContent = "Use";
+      useBtn.addEventListener("click", () => {
+        setActiveApiProfileId(profile.id);
+        renderSettings();
+      });
+
+      const deleteBtn = document.createElement("button");
+      deleteBtn.className = "btn";
+      deleteBtn.textContent = "Remove";
+      deleteBtn.addEventListener("click", () => {
+        removeApiProfile(profile.id);
+        renderSettings();
+      });
+
+      actions.appendChild(useBtn);
+      actions.appendChild(deleteBtn);
+      item.appendChild(meta);
+      item.appendChild(actions);
+      elements.settingsApiList.appendChild(item);
+    });
+  }
+}
+
+function addApiKeyFromSettings() {
+  const label = elements.settingsApiLabel.value.trim() || `Key ${apiProfiles.length + 1}`;
+  const key = elements.settingsApiKey.value.trim();
+
+  if (!key) {
+    setStatus("Paste an API key before adding it.");
+    return;
+  }
+
+  const id = `api-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  upsertApiProfile({ id, label, key });
+  setActiveApiProfileId(id);
+  elements.settingsApiLabel.value = "";
+  elements.settingsApiKey.value = "";
+  renderSettings();
+  setStatus("API key saved.");
+}
+
+async function tryGetEnvApiKey() {
+  if (!window.electronAPI || !window.electronAPI.getGeminiApiKey) {
+    return;
+  }
+
+  try {
+    envApiKey = await window.electronAPI.getGeminiApiKey();
+  } catch {
+    envApiKey = "";
+  }
+}
+
+async function boot() {
+  applyTheme();
+  const customColor = localStorage.getItem("custom-accent-color");
+  if (customColor) applyCustomColor(customColor);
+  
+  await tryGetEnvApiKey();
+  elements.fitModeSelect.value = "auto";
+
+  const pdf = new PdfController({
+    canvas: elements.canvas,
+    textLayerDiv: elements.textLayer,
+    pdfViewer: elements.pdfViewer,
+    multiView: elements.multiView,
+    pageNumEl: elements.pageNumEl,
+    pageCountEl: elements.pageCountEl,
+    zoomInput: elements.zoomInput,
+    fitModeSelect: elements.fitModeSelect,
+    stageElement: elements.pdfStage,
+    prevBtn: elements.prevBtn,
+    nextBtn: elements.nextBtn,
+    outlineList: elements.outlineList,
+    thumbnailList: elements.thumbnailList,
+    onStatus: setStatus,
+    onPathChange: (name) => {
+      elements.activeFileLabel.textContent = name;
+    },
+    onRendered: (meta) => {
+      setActiveModeButton(meta.mode);
+      if (meta.annotationSupported) {
+        annotation.setEnabled(true);
+        annotation.resizeTo(elements.canvas.width, elements.canvas.height);
+        annotation.loadPageAnnotations();
+      } else {
+        annotation.setEnabled(false);
+        snip.stop();
+      }
+
+      elements.screenshotBtn.disabled = !meta.annotationSupported;
+    }
+  });
+
+  const annotation = new AnnotationController({
+    canvas: elements.annotationCanvas,
+    pdfViewer: elements.pdfViewer,
+    textLayer: elements.textLayer,
+    penControls: elements.penControls,
+    highlighterControls: elements.highlighterControls,
+    penColorInput: elements.penColorInput,
+    penWidthInput: elements.penWidthInput,
+    highlighterColorInput: elements.highlighterColorInput,
+    highlighterWidthInput: elements.highlighterWidthInput,
+    penButtons: elements.penButtons,
+    highlighterButtons: elements.highlighterButtons,
+    eraserButton: elements.eraserBtn,
+    onStatus: setStatus,
+    getStorageKey: () => `pdf-annotations:${pdf.getCurrentPath()}:page-${pdf.getPageNum()}`
+  });
+
+  const chat = new ChatController({
+    chatHistory: elements.chatHistory,
+    chatInput: elements.chatInput,
+    chatSend: elements.chatSend,
+    selectedTextBox: elements.selectedTextBox,
+    imagePreviewContainer: elements.imagePreviewContainer,
+    onStatus: setStatus,
+    getChatConfig: getCurrentChatConfig
+  });
+
+  const snip = new SnipController({
+    pdfViewer: elements.pdfViewer,
+    pdfCanvas: elements.canvas,
+    screenshotBtn: elements.screenshotBtn,
+    selection: elements.snipSelection,
+    onImage: (dataUrl) => chat.attachImage(dataUrl),
+    onStatus: setStatus,
+    onEnter: () => {
+      annotation.stopMode();
+      window.getSelection()?.removeAllRanges();
+      chat.clearSelectedText();
+    },
+    onExit: () => {}
+  });
+
+  function renderAll() {
+    renderSettings();
+    renderTabs(activateTab, showWelcome, showSettings, closeTab, openPdfDialog);
+    syncLayoutToggles();
+  }
+
+  tabActionHandlers.onActivate = activateTab;
+  tabActionHandlers.onHome = showWelcome;
+  tabActionHandlers.onSettings = showSettings;
+  tabActionHandlers.onClose = closeTab;
+  tabActionHandlers.onAdd = openPdfDialog;
+
+  chat.bindEvents();
+  annotation.bindEvents();
+  snip.bindEvents();
+
+  async function activateTab(path) {
+    if (!path) {
+      return;
+    }
+
+    if (activeTabPath && activeTabPath !== path && pdf.hasDocument()) {
+      tabViewState.set(activeTabPath, pdf.getViewState());
+    }
+
+    activeTabPath = path;
+    const savedState = tabViewState.get(path) || null;
+    await pdf.load(path, savedState);
+    await chat.loadPdfHistory(path);
+    chat.setEnabled(currentView === "reader" && chatVisible);
+    showReader();
+    renderAll();
+  }
+
+  async function openTab(path) {
+    if (!openTabs.includes(path)) {
+      openTabs.push(path);
+    }
+
+    await activateTab(path);
+    pushRecent(path);
+    renderRecents(loadRecent);
+  }
+
+  function closeTab(path) {
+    const index = openTabs.indexOf(path);
+    if (index === -1) {
+      return;
+    }
+
+    openTabs.splice(index, 1);
+    tabViewState.delete(path);
+
+    if (activeTabPath === path) {
+      if (openTabs.length > 0) {
+        const nextIndex = Math.max(0, index - 1);
+        activateTab(openTabs[nextIndex]);
+      } else {
+        activeTabPath = null;
+        currentView = "home";
+        chat.resetUi();
+        chat.setEnabled(false);
+        showWelcome();
+      }
+    }
+
+    renderAll();
+  }
+
+  async function openPdfDialog() {
+    if (!window.electronAPI || !window.electronAPI.openPDF) {
+      setStatus("Open dialog unavailable.");
+      return;
+    }
+
+    const path = await window.electronAPI.openPDF();
+    if (!path) {
+      return;
+    }
+
+    await openTab(path);
+  }
+
+  function loadRecent(path) {
+    openTab(path);
+  }
+
+  elements.welcomeOpenBtn.addEventListener("click", openPdfDialog);
+  elements.welcomeSettingsBtn.addEventListener("click", showSettings);
+  elements.welcomeSampleBtn.addEventListener("click", async () => {
+    await openTab("./sample2.pdf");
+  });
+
+  elements.settingsApiAdd.addEventListener("click", addApiKeyFromSettings);
+  elements.settingsActiveApi.addEventListener("change", () => {
+    setActiveApiProfileId(elements.settingsActiveApi.value);
+    renderSettings();
+  });
+  elements.settingsChatModel.addEventListener("change", () => {
+    setChatModel(elements.settingsChatModel.value);
+    renderSettings();
+  });
+  elements.settingsThemeMode.addEventListener("change", () => {
+    setTheme(elements.settingsThemeMode.value);
+    applyTheme();
+    const custom = localStorage.getItem("custom-accent-color");
+    if (custom) applyCustomColor(custom);
+    renderSettings();
+  });
+  
+  elements.settingsCustomColor.addEventListener("input", (e) => {
+    const color = e.target.value;
+    localStorage.setItem("custom-accent-color", color);
+    applyCustomColor(color);
+  });
+  
+  elements.resetColorBtn.addEventListener("click", () => {
+    localStorage.removeItem("custom-accent-color");
+    applyTheme();
+    renderSettings();
+  });
+
+  elements.prevBtn.addEventListener("click", () => pdf.prevPage());
+  elements.nextBtn.addEventListener("click", () => pdf.nextPage());
+  elements.zoomInBtn.addEventListener("click", () => pdf.setScale((parseFloat(elements.zoomInput.value) || 150) / 100 + 0.1));
+  elements.zoomOutBtn.addEventListener("click", () => pdf.setScale((parseFloat(elements.zoomInput.value) || 150) / 100 - 0.1));
+  elements.zoomInput.addEventListener("change", () => pdf.setScaleFromInput(elements.zoomInput.value));
+
+  elements.modeSingleBtn.addEventListener("click", () => pdf.setViewMode("single"));
+  elements.modeTwoBtn.addEventListener("click", () => pdf.setViewMode("two"));
+  elements.modeScrollBtn.addEventListener("click", () => pdf.setViewMode("scroll"));
+
+  elements.navHome.addEventListener("click", showWelcome);
+  elements.navReader.addEventListener("click", () => {
+    if (!activeTabPath) {
+      showWelcome();
+      return;
+    }
+    showReader();
+    chat.setEnabled(chatVisible);
+  });
+  elements.navSettings.addEventListener("click", showSettings);
+  elements.navOutline.addEventListener("click", () => {
+    if (!activeTabPath) {
+      setStatus("Open a PDF tab before showing outline.");
+      return;
+    }
+
+    sidebarVisible = !(sidebarVisible && sidebarPanel === "outline");
+    sidebarPanel = "outline";
+    showReader();
+  });
+  elements.navThumbs.addEventListener("click", () => {
+    if (!activeTabPath) {
+      setStatus("Open a PDF tab before showing thumbnails.");
+      return;
+    }
+
+    sidebarVisible = !(sidebarVisible && sidebarPanel === "thumbs");
+    sidebarPanel = "thumbs";
+    showReader();
+  });
+  elements.navChat.addEventListener("click", () => {
+    if (!activeTabPath) {
+      setStatus("Open a PDF tab before using chat.");
+      return;
+    }
+
+    chatVisible = !chatVisible;
+    chat.setEnabled(currentView === "reader" && chatVisible);
+    showReader();
+    if (chatVisible) {
+      elements.chatInput.focus();
+    }
+  });
+
+  document.addEventListener("selectionchange", () => {
+    if (currentView === "home" || currentView === "settings" || snip.isSnipping || annotation.isAnnotating) {
+      return;
+    }
+
+    const selectedText = getSelectionTextInTextLayer();
+    if (selectedText) {
+      chat.setSelectedText(selectedText);
+      return;
+    }
+
+    if (elements.chatPanel.contains(document.activeElement)) {
+      return;
+    }
+
+    chat.clearSelectedText();
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      snip.stop();
+      annotation.stopMode();
+      setStatus("Ready.");
+    }
+
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "o") {
+      event.preventDefault();
+      openPdfDialog();
+    }
+  });
+
+  renderRecents(loadRecent);
+  renderSettings();
+  renderAll();
+  chat.setEnabled(false);
+  setActiveModeButton("single");
+  showWelcome();
+  setStatus("Ready. Open a PDF to start reading.");
+}
+
+window.addEventListener("load", boot);

@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Thinker</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  </script>
+  <script type="module">
+    import { marked } from "https://cdn.jsdelivr.net/npm/marked@11.1.1/lib/marked.esm.js";
+    window.marked = marked;
+  </script>
+  <script src="https://kit.fontawesome.com/b43b64dde2.js" crossorigin="anonymous"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf_viewer.min.css"/>
+</head>
+<body>
+  <div class="custom-title-bar">
+    <div class="title-brand">
+      <span class="title-mark"></span>
+      <div>
+        <div class="title-name">Thinker</div>
+        <!-- <div class="title-subtitle">Hey there, how are you doing?</div> -->
+      </div>
+    </div>
+    <!-- <div class="title-typing" id="title-typing">Typing a better way to read PDFs.</div> -->
+  </div>
+  <div class="app-shell">
+    <nav class="activity-bar" aria-label="Primary navigation">
+      <button class="activity-btn active" id="nav-home" title="Home"><i class="fa-solid fa-house"></i></button>
+      <button class="activity-btn" id="nav-reader" title="Reader"><i class="fa-solid fa-file-pdf"></i></button>
+      <button class="activity-btn" id="nav-settings" title="Settings"><i class="fa-solid fa-gear"></i></button>
+      <button class="activity-btn" id="nav-outline" title="Toggle table of contents"><i class="fa-solid fa-list"></i></button>
+      <button class="activity-btn" id="nav-thumbs" title="Toggle thumbnails"><i class="fa-regular fa-images"></i></button>
+      <button class="activity-btn" id="nav-chat" title="Toggle chat"><i class="fa-solid fa-comments"></i></button>
+    </nav>
+
+    <main class="workspace">
+      <header class="top-bar">
+        <div class="window-meta">
+          <h1>Reader</h1>
+          <p id="active-file-label">No file open</p>
+        </div>
+
+        <div class="toolbar-center">
+          <div class="tool-group">
+            <button class="btn icon-btn" id="prev-page" title="Previous page"><i class="fas fa-arrow-left"></i></button>
+            <button class="btn icon-btn" id="next-page" title="Next page"><i class="fas fa-arrow-right"></i></button>
+            <span class="page-info">Page <span id="page-num">0</span>/<span id="page-count">0</span></span>
+          </div>
+
+          <div class="tool-group">
+            <button class="btn icon-btn" id="zoom-out" title="Zoom out"><i class="fa-solid fa-magnifying-glass-minus"></i></button>
+            <input type="text" id="zoom-percent" value="150%" aria-label="Zoom level" />
+            <button class="btn icon-btn" id="zoom-in" title="Zoom in"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
+            <select id="fit-mode" class="fit-select" title="Fit mode">
+              <option value="auto" selected>Fit: Auto</option>
+              <option value="width">Fit: Width</option>
+              <option value="actual">Fit: Actual</option>
+            </select>
+          </div>
+
+          <div class="tool-group">
+            <button class="btn icon-btn tool-btn" id="pen-1" title="Pen"><i class="fa-solid fa-pen"></i></button>
+            <button class="btn icon-btn tool-btn" id="pen-2" title="Pen"><i class="fa-solid fa-pen"></i></button>
+            <button class="btn icon-btn tool-btn" id="pen-3" title="Pen"><i class="fa-solid fa-pen"></i></button>
+            <button class="btn icon-btn tool-btn" id="highlighter-1" title="Highlighter"><i class="fa-solid fa-highlighter"></i></button>
+            <button class="btn icon-btn tool-btn" id="highlighter-2" title="Highlighter"><i class="fa-solid fa-highlighter"></i></button>
+            <button class="btn icon-btn tool-btn" id="eraser-btn" title="Eraser"><i class="fa-solid fa-eraser"></i></button>
+            <button class="btn icon-btn" id="screenshot-btn" title="Take screenshot"><i class="fa-solid fa-camera"></i></button>
+          </div>
+        </div>
+
+        <div class="view-mode-group">
+          <button class="btn mode-btn active" id="mode-single" title="Single page"><i class="fa-regular fa-file"></i></button>
+          <button class="btn mode-btn" id="mode-two" title="Two pages"><i class="fa-solid fa-book-open"></i></button>
+          <button class="btn mode-btn" id="mode-scroll" title="Scroll view"><i class="fa-solid fa-scroll"></i></button>
+        </div>
+      </header>
+
+      <section class="control-strip" id="control-strip" style="display: none;">
+        <div id="pen-controls" class="tool-controls">
+          <label>Pen color <input type="color" id="pen-color" value="#222222"></label>
+          <label>Pen width <input type="range" id="pen-width" min="1" max="12" value="2"></label>
+        </div>
+
+        <div id="highlighter-controls" class="tool-controls">
+          <label>Highlight color <input type="color" id="highlighter-color" value="#ffff00"></label>
+          <label>Width <input type="range" id="highlighter-width" min="8" max="32" value="12"></label>
+        </div>
+      </section>
+
+      <section class="pdf-tabs" id="pdf-tabs"></section>
+
+      <section class="welcome-screen" id="welcome-screen">
+        <div class="welcome-grid">
+          <div class="welcome-card welcome-hero">
+            <div class="hero-badge">AI PDF Companion</div>
+            <h2 id="home-greeting" class="typing-text">Hey there, how are you doing?</h2>
+            <p class="welcome-hero-copy">Open a PDF and talk to it like a conversation. Compare, annotate, and pick up where you left off.</p>
+            <div class="welcome-actions">
+              <button class="btn primary" id="welcome-open-btn"><i class="fa-solid fa-folder-open"></i> Open New PDF</button>
+              <button class="btn" id="welcome-settings-btn"><i class="fa-solid fa-gear"></i> Settings</button>
+              <button class="btn" id="welcome-sample-btn"><i class="fa-solid fa-file-pdf"></i> Open Sample PDF</button>
+            </div>
+          </div>
+
+          <div class="welcome-card recent-card">
+            <div class="card-head">
+              <h3>Recently Opened</h3>
+              <span>Top 5</span>
+            </div>
+            <ul id="recent-list"></ul>
+          </div>
+
+          <div class="welcome-card tips-card">
+            <h3>What this workspace does</h3>
+            <p><strong>Chat</strong> Ask questions from selected PDF text.</p>
+            <p><strong>Tabs</strong> Keep multiple PDFs open and switch instantly.</p>
+            <p><strong>Palette</strong> Tune the look from Settings.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="settings-screen" id="settings-screen">
+        <div class="settings-grid">
+          <div class="settings-card settings-hero">
+            <div class="hero-badge">Settings Tab</div>
+            <h2>Make the app yours</h2>
+            <p>Manage multiple API keys, choose the chat model, and try different palettes without leaving the workspace.</p>
+          </div>
+
+          <div class="settings-card settings-api-card">
+            <div class="card-head">
+              <h3>API Keys</h3>
+              <span>Chat source</span>
+            </div>
+            <div class="settings-inline-form">
+              <input type="text" id="settings-api-label" placeholder="Label, like Work or Personal" />
+              <input type="password" id="settings-api-key" placeholder="Paste Gemini API key" />
+              <button class="btn primary" id="settings-api-add">Add key</button>
+            </div>
+            <label class="settings-select-row">Active key
+              <select id="settings-active-api"></select>
+            </label>
+            <ul id="settings-api-list" class="settings-api-list"></ul>
+          </div>
+
+          <div class="settings-card">
+            <div class="card-head">
+              <h3>Model</h3>
+              <span>Used by chat</span>
+            </div>
+            <label class="settings-select-row">Chat model
+              <select id="settings-chat-model">
+                <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite</option>
+                <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+                <option value="gemini-2.0-pro">Gemini 2.0 Pro</option>
+              </select>
+            </label>
+            <p class="settings-note">The selected key and model are used automatically when you send a chat message.</p>
+          </div>
+
+          <div class="settings-card">
+            <div class="card-head">
+              <h3>Appearance</h3>
+              <span>Look and feel</span>
+            </div>
+            <label class="settings-select-row">Theme Mode
+              <select id="settings-theme-mode">
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+              </select>
+            </label>
+            <label class="settings-select-row" style="margin-top: 10px;">Theme Accent Color
+              <div style="display: flex; gap: 10px; align-items: center;">
+                <input type="color" id="settings-custom-color" value="#37c2b5" style="width: 100%; height: 38px; padding: 2px;">
+                <button class="btn" id="reset-color-btn" title="Reset to default" style="flex: 0 0 auto;"><i class="fa-solid fa-rotate-left"></i></button>
+              </div>
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <section class="reader-layout" id="reader-layout">
+        <aside class="reader-sidebar" id="reader-sidebar">
+          <div class="sidebar-block" id="outline-block">
+            <h4>Table of Contents</h4>
+            <ul id="outline-list" class="jump-list"></ul>
+          </div>
+
+          <div class="sidebar-block" id="thumbs-block">
+            <h4>Page Thumbnails</h4>
+            <div id="thumbnail-list" class="thumb-list"></div>
+          </div>
+        </aside>
+
+        <div class="pdf-stage" id="pdf-stage">
+          <div class="pdf-container">
+            <div id="pdf-viewer" class="pdf-viewer">
+              <canvas id="pdf-render"></canvas>
+              <canvas id="annotation-canvas" style="position: absolute; left: 0; top: 0; pointer-events: none;"></canvas>
+              <div id="text-layer" class="textLayer"></div>
+              <div id="snip-selection" style="display: none;"></div>
+            </div>
+
+            <div id="pdf-multi-view" class="pdf-multi-view"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <aside class="chat-container" id="chat-panel">
+      <div class="chat-header">
+        <h2>PDF Chat</h2>
+        <p>Ask questions using selected text or snippets.</p>
+      </div>
+
+      <div class="chat-history" id="chat-history"></div>
+
+      <div class="chat-input-row">
+        <div id="image-preview-container" style="display:none;"></div>
+        <div id="selected-text-box" class="selected-text-box" style="display:none;"></div>
+        <div class="input-send-row">
+          <input type="text" id="chat-input" placeholder="Ask something about this PDF..." />
+          <button id="chat-send">Send</button>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <div id="status-toast" class="status-toast">
+    <i class="fa-solid fa-info-circle"></i>
+    <p id="status-text">Ready. Open a PDF to start reading.</p>
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

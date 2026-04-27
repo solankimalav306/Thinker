@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Python virtual env
+venv/
+
+# Logs and temp
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
