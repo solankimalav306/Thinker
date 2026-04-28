@@ -134,7 +134,7 @@ input {
 
 .app-shell {
   display: grid;
-  grid-template-columns: 56px 1fr 390px;
+  grid-template-columns: 56px 1fr var(--chat-width, 390px);
   height: calc(100vh - 34px);
   overflow: hidden;
 }
@@ -777,7 +777,7 @@ input {
   display: none;
   flex: 1;
   min-height: 0;
-  grid-template-columns: 250px 1fr;
+  grid-template-columns: var(--sidebar-width, 250px) 1fr;
 }
 
 .reader-layout.visible {
@@ -789,6 +789,7 @@ input {
 }
 
 .reader-sidebar {
+  position: relative;
   border-right: 1px solid var(--line);
   background: var(--panel);
   padding: 10px;
@@ -1059,13 +1060,17 @@ body.snipping-active #text-layer {
 }
 
 #chat-send {
-  min-width: 78px;
+  min-width: 42px;
+  width: 42px;
   border: 0;
   border-radius: 10px;
   background: var(--accent);
   color: #fff;
   font-weight: 700;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 #chat-send:hover {
@@ -1242,4 +1247,209 @@ body.snipping-active #text-layer {
 .pdf-page-text-layer span::-moz-selection {
   background: color-mix(in srgb, var(--accent) 35%, transparent) !important;
   color: transparent !important;
+}
+
+/* Citations */
+.citation-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin: 0 2px;
+  cursor: pointer;
+  vertical-align: baseline;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+  background: transparent;
+  font-family: inherit;
+}
+
+.citation-tag.page-citation {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.citation-tag.page-citation:hover {
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.citation-tag.ai-citation {
+  background: linear-gradient(135deg, rgba(142,68,173,0.15) 0%, rgba(52,152,219,0.15) 100%);
+  color: #b062d1;
+  border: 1px solid rgba(142, 68, 173, 0.3);
+  box-shadow: 0 2px 6px rgba(142, 68, 173, 0.1);
+  border-radius: 6px;
+}
+
+:root[data-theme="light"] .citation-tag.ai-citation {
+  background: linear-gradient(135deg, rgba(142,68,173,0.08) 0%, rgba(52,152,219,0.08) 100%);
+  color: #8e44ad;
+}
+
+/* Chat Input Bottom Row */
+.chat-controls-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 0 4px;
+}
+
+.chat-bottom-select {
+  background: transparent;
+  color: var(--text-soft);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  padding: 2px 4px;
+  cursor: pointer;
+  outline: none;
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+.chat-bottom-select:hover,
+.chat-bottom-select:focus {
+  background: var(--panel-soft);
+  color: var(--text);
+  border-color: var(--line);
+}
+.chat-bottom-select option {
+  background: var(--panel);
+  color: var(--text);
+}
+
+/* AI Insights Header */
+.ai-insights-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #b062d1;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(142, 68, 173, 0.2);
+}
+
+:root[data-theme="light"] .ai-insights-header {
+  color: #8e44ad;
+}
+
+.ai-insights-header.doc-only-header {
+  color: var(--accent);
+  border-bottom-color: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+/* Typing Indicator */
+.typing-dots {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+}
+
+.typing-dots span {
+  width: 6px;
+  height: 6px;
+  background-color: var(--text-soft);
+  border-radius: 50%;
+  animation: typing 1.4s infinite ease-in-out both;
+}
+
+.typing-dots span:nth-child(1) { animation-delay: -0.32s; }
+.typing-dots span:nth-child(2) { animation-delay: -0.16s; }
+
+@keyframes typing {
+  0%, 80%, 100% { transform: scale(0); opacity: 0.5; }
+  40% { transform: scale(1); opacity: 1; }
+}
+
+/* Token Usage Dashboard */
+.token-stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.78rem;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--line);
+  gap: 8px;
+}
+
+.token-stat-row:last-child {
+  border-bottom: none;
+}
+
+.token-stat-label {
+  color: var(--text-soft);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.token-stat-value {
+  font-family: monospace;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.token-stat-total .token-stat-label,
+.token-stat-total .token-stat-value {
+  color: var(--accent);
+  font-size: 0.85rem;
+}
+
+.token-usage-bar-wrap {
+  margin-top: 4px;
+}
+
+.token-usage-bar {
+  display: flex;
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--panel-soft);
+}
+
+.token-bar-prompt {
+  background: var(--accent);
+  transition: width 0.4s ease;
+}
+
+.token-bar-response {
+  background: #b062d1;
+  transition: width 0.4s ease;
+}
+
+/* Resizers */
+.resizer {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  width: 6px;
+  z-index: 50;
+  background: transparent;
+  transition: background 0.2s;
+}
+
+.resizer:hover, .resizer.dragging {
+  background: var(--accent);
+}
+
+.chat-resizer {
+  left: -3px;
+  cursor: ew-resize;
+}
+
+.sidebar-resizer {
+  right: -3px;
+  cursor: ew-resize;
+}
+
+.chat-container {
+  position: relative;
 }

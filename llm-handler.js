@@ -142,7 +142,8 @@ async function handleLLMGenerate(_event, payload) {
 
     const parsed = safeJsonParse(responseText);
     const text = parsed?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-    return { ok: true, text };
+    const usage = parsed?.usageMetadata || null;
+    return { ok: true, text, usage };
   } catch (error) {
     return { ok: false, error: error?.message || "LLM request failed." };
   }

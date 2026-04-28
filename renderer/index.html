@@ -118,11 +118,47 @@
             <ul id="recent-list"></ul>
           </div>
 
-          <div class="welcome-card tips-card">
-            <h3>What this workspace does</h3>
-            <p><strong>Chat</strong> Ask questions from selected PDF text.</p>
-            <p><strong>Tabs</strong> Keep multiple PDFs open and switch instantly.</p>
-            <p><strong>Palette</strong> Tune the look from Settings.</p>
+          <div class="welcome-card tips-card" id="token-usage-panel">
+            <div class="card-head">
+              <h3><i class="fa-solid fa-microchip" style="color: var(--accent);"></i> API Token Usage</h3>
+              <span id="token-usage-session-label" style="font-size: 0.7rem; opacity: 0.6;">This Session</span>
+            </div>
+            <div id="token-usage-body" style="display: flex; flex-direction: column; gap: 10px; margin-top: 4px;">
+              <div class="token-usage-empty" id="token-usage-empty" style="color: var(--text-soft); font-size: 0.8rem; opacity: 0.7;">
+                <i class="fa-solid fa-circle-info"></i> No messages sent yet. Token usage will appear here after you start chatting.
+              </div>
+              <div id="token-usage-stats" style="display: none; flex-direction: column; gap: 8px;">
+                <div class="token-stat-row">
+                  <span class="token-stat-label"><i class="fa-solid fa-arrow-right-to-bracket"></i> Prompt Tokens</span>
+                  <span class="token-stat-value" id="stat-prompt-tokens">0</span>
+                </div>
+                <div class="token-stat-row">
+                  <span class="token-stat-label"><i class="fa-solid fa-arrow-right-from-bracket"></i> Response Tokens</span>
+                  <span class="token-stat-value" id="stat-response-tokens">0</span>
+                </div>
+                <div class="token-stat-row token-stat-total">
+                  <span class="token-stat-label"><i class="fa-solid fa-sigma"></i> Total Tokens Used</span>
+                  <span class="token-stat-value" id="stat-total-tokens">0</span>
+                </div>
+                <div class="token-stat-row">
+                  <span class="token-stat-label"><i class="fa-solid fa-comments"></i> Total Requests</span>
+                  <span class="token-stat-value" id="stat-total-requests">0</span>
+                </div>
+                <div class="token-stat-row">
+                  <span class="token-stat-label"><i class="fa-solid fa-bolt"></i> Last Request</span>
+                  <span class="token-stat-value" id="stat-last-tokens">-</span>
+                </div>
+                <div class="token-usage-bar-wrap" title="Prompt vs Response token split">
+                  <div class="token-usage-bar">
+                    <div class="token-bar-prompt" id="bar-prompt" style="width: 50%;"></div>
+                    <div class="token-bar-response" id="bar-response" style="width: 50%;"></div>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; font-size: 0.6rem; color: var(--text-soft); margin-top: 3px;">
+                    <span>Prompt</span><span>Response</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -180,6 +216,7 @@
 
       <section class="reader-layout" id="reader-layout">
         <aside class="reader-sidebar" id="reader-sidebar">
+          <div class="resizer sidebar-resizer" id="sidebar-resizer"></div>
           <div class="sidebar-block" id="outline-block">
             <h4>Table of Contents</h4>
             <ul id="outline-list" class="jump-list"></ul>
@@ -207,10 +244,11 @@
     </main>
 
     <aside class="chat-container" id="chat-panel">
+      <div class="resizer chat-resizer" id="chat-resizer"></div>
       <div class="chat-header">
-        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
           <h2 style="margin:0;">PDF Chat</h2>
-          <select id="chat-profile-select" class="settings-select-row" style="margin:0; width: 120px; padding: 4px; font-size: 11px;"></select>
+          <button id="chat-close-btn" class="btn icon-btn" title="Close Chat" style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem;"><i class="fa-solid fa-xmark"></i></button>
         </div>
         <p>Ask questions using selected text or snippets.</p>
       </div>
@@ -222,7 +260,17 @@
         <div id="selected-text-box" class="selected-text-box" style="display:none;"></div>
         <div class="input-send-row">
           <input type="text" id="chat-input" placeholder="Ask something about this PDF..." />
-          <button id="chat-send">Send</button>
+          <button id="chat-send" title="Send message"><i class="fa-solid fa-paper-plane"></i></button>
+        </div>
+        <div class="chat-controls-row" style="display: flex; justify-content: space-between; align-items: center;">
+          <div style="display: flex; gap: 8px;">
+            <select id="chat-mode-select" class="chat-bottom-select">
+              <option value="auto" selected>Auto</option>
+              <option value="document">Document Only</option>
+            </select>
+            <select id="chat-profile-select" class="chat-bottom-select"></select>
+          </div>
+          <div id="token-tracker" style="font-size: 0.65rem; color: var(--text-soft); font-family: monospace;" title="Last Request Tokens (Prompt + Response)">Tokens: 0</div>
         </div>
       </div>
     </aside>

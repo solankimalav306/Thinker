@@ -48,6 +48,9 @@ const elements = {
   navThumbs: document.getElementById("nav-thumbs"),
   navChat: document.getElementById("nav-chat"),
   chatPanel: document.getElementById("chat-panel"),
+  chatResizer: document.getElementById("chat-resizer"),
+  sidebarResizer: document.getElementById("sidebar-resizer"),
+  chatCloseBtn: document.getElementById("chat-close-btn"),
   prevBtn: document.getElementById("prev-page"),
   nextBtn: document.getElementById("next-page"),
   zoomInBtn: document.getElementById("zoom-in"),
@@ -587,6 +590,14 @@ async function boot() {
   annotation.bindEvents();
   snip.bindEvents();
 
+  window.addEventListener("navigate-pdf-page", (event) => {
+    const pageNum = event.detail.page;
+    if (pageNum && pdf && pdf.hasDocument()) {
+      pdf.jumpToPage(pageNum);
+      // Optional: Maybe briefly highlight the page or just ensure it's in view
+    }
+  });
+
   async function activateTab(path) {
     if (!path) {
       return;
@@ -744,6 +755,57 @@ async function boot() {
     showReader();
     if (chatVisible) {
       elements.chatInput.focus();
+    }
+  });
+
+  if (elements.chatCloseBtn) {
+    elements.chatCloseBtn.addEventListener("click", () => {
+      chatVisible = false;
+      chat.setEnabled(false);
+      showReader();
+    });
+  }
+
+  let isResizingChat = false;
+  let isResizingSidebar = false;
+
+  elements.chatResizer?.addEventListener("mousedown", () => {
+    isResizingChat = true;
+    document.body.style.cursor = "ew-resize";
+    elements.chatResizer.classList.add("dragging");
+  });
+
+  elements.sidebarResizer?.addEventListener("mousedown", () => {
+    isResizingSidebar = true;
+    document.body.style.cursor = "ew-resize";
+    elements.sidebarResizer.classList.add("dragging");
+  });
+
+  document.addEventListener("mousemove", (e) => {
+    if (isResizingChat) {
+      let newWidth = window.innerWidth - e.clientX;
+      newWidth = Math.max(250, Math.min(newWidth, 800));
+      document.documentElement.style.setProperty("--chat-width", `${newWidth}px`);
+    }
+    if (isResizingSidebar) {
+      let newWidth = e.clientX - 56;
+      newWidth = Math.max(180, Math.min(newWidth, 600));
+      document.documentElement.style.setProperty("--sidebar-width", `${newWidth}px`);
+    }
+  });
+
+  document.addEventListener("mouseup", () => {
+    if (isResizingChat || isResizingSidebar) {
+      isResizingChat = false;
+      isResizingSidebar = false;
+      document.body.style.cursor = "";
+      elements.chatResizer?.classList.remove("dragging");
+      elements.sidebarResizer?.classList.remove("dragging");
+
+      if (pdf && (pdf.fitMode === "auto" || pdf.fitMode === "width")) {
+        pdf.scrollCacheKey = "";
+        pdf.queueRender(pdf.getPageNum());
+      }
     }
   });
 
