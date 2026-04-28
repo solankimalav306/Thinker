@@ -91,7 +91,7 @@ Thinker has built-in token monitoring so you never accidentally exhaust your API
 - **Toast Notifications** — Non-intrusive, themed status toasts for file events and errors.
 
 > **📸 Screenshot Placeholder — Settings Screen**
-![Settings Screen](screenshots/setting.png)
+![Settings Screen](screenshots/settings.png)
 
 ---
 
