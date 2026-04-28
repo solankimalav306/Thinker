@@ -2,8 +2,6 @@
 
 Thinker is a premium, AI-powered PDF reading and annotation desktop app built with Electron. It combines a sophisticated multi-tab reading experience with deep Gemini AI integration, letting you have real conversations with your documents — complete with source citations, AI insights, and clickable page references.
 
-![App Logo](renderer/assets/logoWhite.png)
-
 > **📸 Screenshot Placeholder — Home Screen**
 ![Home Screen](screenshots/home.png)
 
