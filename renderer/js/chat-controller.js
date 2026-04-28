@@ -160,15 +160,21 @@ export class ChatController {
   }
 
   getChatConfigOrPrompt() {
-    const config = this.getChatConfig ? this.getChatConfig() : {};
+    const config = this.getChatConfig ? this.getChatConfig() : null;
+
+    if (config?.profile) {
+      return config;
+    }
+
     if (config?.apiKey) {
       return config;
     }
 
-    const entered = window.prompt("Enter Gemini API key (saved locally in app):");
+    const entered = window.prompt("Enter API key (optional for local or profile-based providers):");
     if (entered && entered.trim()) {
       return {
         apiKey: entered.trim(),
+        profile: { format: "gemini", model: config?.model || DEFAULT_CHAT_MODEL, key: entered.trim() },
         model: config?.model || DEFAULT_CHAT_MODEL,
         apiKeyLabel: "Manual key"
       };
@@ -176,46 +182,39 @@ export class ChatController {
 
     return {
       apiKey: "",
+      profile: null,
       model: config?.model || DEFAULT_CHAT_MODEL,
-      apiKeyLabel: "No key selected"
+      apiKeyLabel: "No profile selected"
     };
   }
 
-  async askGemini(parts) {
-    const { apiKey, model } = this.getChatConfigOrPrompt();
-    if (!apiKey) {
-      throw new Error("Missing Gemini API key");
+  async askLLM(parts) {
+    const { apiKey, profile, model } = this.getChatConfigOrPrompt();
+
+    if (!profile && !apiKey) {
+      throw new Error("Missing AI profile or API key");
     }
 
-    if (window.electronAPI && window.electronAPI.askGemini) {
-      const result = await window.electronAPI.askGemini({
+    if (window.electronAPI && window.electronAPI.askLLM) {
+      const result = await window.electronAPI.askLLM({
+        profile: profile || { format: "gemini", key: apiKey, model: model || DEFAULT_CHAT_MODEL },
         model: model || DEFAULT_CHAT_MODEL,
         apiKey,
         parts
       });
 
       if (!result?.ok) {
-        throw new Error(result?.error || "Gemini request failed");
+        throw new Error(result?.error || "AI request failed");
       }
 
       return result.text || "No response.";
     }
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model || DEFAULT_CHAT_MODEL}:generateContent?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contents: [{ parts }] })
-      }
-    );
+    throw new Error("AI bridge not available");
+  }
 
-    if (!response.ok) {
-      throw new Error(await response.text());
-    }
-
-    const data = await response.json();
-    return data?.candidates?.[0]?.content?.parts?.[0]?.text || "No response.";
+  async askGemini(parts) {
+    return this.askLLM(parts);
   }
 
   async sendMessage() {
@@ -278,7 +277,7 @@ export class ChatController {
     this.onStatus("Waiting for Gemini response...");
 
     try {
-      const reply = await this.askGemini(parts);
+      const reply = await this.askLLM(parts);
       this.appendMessage("Bot", reply);
 
       const botEntry = {
@@ -291,8 +290,8 @@ export class ChatController {
       this.onStatus("Ready.");
     } catch (error) {
       console.error(error);
-      this.appendMessage("Bot", `Gemini request failed: ${error?.message || "Unknown error"}`);
-      this.onStatus("Gemini request failed.");
+      this.appendMessage("Bot", `AI request failed: ${error?.message || "Unknown error"}`);
+      this.onStatus("AI request failed.");
     }
   }
 

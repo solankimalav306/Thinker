@@ -6,6 +6,8 @@ require('dotenv').config();
 
 const { getItemSync, setItemSync, removeItemSync } = require('./app-storage');
 
+const { handleLLMGenerate } = require('./llm-handler');
+
 ipcMain.on('storage:getItem', getItemSync);
 ipcMain.on('storage:setItem', setItemSync);
 ipcMain.on('storage:removeItem', removeItemSync);
@@ -82,43 +84,7 @@ function createWindow() {
     return process.env.GEMINI_API_KEY || '';
   });
 
-  ipcMain.handle('gemini:generate', async (_event, payload) => {
-    const model = payload?.model || 'gemini-2.0-flash';
-    const apiKey = payload?.apiKey || process.env.GEMINI_API_KEY || '';
-    const parts = payload?.parts || [];
-
-    if (!apiKey) {
-      return { ok: false, error: 'Missing Gemini API key.' };
-    }
-
-    try {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contents: [{ parts }] })
-        }
-      );
-
-      const body = await response.text();
-      if (!response.ok) {
-        return { ok: false, error: body || `Gemini request failed (${response.status})` };
-      }
-
-      let parsed;
-      try {
-        parsed = JSON.parse(body);
-      } catch {
-        return { ok: false, error: 'Gemini returned invalid JSON.' };
-      }
-
-      const text = parsed?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-      return { ok: true, text };
-    } catch (error) {
-      return { ok: false, error: error?.message || 'Gemini request failed.' };
-    }
-  });
+  ipcMain.handle('llm:generate', handleLLMGenerate);
 
   ipcMain.handle('chat:loadHistory', async (_event, pdfPath) => {
     if (!pdfPath) return [];

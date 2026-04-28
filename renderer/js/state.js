@@ -27,14 +27,19 @@ function normalizeProfile(profile) {
   }
 
   const id = String(profile.id || "").trim();
-  const label = String(profile.label || "API Key").trim();
+  const label = String(profile.label || "AI Profile").trim();
   const key = String(profile.key || "").trim();
+  
+  // New fields for generalized LLMs
+  const format = String(profile.format || "gemini").trim();
+  const url = String(profile.url || "").trim();
+  const model = String(profile.model || "").trim();
 
-  if (!id || !key) {
+  if (!id) {
     return null;
   }
 
-  return { id, label, key };
+  return { id, label, key, format, url, model };
 }
 
 export function getTheme() {

@@ -137,34 +137,24 @@
 
           <div class="settings-card settings-api-card">
             <div class="card-head">
-              <h3>API Keys</h3>
+              <h3>AI Profiles</h3>
               <span>Chat source</span>
             </div>
-            <div class="settings-inline-form">
-              <input type="text" id="settings-api-label" placeholder="Label, like Work or Personal" />
-              <input type="password" id="settings-api-key" placeholder="Paste Gemini API key" />
-              <button class="btn primary" id="settings-api-add">Add key</button>
+            <div class="settings-inline-form" style="display: flex; flex-direction: column; gap: 8px;">
+              <input type="text" id="settings-api-label" placeholder="Profile Label (e.g. Local Ollama, Work Gemini)" />
+              <select id="settings-api-format" style="padding: 8px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-base);">
+                <option value="gemini">Google Gemini API</option>
+                <option value="openai">OpenAI Compatible API (e.g. Local)</option>
+              </select>
+              <input type="text" id="settings-api-url" placeholder="Custom Base URL (optional)" />
+              <input type="text" id="settings-chat-model" placeholder="Model ID (e.g. gpt-4o, llama-3)" />
+              <input type="password" id="settings-api-key" placeholder="API Key (optional for local)" />
+              <button class="btn primary" id="settings-api-add" style="align-self: flex-start;">Add AI Profile</button>
             </div>
-            <label class="settings-select-row">Active key
+            <label class="settings-select-row" style="margin-top: 16px;">Active Profile
               <select id="settings-active-api"></select>
             </label>
             <ul id="settings-api-list" class="settings-api-list"></ul>
-          </div>
-
-          <div class="settings-card">
-            <div class="card-head">
-              <h3>Model</h3>
-              <span>Used by chat</span>
-            </div>
-            <label class="settings-select-row">Chat model
-              <select id="settings-chat-model">
-                <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite</option>
-                <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-                <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
-                <option value="gemini-2.0-pro">Gemini 2.0 Pro</option>
-              </select>
-            </label>
-            <p class="settings-note">The selected key and model are used automatically when you send a chat message.</p>
           </div>
 
           <div class="settings-card">
@@ -218,7 +208,10 @@
 
     <aside class="chat-container" id="chat-panel">
       <div class="chat-header">
-        <h2>PDF Chat</h2>
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+          <h2 style="margin:0;">PDF Chat</h2>
+          <select id="chat-profile-select" class="settings-select-row" style="margin:0; width: 120px; padding: 4px; font-size: 11px;"></select>
+        </div>
         <p>Ask questions using selected text or snippets.</p>
       </div>
 

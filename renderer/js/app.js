@@ -91,6 +91,9 @@ const elements = {
   settingsApiAdd: document.getElementById("settings-api-add"),
   settingsActiveApi: document.getElementById("settings-active-api"),
   settingsApiList: document.getElementById("settings-api-list"),
+  chatProfileSelect: document.getElementById("chat-profile-select"),
+  settingsApiFormat: document.getElementById("settings-api-format"),
+  settingsApiUrl: document.getElementById("settings-api-url"),
   settingsChatModel: document.getElementById("settings-chat-model"),
   settingsThemeMode: document.getElementById("settings-theme-mode"),
   settingsCustomColor: document.getElementById("settings-custom-color"),
@@ -313,11 +316,13 @@ function getCurrentChatConfig() {
   const profiles = getApiProfiles();
   const selectedId = getActiveApiProfileId();
   const selectedProfile = profiles.find((profile) => profile.id === selectedId) || profiles[0] || null;
+  const model = selectedProfile?.model || getChatModel() || "gemini-2.0-flash";
 
   return {
+    profile: selectedProfile,
     apiKey: selectedProfile?.key || envApiKey || getGeminiApiKeyLocal(),
-    apiKeyLabel: selectedProfile?.label || (envApiKey ? "Environment key" : "No key selected"),
-    model: getChatModel()
+    apiKeyLabel: selectedProfile?.label || (envApiKey ? "Environment key" : "No profile selected"),
+    model
   };
 }
 
@@ -368,7 +373,7 @@ function renderSettings() {
   if (apiProfiles.length === 0) {
     const fallback = document.createElement("option");
     fallback.value = "";
-    fallback.textContent = envApiKey ? "Environment key" : "No key saved";
+    fallback.textContent = envApiKey ? "Environment key" : "No profile saved";
     elements.settingsActiveApi.appendChild(fallback);
   } else {
     apiProfiles.forEach((profile) => {
@@ -378,17 +383,26 @@ function renderSettings() {
       elements.settingsActiveApi.appendChild(option);
     });
   }
+
   elements.settingsActiveApi.value = getActiveApiProfileId() || apiProfiles[0]?.id || "";
 
+  if (elements.chatProfileSelect) {
+    elements.chatProfileSelect.innerHTML = elements.settingsActiveApi.innerHTML;
+    elements.chatProfileSelect.value = elements.settingsActiveApi.value;
+    elements.chatProfileSelect.onchange = (event) => {
+      setActiveApiProfileId(event.target.value);
+      renderSettings();
+    };
+  }
+
   elements.settingsChatModel.value = getChatModel();
-  
   renderThemeSettings();
 
   elements.settingsApiList.innerHTML = "";
   if (apiProfiles.length === 0) {
     const empty = document.createElement("li");
     empty.className = "settings-api-item";
-    empty.textContent = "No API keys added yet. Use the form above or rely on the environment key.";
+    empty.textContent = "No AI profiles added yet. Use the form above or rely on the environment key.";
     elements.settingsApiList.appendChild(empty);
   } else {
     apiProfiles.forEach((profile) => {
@@ -399,7 +413,7 @@ function renderSettings() {
       meta.className = "settings-api-meta";
       meta.innerHTML = `
         <div class="settings-api-label">${profile.label}</div>
-        <div class="settings-api-key">${getMaskedKey(profile.key)}</div>
+        <div class="settings-api-key">${profile.format}${profile.url ? ` · ${profile.url}` : ""}${profile.model ? ` · ${profile.model}` : ""}${profile.key ? ` · ${getMaskedKey(profile.key)}` : " · no key"}</div>
       `;
 
       const actions = document.createElement("div");
@@ -431,21 +445,31 @@ function renderSettings() {
 }
 
 function addApiKeyFromSettings() {
-  const label = elements.settingsApiLabel.value.trim() || `Key ${apiProfiles.length + 1}`;
+  const format = elements.settingsApiFormat ? elements.settingsApiFormat.value : "gemini";
+  const label = elements.settingsApiLabel.value.trim() || `${format.toUpperCase()} Profile ${apiProfiles.length + 1}`;
+  const url = elements.settingsApiUrl ? elements.settingsApiUrl.value.trim() : "";
+  const model = elements.settingsChatModel.value.trim();
   const key = elements.settingsApiKey.value.trim();
 
-  if (!key) {
-    setStatus("Paste an API key before adding it.");
+  if (!label) {
+    setStatus("Add a profile label first.");
     return;
   }
 
+  if (format === "openai" && !url) {
+    setStatus("OpenAI-compatible profiles work best with a base URL, especially for localhost providers.");
+  }
+
   const id = `api-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-  upsertApiProfile({ id, label, key });
+  upsertApiProfile({ id, label, format, url, model, key });
   setActiveApiProfileId(id);
+
   elements.settingsApiLabel.value = "";
+  if (elements.settingsApiUrl) elements.settingsApiUrl.value = "";
   elements.settingsApiKey.value = "";
+
   renderSettings();
-  setStatus("API key saved.");
+  setStatus("AI Profile saved.");
 }
 
 async function tryGetEnvApiKey() {
