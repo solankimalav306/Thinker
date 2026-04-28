@@ -1,12 +1,34 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
-const fs = require('fs/promises');
+const fs = require('fs');
+const fsPromises = require('fs/promises');
 const crypto = require('crypto');
 require('dotenv').config();
 
 const { getItemSync, setItemSync, removeItemSync } = require('./app-storage');
 
 const { handleLLMGenerate } = require('./llm-handler');
+
+function getPdfId(filePath) {
+  try {
+    // Convert file:// URL to local path if needed
+    let localPath = filePath;
+    if (filePath.startsWith('file:///')) {
+      localPath = filePath.replace('file:///', '').replace(/\//g, '\\');
+    } else if (filePath.startsWith('file://')) {
+      localPath = filePath.replace('file://', '');
+    }
+
+    console.log('Computing PDF ID for:', localPath);
+    const buffer = fs.readFileSync(localPath);
+    const hash = crypto.createHash('sha256').update(buffer).digest('hex');
+    console.log('PDF ID computed:', hash);
+    return hash;
+  } catch (error) {
+    console.error('Failed to compute PDF ID for', filePath, ':', error.message);
+    return null;
+  }
+}
 
 ipcMain.on('storage:getItem', getItemSync);
 ipcMain.on('storage:setItem', setItemSync);
@@ -33,7 +55,7 @@ function getPdfChatPath(pdfPath) {
 
 async function readJsonl(filePath) {
   try {
-    const content = await fs.readFile(filePath, 'utf8');
+    const content = await fsPromises.readFile(filePath, 'utf8');
     return content
       .split('\n')
       .map((line) => line.trim())
@@ -98,11 +120,21 @@ function createWindow() {
     }
 
     const dir = getChatHistoryDir();
-    await fs.mkdir(dir, { recursive: true });
+    await fsPromises.mkdir(dir, { recursive: true });
     const filePath = getPdfChatPath(payload.pdfPath);
     const line = `${JSON.stringify(payload.entry)}\n`;
-    await fs.appendFile(filePath, line, 'utf8');
+    await fsPromises.appendFile(filePath, line, 'utf8');
     return true;
+  });
+
+  ipcMain.handle('pdf:getPdfId', (_event, filePath) => {
+    return getPdfId(filePath);
+  });
+
+  ipcMain.handle('app:getUserDataPath', async () => {
+    const embeddingsPath = path.join(app.getPath('userData'), 'embeddings');
+    await fsPromises.mkdir(embeddingsPath, { recursive: true });
+    return embeddingsPath;
   });
 }
 
@@ -139,5 +171,27 @@ ipcMain.on('snip-complete', (event, dataUrl) => {
   if (snipWindow) {
     snipWindow.close();
     snipWindow = null;
+  }
+});
+
+const axios = require('axios');
+
+ipcMain.handle('pdf:index', async (_event, data) => {
+  try {
+    const response = await axios.post('http://localhost:8000/index', data);
+    return { ok: true, result: response.data };
+  } catch (error) {
+    console.error('Indexing failed:', error);
+    return { ok: false, error: error.message || 'Indexing failed' };
+  }
+});
+
+ipcMain.handle('pdf:query', async (_event, data) => {
+  try {
+    const response = await axios.post('http://localhost:8000/query', data);
+    return { ok: true, result: response.data };
+  } catch (error) {
+    console.error('Query failed:', error);
+    return { ok: false, error: error.message || 'Query failed' };
   }
 });

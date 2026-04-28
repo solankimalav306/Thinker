@@ -10,6 +10,7 @@ function fileName(path) {
   return path.split(/[/\\]/).pop() || "Untitled";
 }
 
+
 const VIEW_MODES = new Set(["single", "two", "scroll"]);
 
 export class PdfController {
@@ -31,7 +32,7 @@ export class PdfController {
     this.onStatus = options.onStatus;
     this.onPathChange = options.onPathChange;
     this.onRendered = options.onRendered;
-
+    this.storagePath = options.storagePath;
     this.pdfDoc = null;
     this.currentPath = "";
     this.pageNum = 1;
@@ -74,6 +75,7 @@ export class PdfController {
     };
   }
 
+  
   async load(path, viewState = null) {
     this.onStatus("Loading PDF...");
 
@@ -97,7 +99,7 @@ export class PdfController {
 
       this.buildOutline();
       this.buildThumbnails();
-
+      this.startIndexing();
       this.onStatus("PDF loaded.");
     } catch (error) {
       console.error("PDF load failed", error);
@@ -105,6 +107,34 @@ export class PdfController {
     }
   }
 
+  
+  async startIndexing() {
+    if (!this.pdfDoc) return;
+
+    const pagesText = [];
+
+    for (let i = 1; i <= this.pdfDoc.numPages; i++) {
+      const page = await this.pdfDoc.getPage(i);
+      const content = await page.getTextContent();
+
+      const text = content.items.map(item => item.str).join(" ");
+
+      pagesText.push({
+        page: i,
+        text
+      });
+    }
+
+    // send to backend
+    const pdfId = await window.electronAPI.getPdfId(this.currentPath);
+    await window.electronAPI.indexPDF({
+      path: this.currentPath,
+      pages: pagesText,
+      pdfId: pdfId,
+      storagePath: this.storagePath
+    });
+  }
+  
   setViewMode(mode) {
     if (!VIEW_MODES.has(mode) || mode === this.viewMode) {
       return;

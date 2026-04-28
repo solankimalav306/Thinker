@@ -188,6 +188,8 @@ export class ChatController {
     };
   }
 
+  
+
   async askLLM(parts) {
     const { apiKey, profile, model } = this.getChatConfigOrPrompt();
 
@@ -258,13 +260,46 @@ export class ChatController {
       });
     }
 
+    const pdfId = await window.electronAPI.getPdfId(this.activePdfPath);
+    const storagePath = await window.electronAPI.getUserDataPath();
+
+    let retrievedChunks = [];
+
+    try {
+      const res = await window.electronAPI.queryPDF({
+        query: questionText,
+        pdfId,
+        storagePath
+      });
+
+      if (res.ok && res.result && res.result.chunks) {
+        retrievedChunks = res.result.chunks;
+      } else {
+        retrievedChunks = res.chunks || []; // Fallback just in case
+      }
+    } catch (e) {
+      console.error("RAG query failed", e);
+    }
+
+    const ragContext = retrievedChunks.map((c, i) => `(${i + 1}) [Page ${c.page}]\n${c.text}`).join("\n\n");
+
     parts.push({
       text: [
         "You are assisting with a specific PDF document.",
+        
+        "Use the provided context STRICTLY. Do not hallucinate.",
+        
+        "",
+        "Relevant document context:",
+        ragContext || "No relevant context found.",
+        
+        "",
         "Conversation summary:",
         summary,
+        
         "",
         contextText ? `Quoted PDF text:\n${contextText}` : "No explicit quote selected.",
+        
         "",
         "Current user message:",
         questionText
@@ -275,6 +310,7 @@ export class ChatController {
     this.clearAttachment();
     this.clearSelectedText();
     this.onStatus("Waiting for Gemini response...");
+
 
     try {
       const reply = await this.askLLM(parts);

@@ -491,6 +491,7 @@ async function boot() {
   
   await tryGetEnvApiKey();
   elements.fitModeSelect.value = "auto";
+  const embeddingsStoragePath = await window.electronAPI.getUserDataPath();
 
   const pdf = new PdfController({
     canvas: elements.canvas,
@@ -506,6 +507,7 @@ async function boot() {
     nextBtn: elements.nextBtn,
     outlineList: elements.outlineList,
     thumbnailList: elements.thumbnailList,
+    storagePath: embeddingsStoragePath,
     onStatus: setStatus,
     onPathChange: (name) => {
       if (elements.activeFileLabel) {
