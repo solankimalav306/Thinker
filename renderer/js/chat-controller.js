@@ -206,17 +206,18 @@ export class ChatController {
 
   summarizeContext() {
     if (this.entries.length === 0) {
-      return "No prior conversation.";
+      return "";
     }
 
-    const recent = this.entries.slice(-16).map((entry) => {
-      const prefix = entry.role === "user" ? "User" : "Assistant";
+    // Keep only the last 6 turns, truncate each to 120 chars to save tokens
+    const recent = this.entries.slice(-6).map((entry) => {
+      const prefix = entry.role === "user" ? "U" : "A";
       const text = (entry.text || "").replace(/\s+/g, " ").trim();
-      return `${prefix}: ${text.slice(0, 220)}`;
+      return `${prefix}: ${text.slice(0, 120)}`;
     });
 
     const summary = recent.join("\n");
-    return summary.length > 1800 ? summary.slice(summary.length - 1800) : summary;
+    return summary.length > 600 ? summary.slice(summary.length - 600) : summary;
   }
 
   getChatConfigOrPrompt() {
@@ -341,48 +342,32 @@ export class ChatController {
       console.error("RAG query failed", e);
     }
 
-    const ragContext = retrievedChunks.map((c, i) => `(${i + 1}) [Page ${c.page}]\n${c.text}`).join("\n\n");
+    // Limit to top 3 chunks and truncate each to 400 chars to reduce prompt tokens
+    const topChunks = retrievedChunks.slice(0, 3);
+    const ragContext = topChunks.map((c, i) => {
+      const snippet = (c.text || "").replace(/\s+/g, " ").trim().slice(0, 400);
+      return `[Page ${c.page}] ${snippet}`;
+    }).join("\n");
 
     const chatMode = document.getElementById("chat-mode-select")?.value || "document";
     
-    let systemPrompt = [
-      "You are assisting with a specific PDF document.",
-      "CRITICAL INSTRUCTION: You MUST start your response with the exact tag [DOC_ONLY].",
-      "Use the provided context STRICTLY. Do not hallucinate or use external knowledge.",
-      "When using information from the context, ALWAYS cite the page number at the end of the sentence like [Page X].",
-      "Your response should be well formatted and easy to read, use headings, sub-headings, bold text, bullet points and tables to make it readable."
-    ];
+    let systemPrompt;
 
     if (chatMode === "auto") {
-      systemPrompt = [
-        "You are an intelligent analytical assistant. You have access to a PDF document, but you are ENCOURAGED to actively use your own external knowledge to provide deeper insights, broader context, and critical analysis.",
-        "CRITICAL INSTRUCTION: You MUST start your response with a classification tag.",
-        "1. If you provide ANY additional insights, reasoning, or external knowledge beyond what is explicitly in the text, you MUST start your ENTIRE response with the exact tag: [AI_INSIGHT]",
-        "2. ONLY if your answer is 100% restricted to the document context with zero added analysis, start your response with the exact tag: [DOC_ONLY]",
-        "3. When using information from the PDF context, ALWAYS cite the page number at the end of the sentence like [Page X].",
-        "4. Keep your answers concise and highly relevant to avoid token exhaustion.",
-        "5. Your response should be well formatted and easy to read, use headings, sub-headings, bold text, bullet points and tables to make it readable."
-      ];
+      systemPrompt = `You are a PDF assistant with external knowledge. Start response with [AI_INSIGHT] if you add external knowledge, or [DOC_ONLY] if strictly from document. Cite pages as [Page X]. Be concise.`;
+    } else {
+      systemPrompt = `You are a PDF assistant. Start response with [DOC_ONLY]. Use ONLY the provided context. Cite pages as [Page X]. Be concise.`;
     }
 
     parts.push({
       text: [
-        ...systemPrompt,
-        
+        systemPrompt,
         "",
-        "Relevant document context:",
-        ragContext || "No relevant context found.",
-        
-        "",
-        "Conversation summary:",
-        summary,
-        
-        "",
-        contextText ? `Quoted PDF text:\n${contextText}` : "No explicit quote selected.",
-        
-        "",
-        "Current user message:",
-        questionText
+        "Context:",
+        ragContext || "No relevant context.",
+        summary ? `\nHistory:\n${summary}` : "",
+        contextText ? `\nQuote: ${contextText.slice(0, 300)}` : "",
+        "\nQ: " + questionText
       ].join("\n")
     });
 

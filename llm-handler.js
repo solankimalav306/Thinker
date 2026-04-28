@@ -132,7 +132,10 @@ async function handleLLMGenerate(_event, payload) {
       headers: {
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({ contents: [{ parts: geminiParts }] })
+      body: JSON.stringify({
+        contents: [{ parts: geminiParts }],
+        generationConfig: { maxOutputTokens: 512 }
+      })
     });
 
     const responseText = await readResponseText(response);
