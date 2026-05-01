@@ -42,6 +42,7 @@ export class AnnotationController {
     }));
     
     this.activeButtonIndex = -1;
+    this.stickyNotes = []; // { text, x, y, date }
 
     this.isEnabled = true;
     this.eraserSize = 12;
@@ -96,12 +97,17 @@ export class AnnotationController {
   }
 
   loadPageAnnotations() {
-    this.paths = this.getStorageData();
+    const data = this.getStorageData();
+    this.paths = data.paths || (Array.isArray(data) ? data : []);
+    this.stickyNotes = data.stickyNotes || [];
     this.redraw();
   }
 
   savePageAnnotations() {
-    window.electronAPI.setItem(this.getStorageKey(), JSON.stringify(this.paths));
+    window.electronAPI.setItem(this.getStorageKey(), JSON.stringify({
+      paths: this.paths,
+      stickyNotes: this.stickyNotes
+    }));
   }
 
   redraw() {
@@ -126,6 +132,54 @@ export class AnnotationController {
       this.ctx.stroke();
       this.ctx.globalAlpha = 1;
     }
+
+    // Draw sticky notes
+    for (const note of this.stickyNotes) {
+      this.drawStickyNoteIcon(note);
+    }
+  }
+
+  drawStickyNoteIcon(note) {
+    const { x, y } = note;
+    const size = 24;
+    
+    // Shadow
+    this.ctx.shadowBlur = 4;
+    this.ctx.shadowColor = "rgba(0,0,0,0.3)";
+    this.ctx.shadowOffsetY = 2;
+
+    // Body
+    this.ctx.fillStyle = "#f1c40f";
+    this.ctx.beginPath();
+    this.ctx.roundRect(x - size/2, y - size/2, size, size, 4);
+    this.ctx.fill();
+
+    // Reset shadow
+    this.ctx.shadowBlur = 0;
+    this.ctx.shadowOffsetY = 0;
+
+    // Icon (simple lines for text)
+    this.ctx.strokeStyle = "#927608";
+    this.ctx.lineWidth = 2;
+    this.ctx.beginPath();
+    this.ctx.moveTo(x - 6, y - 4);
+    this.ctx.lineTo(x + 6, y - 4);
+    this.ctx.moveTo(x - 6, y);
+    this.ctx.lineTo(x + 6, y);
+    this.ctx.moveTo(x - 6, y + 4);
+    this.ctx.lineTo(x + 2, y + 4);
+    this.ctx.stroke();
+  }
+
+  addStickyNote(text, x, y) {
+    this.stickyNotes.push({
+      text,
+      x,
+      y,
+      date: Date.now()
+    });
+    this.savePageAnnotations();
+    this.redraw();
   }
 
   clearButtonStates() {

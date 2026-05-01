@@ -33,6 +33,7 @@ export class PdfController {
     this.onPathChange = options.onPathChange;
     this.onRendered = options.onRendered;
     this.storagePath = options.storagePath;
+    this.persistentHighlights = new Map(); // pageNum -> Set of texts
     this.pdfDoc = null;
     this.currentPath = "";
     this.pageNum = 1;
@@ -207,6 +208,36 @@ export class PdfController {
     this.jumpToPage(prev);
   }
 
+  async findAndHighlight(text) {
+    if (!text || !this.pdfDoc) return;
+    
+    // Save for persistence
+    if (!this.persistentHighlights.has(this.pageNum)) {
+      this.persistentHighlights.set(this.pageNum, new Set());
+    }
+    this.persistentHighlights.get(this.pageNum).add(text);
+
+    const textLayer = this.textLayerDiv;
+    if (!textLayer) return;
+
+    this.applyHighlightsToLayer(textLayer, this.pageNum);
+  }
+
+  applyHighlightsToLayer(textLayer, pageNum) {
+    const texts = this.persistentHighlights.get(pageNum);
+    if (!texts || texts.size === 0) return;
+
+    texts.forEach(text => {
+      const regex = new RegExp(`(${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+      const items = textLayer.querySelectorAll('span');
+      items.forEach(span => {
+        if (regex.test(span.textContent)) {
+          span.innerHTML = span.textContent.replace(regex, '<span class="ai-highlight active">$1</span>');
+        }
+      });
+    });
+  }
+
   setScale(rawScale) {
     this.scale = Math.max(0.25, Math.min(rawScale, 5));
     if (this.fitModeSelect) {
@@ -311,12 +342,14 @@ export class PdfController {
     this.textLayerDiv.style.setProperty("--scale-factor", viewport.scale);
     const textContent = await page.getTextContent();
 
-    pdfjsLib.renderTextLayer({
+    await pdfjsLib.renderTextLayer({
       textContent,
       container: this.textLayerDiv,
       viewport,
       textDivs: []
-    });
+    }).promise;
+
+    this.applyHighlightsToLayer(this.textLayerDiv, this.pageNum);
 
     this.onRendered({ annotationSupported: true, mode: "single", pageNum: this.pageNum });
   }
@@ -404,12 +437,14 @@ export class PdfController {
     textLayer.style.setProperty("--scale-factor", viewport.scale);
     const textContent = await page.getTextContent();
 
-    pdfjsLib.renderTextLayer({
+    await pdfjsLib.renderTextLayer({
       textContent,
       container: textLayer,
       viewport,
       textDivs: []
-    });
+    }).promise;
+
+    this.applyHighlightsToLayer(textLayer, pageNum);
 
     return card;
   }

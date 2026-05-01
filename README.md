@@ -123,15 +123,6 @@ Thinker has built-in token monitoring so you never accidentally exhaust your API
    cd ..
    ```
 
-4. **Configure environment**:
-   ```bash
-   cp .env.example .env
-   ```
-   Open `.env` and add your Gemini API Key:
-   ```env
-   GEMINI_API_KEY=your_actual_key_here
-   ```
-
 ### Running the App
 
 You need **two terminals** running simultaneously:
@@ -147,7 +138,7 @@ fastapi dev
 npm start
 ```
 
-Then go to **Settings → AI Profiles**, add your Gemini API key, select a model (e.g. `gemini-2.5-flash-lite`), and you're ready to go.
+Then go to **Settings → AI Profiles**, add a profile label, choose Gemini or an OpenAI-compatible endpoint, set the base URL if needed, and store the key locally if the provider requires one.
 
 ---
 
@@ -167,7 +158,7 @@ Then go to **Settings → AI Profiles**, add your Gemini API key, select a model
 
 ## 💾 Data Management
 
-- **Settings & Profiles** - Stored in local JSON files (theme, API keys, active model).
+- **Settings & Profiles** - Stored locally in JSONL-backed app storage (theme, AI profiles, active profile, model selections).
 - **Chat History** - Persisted per-PDF in `.jsonl` format; reloaded on next open.
 - **Annotations** - Stored locally, mapped to specific PDF file paths.
 - **Recent Files** - Last accessed PDFs tracked per device.

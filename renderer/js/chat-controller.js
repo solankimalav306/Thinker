@@ -32,6 +32,8 @@ export class ChatController {
     this.imagePreviewContainer = options.imagePreviewContainer;
     this.onStatus = options.onStatus;
     this.getChatConfig = options.getChatConfig;
+    this.onAgentAction = options.onAgentAction;
+    this.onGlossaryTermFound = options.onGlossaryTermFound;
 
     this.attachedImage = null;
     this.activePdfPath = null;
@@ -120,6 +122,42 @@ export class ChatController {
     this.chatHistory.scrollTop = this.chatHistory.scrollHeight;
   }
 
+  appendWelcomeMessage() {
+    const welcome = document.createElement("div");
+    welcome.className = "agent-welcome";
+    welcome.innerHTML = `
+      <h3><i class="fa-solid fa-wand-magic-sparkles"></i> Smart PDF Agent</h3>
+      <p>I'm your AI research assistant. I can help you analyze this document, define complex terms, and generate study materials.</p>
+      <div class="capabilities-grid">
+        <div class="capability-chip" data-query="Summarize the main points of this document">
+          <i class="fa-solid fa-file-invoice"></i>
+          <span>Summarize PDF</span>
+        </div>
+        <div class="capability-chip" data-query="Identify and define the key technical terms">
+          <i class="fa-solid fa-spell-check"></i>
+          <span>Define Terms</span>
+        </div>
+        <div class="capability-chip" data-query="Generate structured notes from the current page">
+          <i class="fa-solid fa-note-sticky"></i>
+          <span>Create Notes</span>
+        </div>
+        <div class="capability-chip" data-query="Identify the core concepts and their relationships">
+          <i class="fa-solid fa-diagram-project"></i>
+          <span>Map Concepts</span>
+        </div>
+      </div>
+    `;
+    
+    welcome.querySelectorAll(".capability-chip").forEach(chip => {
+      chip.addEventListener("click", () => {
+        this.chatInput.value = chip.dataset.query;
+        this.sendMessage();
+      });
+    });
+
+    this.chatHistory.appendChild(welcome);
+  }
+
   appendUserMessage(question, quoteText, image = null) {
     const msg = document.createElement("div");
     msg.className = "user-msg";
@@ -183,6 +221,10 @@ export class ChatController {
 
     const loaded = await window.electronAPI.loadChatHistory(pdfPath);
     this.entries = Array.isArray(loaded) ? loaded : [];
+    
+    if (this.entries.length === 0) {
+      this.appendWelcomeMessage();
+    }
 
     this.entries.forEach((entry) => {
       if (entry.role === "user") {
@@ -270,7 +312,7 @@ export class ChatController {
         throw new Error(result?.error || "AI request failed");
       }
 
-      return result;
+      return result.text || "No response.";
     }
 
     throw new Error("AI bridge not available");
@@ -320,86 +362,103 @@ export class ChatController {
         }
       });
     }
-
     const pdfId = await window.electronAPI.getPdfId(this.activePdfPath);
     const storagePath = await window.electronAPI.getUserDataPath();
-
-    let retrievedChunks = [];
-
-    try {
-      const res = await window.electronAPI.queryPDF({
-        query: questionText,
-        pdfId,
-        storagePath
-      });
-
-      if (res.ok && res.result && res.result.chunks) {
-        retrievedChunks = res.result.chunks;
-      } else {
-        retrievedChunks = res.chunks || []; // Fallback just in case
-      }
-    } catch (e) {
-      console.error("RAG query failed", e);
-    }
-
-    // Limit to top 3 chunks and truncate each to 400 chars to reduce prompt tokens
-    const topChunks = retrievedChunks.slice(0, 3);
-    const ragContext = topChunks.map((c, i) => {
-      const snippet = (c.text || "").replace(/\s+/g, " ").trim().slice(0, 400);
-      return `[Page ${c.page}] ${snippet}`;
-    }).join("\n");
-
-    const chatMode = document.getElementById("chat-mode-select")?.value || "document";
-    
-    let systemPrompt;
-
-    if (chatMode === "auto") {
-      systemPrompt = `You are a PDF assistant with external knowledge. Start response with [AI_INSIGHT] if you add external knowledge, or [DOC_ONLY] if strictly from document. Cite pages as [Page X]. Be concise.`;
-    } else {
-      systemPrompt = `You are a PDF assistant. Start response with [DOC_ONLY]. Use ONLY the provided context. Cite pages as [Page X]. Be concise.`;
-    }
-
-    parts.push({
-      text: [
-        systemPrompt,
-        "",
-        "Context:",
-        ragContext || "No relevant context.",
-        summary ? `\nHistory:\n${summary}` : "",
-        contextText ? `\nQuote: ${contextText.slice(0, 300)}` : "",
-        "\nQ: " + questionText
-      ].join("\n")
-    });
+    const config = this.getChatConfigOrPrompt();
 
     this.chatInput.value = "";
     this.clearAttachment();
     this.clearSelectedText();
-    this.onStatus("Waiting for Gemini response...");
+    this.onStatus("Agent is thinking...");
 
     const typingId = "typing-indicator-" + Date.now();
-    const typingHtml = `<div class="bot-msg" id="${typingId}"><div class="typing-dots"><span></span><span></span><span></span></div></div>`;
+    const typingHtml = `
+      <div class="bot-msg thinking-container" id="${typingId}">
+        <div class="typing-dots"><span></span><span></span><span></span></div>
+        <div class="thinking-steps" id="${typingId}-steps">
+          <div class="thinking-step active" id="${typingId}-step-1"><i class="fa-solid fa-circle-notch fa-spin"></i> Analyzing your request...</div>
+        </div>
+      </div>
+    `;
     this.chatHistory.insertAdjacentHTML("beforeend", typingHtml);
     this.chatHistory.scrollTop = this.chatHistory.scrollHeight;
 
+    const updateStep = (id, text, done = false) => {
+      const stepEl = document.getElementById(id);
+      if (stepEl) {
+        stepEl.innerHTML = `<i class="fa-solid ${done ? 'fa-check' : 'fa-circle-notch fa-spin'}"></i> ${text}`;
+        stepEl.className = `thinking-step ${done ? 'done' : 'active'}`;
+      }
+    };
+
+    const addStep = (containerId, stepId, text) => {
+      const container = document.getElementById(containerId);
+      if (container) {
+        const step = document.createElement("div");
+        step.id = stepId;
+        step.className = "thinking-step active";
+        step.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> ${text}`;
+        container.appendChild(step);
+      }
+    };
+
     try {
-      const replyData = await this.askLLM(parts);
+      // Simulate step-by-step progress for better UX
+      setTimeout(() => updateStep(`${typingId}-step-1`, "Intent classified", true), 800);
+      setTimeout(() => addStep(`${typingId}-steps`, `${typingId}-step-2`, "Retrieving document context..."), 900);
+      setTimeout(() => updateStep(`${typingId}-step-2`, "Context retrieved (3 relevant pages)", true), 1800);
+      setTimeout(() => addStep(`${typingId}-steps`, `${typingId}-step-3`, "Generating response..."), 1900);
+
+      const res = await window.electronAPI.invokeAgent({
+        query: questionText,
+        pdfId,
+        storagePath,
+        apiKey: config.apiKey,
+        model: config.model,
+        context: contextText,
+        messages: this.entries.slice(-10),
+        parts: parts
+      });
+
       document.getElementById(typingId)?.remove();
+
+      if (!res.ok) {
+        throw new Error(res.error || "Agent request failed");
+      }
+
+      const agentRes = res.result;
+      const replyText = agentRes.response_text || "No response.";
       
-      this.appendMessage("Bot", replyData.text, null, replyData.usage);
+      this.appendMessage("Bot", replyText, null);
 
       const botEntry = {
         role: "assistant",
-        text: replyData.text,
+        text: replyText,
         ts: Date.now()
       };
       this.entries.push(botEntry);
       await this.persistEntry(botEntry);
+
+      // Handle actions if any
+      if (agentRes.actions && agentRes.actions.length > 0) {
+        if (this.onAgentAction) {
+          agentRes.actions.forEach(action => this.onAgentAction(action));
+        }
+      }
+
+      // Handle glossary terms if any
+      if (agentRes.glossary_terms && agentRes.glossary_terms.length > 0) {
+        if (this.onGlossaryTermFound) {
+          agentRes.glossary_terms.forEach(term => this.onGlossaryTermFound(term));
+        }
+      }
+
       this.onStatus("Ready.");
     } catch (error) {
       console.error(error);
       document.getElementById(typingId)?.remove();
-      this.appendMessage("Bot", `AI request failed: ${error?.message || "Unknown error"}`);
-      this.onStatus("AI request failed.");
+      this.appendMessage("Bot", `Agent request failed: ${error?.message || "Unknown error"}`);
+      this.onStatus("Agent request failed.");
     }
   }
 

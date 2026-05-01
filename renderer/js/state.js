@@ -2,7 +2,6 @@ export const STORAGE_KEYS = {
   theme: "smartpdf.theme",
   themePalette: "smartpdf.themePalette",
   recents: "smartpdf.recents",
-  geminiApiKey: "smartpdf.geminiApiKey",
   apiProfiles: "smartpdf.apiProfiles",
   activeApiProfileId: "smartpdf.activeApiProfileId",
   chatModel: "smartpdf.chatModel"
@@ -83,29 +82,11 @@ export function pushRecent(path) {
   window.electronAPI.setItem(STORAGE_KEYS.recents, JSON.stringify(recents.slice(0, RECENT_LIMIT)));
 }
 
-export function getGeminiApiKeyLocal() {
-  return window.electronAPI.getItem(STORAGE_KEYS.geminiApiKey) || "";
-}
-
-export function setGeminiApiKeyLocal(key) {
-  window.electronAPI.setItem(STORAGE_KEYS.geminiApiKey, key);
-}
-
 export function getApiProfiles() {
   const raw = window.electronAPI.getItem(STORAGE_KEYS.apiProfiles);
   const parsed = raw ? safeParse(raw, []) : [];
   const profiles = Array.isArray(parsed) ? parsed.map(normalizeProfile).filter(Boolean) : [];
-
-  if (profiles.length > 0) {
-    return profiles;
-  }
-
-  const legacyKey = getGeminiApiKeyLocal();
-  if (legacyKey) {
-    return [{ id: "legacy-api-key", label: "Legacy key", key: legacyKey }];
-  }
-
-  return [];
+  return profiles;
 }
 
 export function setApiProfiles(profiles) {
@@ -148,4 +129,16 @@ export function getChatModel() {
 
 export function setChatModel(model) {
   window.electronAPI.setItem(STORAGE_KEYS.chatModel, model || DEFAULT_CHAT_MODEL);
+}
+
+export async function getGlossary() {
+  return await window.electronAPI.getGlossaryTerms();
+}
+
+export async function addToGlossary(term, definition, source) {
+  return await window.electronAPI.addToGlossary({ term, definition, source });
+}
+
+export async function removeFromGlossary(term) {
+  return await window.electronAPI.removeFromGlossary(term);
 }

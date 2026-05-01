@@ -2,7 +2,6 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
   openPDF: () => ipcRenderer.invoke('dialog:openPDF'),
-  getGeminiApiKey: () => ipcRenderer.invoke('config:getGeminiApiKey'),
   askLLM: (payload) => ipcRenderer.invoke('llm:generate', payload),
   askGemini: (payload) => ipcRenderer.invoke('llm:generate', payload), // legacy alias
   loadChatHistory: (pdfPath) => ipcRenderer.invoke('chat:loadHistory', pdfPath),
@@ -11,7 +10,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getUserDataPath: () => ipcRenderer.invoke('app:getUserDataPath'),
   indexPDF: (data) => ipcRenderer.invoke('pdf:index', data),
   queryPDF: (data) => ipcRenderer.invoke('pdf:query', data),
+  invokeAgent: (data) => ipcRenderer.invoke('agent:invoke', data),
   
+  getDefinition: (payload) => ipcRenderer.invoke('dict:define', payload),
+  addToGlossary: (payload) => ipcRenderer.invoke('glossary:add', payload),
+  removeFromGlossary: (term) => ipcRenderer.invoke('glossary:remove', term),
+  getGlossaryTerms: () => ipcRenderer.invoke('glossary:get'),
+
+  // Notes persistence
+  loadNotes: (pdfPath) => ipcRenderer.invoke('notes:load', pdfPath),
+  saveNotes: (pdfPath, notes) => ipcRenderer.invoke('notes:save', pdfPath, notes),
+
   // Expose synchronous local storage replacement
   getItem: (key) => ipcRenderer.sendSync('storage:getItem', key),
   setItem: (key, value) => ipcRenderer.sendSync('storage:setItem', key, value),

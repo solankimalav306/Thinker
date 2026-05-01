@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+python-dotenv
+requests
+numpy
+faiss-cpu
+sentence-transformers
+google-generativeai
+langchain
+langchain-google-genai
+langgraph
+duckduckgo-search
+langchain-community

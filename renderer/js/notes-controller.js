@@ -1,0 +1,123 @@
+export class NotesController {
+
+  constructor(options) {
+    this.notesList = options.notesList;
+    this.onStatus = options.onStatus;
+    this.notes = [];
+    this.pdfPath = null;
+  }
+
+  async load(pdfPath) {
+    this.pdfPath = pdfPath;
+    if (window.electronAPI && window.electronAPI.loadNotes) {
+      const loaded = await window.electronAPI.loadNotes(pdfPath);
+      this.notes = Array.isArray(loaded) ? loaded : [];
+      this.render();
+    }
+  }
+
+  async save() {
+    if (window.electronAPI && window.electronAPI.saveNotes && this.pdfPath) {
+      await window.electronAPI.saveNotes(this.pdfPath, this.notes);
+    }
+  }
+
+
+  async addNote(content, source = "Agent") {
+    const note = {
+      id: Date.now(),
+      content,
+      source,
+      date: new Date().toISOString()
+    };
+    this.notes.push(note);
+    await this.save();
+    this.render();
+    return note;
+  }
+
+
+  async removeNote(id) {
+    this.notes = this.notes.filter(n => n.id !== id);
+    await this.save();
+    this.render();
+  }
+
+  render() {
+    if (!this.notesList) return;
+    this.notesList.innerHTML = "";
+
+    if (this.notes.length === 0) {
+      this.notesList.innerHTML = `<div style="padding: 20px; text-align: center; color: var(--text-soft); font-size: 0.85rem;">No notes yet. Ask the agent to generate some!</div>`;
+      return;
+    }
+
+    this.notes.forEach(note => {
+      const el = document.createElement("div");
+      el.className = "note-item";
+      
+      const date = new Date(note.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      
+      // Using marked if available for rendering markdown in notes
+      const contentHtml = window.marked ? window.marked.parse(note.content) : note.content.replace(/\n/g, '<br>');
+
+      el.innerHTML = `
+        <div class="note-header">
+          <span>${note.source} • ${date}</span>
+          <button class="note-remove" title="Remove note"><i class="fa-solid fa-trash-can"></i></button>
+        </div>
+        <div class="note-content">${contentHtml}</div>
+      `;
+
+      el.querySelector(".note-remove").addEventListener("click", () => this.removeNote(note.id));
+      this.notesList.appendChild(el);
+    });
+  }
+
+  getNotesMarkdown() {
+    return this.notes.map(n => `## Note (${new Date(n.date).toLocaleString()})\n\n${n.content}`).join("\n\n---\n\n");
+  }
+
+  getNotesLatex() {
+    let latex = "\\documentclass{article}\n\\usepackage[utf8]{inputenc}\n\\title{Research Notes}\n\\begin{document}\n\\maketitle\n\n";
+    this.notes.forEach(note => {
+      latex += `\\section*{Note (${new Date(note.date).toLocaleString()})}\n`;
+      // Very basic markdown to latex conversion
+      let content = note.content
+        .replace(/#/g, "\\#")
+        .replace(/_/g, "\\_")
+        .replace(/&/g, "\\&")
+        .replace(/\n\n/g, "\\par\n")
+        .replace(/\*\*(.*?)\*\*/g, "\\textbf{$1}")
+        .replace(/\*(.*?)\*/g, "\\textit{$1}");
+      latex += content + "\n\n";
+    });
+    latex += "\\end{document}";
+    return latex;
+  }
+
+  printNotes() {
+    const printWindow = window.open('', '_blank');
+    const md = this.getNotesMarkdown();
+    const html = window.marked ? window.marked.parse(md) : md.replace(/\n/g, '<br>');
+    
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Research Notes</title>
+          <style>
+            body { font-family: 'Inter', sans-serif; padding: 40px; color: #333; line-height: 1.6; }
+            h2 { color: #2563eb; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-top: 30px; }
+            hr { border: 0; border-top: 1px solid #eee; margin: 40px 0; }
+          </style>
+        </head>
+        <body>
+          <h1>Research Notes</h1>
+          ${html}
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.print();
+  }
+}

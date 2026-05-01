@@ -11,14 +11,20 @@ import {
   setChatModel,
   getThemePalette,
   setThemePalette,
-  getGeminiApiKeyLocal,
   getTheme,
-  setTheme
+  setTheme,
+  getGlossary,
+  addToGlossary,
+  removeFromGlossary
 } from "./state.js";
 import { PdfController } from "./pdf-controller.js";
 import { AnnotationController } from "./annotation-controller.js";
 import { SnipController } from "./snip-controller.js";
 import { ChatController } from "./chat-controller.js";
+import { PdfContextMenu } from "./pdf-context-menu.js";
+import { DictionaryTooltip } from "./dictionary-tooltip.js";
+import { NotesController } from "./notes-controller.js";
+import { MindMapController } from "./mindmap-controller.js";
 
 const elements = {
   appShell: document.querySelector(".app-shell"),
@@ -48,8 +54,26 @@ const elements = {
   navThumbs: document.getElementById("nav-thumbs"),
   navChat: document.getElementById("nav-chat"),
   chatPanel: document.getElementById("chat-panel"),
+  aiCapabilitiesBtn: document.getElementById("ai-capabilities-btn"),
+  aiCapabilitiesModal: document.getElementById("ai-capabilities-modal"),
+  closeAiCapabilities: document.getElementById("close-ai-capabilities"),
   chatResizer: document.getElementById("chat-resizer"),
   sidebarResizer: document.getElementById("sidebar-resizer"),
+  navGlossary: document.getElementById("nav-glossary"),
+  glossaryBlock: document.getElementById("glossary-block"),
+  glossaryList: document.getElementById("glossary-list"),
+  glossarySearch: document.getElementById("glossary-search"),
+  glossaryExportBtn: document.getElementById("glossary-export-btn"),
+  navNotes: document.getElementById("nav-notes"),
+  notesBlock: document.getElementById("notes-block"),
+  notesList: document.getElementById("notes-list"),
+  exportMd: document.getElementById("export-md"),
+  exportPdf: document.getElementById("export-pdf"),
+  exportLatex: document.getElementById("export-latex"),
+  mindmapModal: document.getElementById("mindmap-modal"),
+  mindmapViewer: document.getElementById("mindmap-viewer"),
+  closeMindmap: document.getElementById("close-mindmap"),
+  exportMindmapSvg: document.getElementById("export-mindmap-svg"),
   chatCloseBtn: document.getElementById("chat-close-btn"),
   prevBtn: document.getElementById("prev-page"),
   nextBtn: document.getElementById("next-page"),
@@ -105,7 +129,6 @@ const elements = {
   titleTyping: document.getElementById("title-typing")
 };
 
-let envApiKey = "";
 let openTabs = [];
 let activeTabPath = null;
 let currentView = "home";
@@ -161,7 +184,12 @@ function syncLayoutToggles() {
   elements.navSettings.classList.toggle("active", currentView === "settings");
   elements.navOutline.classList.toggle("active", showSidebar && sidebarPanel === "outline");
   elements.navThumbs.classList.toggle("active", showSidebar && sidebarPanel === "thumbs");
+  elements.navGlossary.classList.toggle("active", showSidebar && sidebarPanel === "glossary");
+  elements.navNotes.classList.toggle("active", showSidebar && sidebarPanel === "notes");
   elements.navChat.classList.toggle("active", showChat);
+
+  elements.glossaryBlock.classList.toggle("visible", showSidebar && sidebarPanel === "glossary");
+  elements.notesBlock.classList.toggle("visible", showSidebar && sidebarPanel === "notes");
 }
 
 function showWelcome() {
@@ -319,12 +347,12 @@ function getCurrentChatConfig() {
   const profiles = getApiProfiles();
   const selectedId = getActiveApiProfileId();
   const selectedProfile = profiles.find((profile) => profile.id === selectedId) || profiles[0] || null;
-  const model = selectedProfile?.model || getChatModel() || "gemini-2.0-flash";
+  const model = selectedProfile?.model || getChatModel() || "gemini-2.5-flash-lite";
 
   return {
     profile: selectedProfile,
-    apiKey: selectedProfile?.key || envApiKey || getGeminiApiKeyLocal(),
-    apiKeyLabel: selectedProfile?.label || (envApiKey ? "Environment key" : "No profile selected"),
+    apiKey: selectedProfile?.key || "",
+    apiKeyLabel: selectedProfile?.label || "No profile selected",
     model
   };
 }
@@ -332,17 +360,17 @@ function getCurrentChatConfig() {
 function renderThemeSettings() {
   const currentMode = getTheme() || "dark";
   elements.settingsThemeMode.value = currentMode;
-  
+
   const customColor = window.electronAPI.getItem("custom-accent-color") || "#37c2b5";
   elements.settingsCustomColor.value = customColor;
 }
 
 function applyCustomColor(color) {
   document.documentElement.style.setProperty("--accent", color);
-  
+
   const adjust = (c, amount) => {
-    return '#' + c.replace(/^#/, '').replace(/../g, c => 
-      ('0'+Math.min(255, Math.max(0, parseInt(c, 16) + amount)).toString(16)).substr(-2)
+    return '#' + c.replace(/^#/, '').replace(/../g, c =>
+      ('0' + Math.min(255, Math.max(0, parseInt(c, 16) + amount)).toString(16)).substr(-2)
     );
   };
   document.documentElement.style.setProperty("--accent-strong", adjust(color, -20));
@@ -376,7 +404,7 @@ function renderSettings() {
   if (apiProfiles.length === 0) {
     const fallback = document.createElement("option");
     fallback.value = "";
-    fallback.textContent = envApiKey ? "Environment key" : "No profile saved";
+    fallback.textContent = "No profile saved";
     elements.settingsActiveApi.appendChild(fallback);
   } else {
     apiProfiles.forEach((profile) => {
@@ -475,24 +503,11 @@ function addApiKeyFromSettings() {
   setStatus("AI Profile saved.");
 }
 
-async function tryGetEnvApiKey() {
-  if (!window.electronAPI || !window.electronAPI.getGeminiApiKey) {
-    return;
-  }
-
-  try {
-    envApiKey = await window.electronAPI.getGeminiApiKey();
-  } catch {
-    envApiKey = "";
-  }
-}
-
 async function boot() {
   applyTheme();
   const customColor = window.electronAPI.getItem("custom-accent-color");
   if (customColor) applyCustomColor(customColor);
-  
-  await tryGetEnvApiKey();
+
   elements.fitModeSelect.value = "auto";
   const embeddingsStoragePath = await window.electronAPI.getUserDataPath();
 
@@ -556,8 +571,60 @@ async function boot() {
     selectedTextBox: elements.selectedTextBox,
     imagePreviewContainer: elements.imagePreviewContainer,
     onStatus: setStatus,
-    getChatConfig: getCurrentChatConfig
+    getChatConfig: getCurrentChatConfig,
+    onAgentAction: (action) => {
+      if (action.type === 'highlight') {
+        pdf.findAndHighlight(action.text);
+      } else if (action.type === 'note') {
+        notes.addNote(action.content);
+        sidebarPanel = "notes";
+        sidebarVisible = true;
+        showReader();
+      } else if (action.type === 'mindmap') {
+        mindmap.show(action.code);
+      } else if (action.type === 'comment') {
+        annotation.addStickyNote(action.text, 50, 50); // Add at top-left by default
+        setStatus("Agent added a sticky note to this page.");
+      } else if (action.type === 'websearch') {
+        setStatus("Agent performed a web search.");
+      }
+    },
+    onGlossaryTermFound: async (data) => {
+      const ok = await addToGlossary(data.term, data.definition, data.source);
+      if (ok) {
+        updateGlossaryUI();
+        setStatus(`Agent added "${data.term}" to glossary.`);
+      }
+    }
   });
+
+  const notes = new NotesController({
+    notesList: elements.notesList,
+    onStatus: setStatus
+  });
+
+  const mindmap = new MindMapController({
+    modal: elements.mindmapModal,
+    viewer: elements.mindmapViewer,
+    closeBtn: elements.closeMindmap,
+    exportBtn: elements.exportMindmapSvg,
+    onStatus: setStatus
+  });
+
+  // AI Capabilities modal handlers
+  if (elements.aiCapabilitiesBtn && elements.aiCapabilitiesModal && elements.closeAiCapabilities) {
+    elements.aiCapabilitiesBtn.addEventListener('click', () => {
+      elements.aiCapabilitiesModal.style.display = 'block';
+    });
+
+    elements.closeAiCapabilities.addEventListener('click', () => {
+      elements.aiCapabilitiesModal.style.display = 'none';
+    });
+
+    elements.aiCapabilitiesModal.addEventListener('click', (e) => {
+      if (e.target === elements.aiCapabilitiesModal) elements.aiCapabilitiesModal.style.display = 'none';
+    });
+  }
 
   const snip = new SnipController({
     pdfViewer: elements.pdfViewer,
@@ -571,7 +638,173 @@ async function boot() {
       window.getSelection()?.removeAllRanges();
       chat.clearSelectedText();
     },
-    onExit: () => {}
+    onExit: () => { }
+  });
+
+  const dictTooltip = new DictionaryTooltip({
+    onAddGlossary: async (data) => {
+      const ok = await addToGlossary(data.term, data.definition, data.source);
+      if (ok) {
+        setStatus(`Added "${data.term}" to glossary.`);
+        updateGlossaryUI();
+      } else {
+        setStatus("Failed to add to glossary.");
+      }
+    }
+  });
+
+  const contextMenu = new PdfContextMenu({
+    container: elements.pdfStage,
+    onDefine: async (text, context, x, y) => {
+      setStatus(`Defining "${text}"...`);
+      const config = getCurrentChatConfig();
+      if (!config.apiKey) {
+        setStatus("Select a saved AI profile before using definitions.");
+        return;
+      }
+      const res = await window.electronAPI.getDefinition({
+        word: text,
+        context,
+        profile: config.profile,
+        apiKey: config.apiKey,
+        model: config.model
+      });
+      if (res.ok) {
+        dictTooltip.show(x, y, res.result);
+        setStatus("Definition loaded.");
+      } else {
+        setStatus("Definition failed.");
+      }
+    },
+    onAddToGlossary: async (text, context) => {
+      setStatus(`Adding "${text}" to glossary...`);
+      const config = getCurrentChatConfig();
+      if (!config.apiKey) {
+        setStatus("Select a saved AI profile before using glossary lookup.");
+        return;
+      }
+      const res = await window.electronAPI.getDefinition({
+        word: text,
+        context,
+        profile: config.profile,
+        apiKey: config.apiKey,
+        model: config.model
+      });
+      if (res.ok) {
+        const ok = await addToGlossary(res.result.term, res.result.definition, res.result.source);
+        if (ok) {
+          setStatus(`Added "${text}" to glossary.`);
+          updateGlossaryUI();
+        }
+      } else {
+        setStatus("Failed to define term.");
+      }
+    },
+    onAddToNotes: (text) => {
+      setStatus("Notes integration coming soon!");
+    }
+  });
+
+  async function updateGlossaryUI() {
+    const glossary = await getGlossary();
+    const query = elements.glossarySearch.value.toLowerCase();
+
+    elements.glossaryList.innerHTML = "";
+
+    const filtered = glossary.terms.filter(t =>
+      t.term.toLowerCase().includes(query) ||
+      t.definition.toLowerCase().includes(query)
+    );
+
+    if (filtered.length === 0) {
+      elements.glossaryList.innerHTML = `<div style="padding: 20px; text-align: center; color: var(--text-soft); font-size: 0.85rem;">No terms found.</div>`;
+      return;
+    }
+
+    filtered.forEach(item => {
+      const el = document.createElement("div");
+      el.className = "glossary-item";
+      el.innerHTML = `
+        <div class="glossary-term">
+          ${item.term}
+          <button class="glossary-remove" title="Remove term"><i class="fa-solid fa-trash-can"></i></button>
+        </div>
+        <div class="glossary-def">${item.definition}</div>
+        <div class="glossary-meta">
+          <span>${item.source === 'llm' ? 'AI' : 'Dict'}</span>
+          <span>${item.frequency || 1} uses</span>
+        </div>
+      `;
+
+      el.querySelector(".glossary-remove").addEventListener("click", async (e) => {
+        e.stopPropagation();
+        if (await removeFromGlossary(item.term)) {
+          updateGlossaryUI();
+        }
+      });
+
+      elements.glossaryList.appendChild(el);
+    });
+  }
+
+  elements.glossarySearch.addEventListener("input", updateGlossaryUI);
+  updateGlossaryUI();
+
+  elements.glossaryExportBtn.addEventListener("click", async () => {
+    const glossary = await getGlossary();
+    if (!glossary.terms || glossary.terms.length === 0) {
+      setStatus("Glossary is empty.");
+      return;
+    }
+
+    let md = "# Glossary\n\n";
+    glossary.terms.forEach(t => {
+      md += `### ${t.term}\n`;
+      md += `**Definition**: ${t.definition}\n`;
+      md += `**Source**: ${t.source}\n`;
+      md += `**Added**: ${new Date(t.dateAdded).toLocaleDateString()}\n\n`;
+    });
+
+    const blob = new Blob([md], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "glossary.md";
+    downloadData(md, "glossary.md", "text/markdown");
+    setStatus("Glossary exported as Markdown.");
+  });
+
+  function downloadData(data, filename, type) {
+    const blob = new Blob([data], { type });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  elements.exportMd.addEventListener("click", (e) => {
+    e.preventDefault();
+    const md = notes.getNotesMarkdown();
+    if (md) {
+      downloadData(md, "research_notes.md", "text/markdown");
+      setStatus("Notes exported as Markdown.");
+    }
+  });
+
+  elements.exportLatex.addEventListener("click", (e) => {
+    e.preventDefault();
+    const latex = notes.getNotesLatex();
+    if (latex) {
+      downloadData(latex, "research_notes.tex", "text/plain");
+      setStatus("Notes exported as LaTeX.");
+    }
+  });
+
+  elements.exportPdf.addEventListener("click", (e) => {
+    e.preventDefault();
+    notes.printNotes();
   });
 
   function renderAll() {
@@ -611,6 +844,7 @@ async function boot() {
     const savedState = tabViewState.get(path) || null;
     await pdf.load(path, savedState);
     await chat.loadPdfHistory(path);
+    await notes.load(path);
     chat.setEnabled(currentView === "reader" && chatVisible);
     showReader();
     renderAll();
@@ -691,13 +925,13 @@ async function boot() {
     if (custom) applyCustomColor(custom);
     renderSettings();
   });
-  
+
   elements.settingsCustomColor.addEventListener("input", (e) => {
     const color = e.target.value;
     window.electronAPI.setItem("custom-accent-color", color);
     applyCustomColor(color);
   });
-  
+
   elements.resetColorBtn.addEventListener("click", () => {
     window.electronAPI.removeItem("custom-accent-color");
     applyTheme();
@@ -743,6 +977,28 @@ async function boot() {
     sidebarVisible = !(sidebarVisible && sidebarPanel === "thumbs");
     sidebarPanel = "thumbs";
     showReader();
+  });
+  elements.navGlossary.addEventListener("click", () => {
+    if (!activeTabPath) {
+      setStatus("Open a PDF tab before showing glossary.");
+      return;
+    }
+
+    sidebarVisible = !(sidebarVisible && sidebarPanel === "glossary");
+    sidebarPanel = "glossary";
+    showReader();
+    updateGlossaryUI();
+  });
+  elements.navNotes.addEventListener("click", () => {
+    if (!activeTabPath) {
+      setStatus("Open a PDF tab before showing notes.");
+      return;
+    }
+
+    sidebarVisible = !(sidebarVisible && sidebarPanel === "notes");
+    sidebarPanel = "notes";
+    showReader();
+    notes.render();
   });
   elements.navChat.addEventListener("click", () => {
     if (!activeTabPath) {

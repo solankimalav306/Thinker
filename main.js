@@ -102,10 +102,6 @@ function createWindow() {
     return canceled ? null : filePaths[0];
   });
 
-  ipcMain.handle('config:getGeminiApiKey', () => {
-    return process.env.GEMINI_API_KEY || '';
-  });
-
   ipcMain.handle('llm:generate', handleLLMGenerate);
 
   ipcMain.handle('chat:loadHistory', async (_event, pdfPath) => {
@@ -135,6 +131,149 @@ function createWindow() {
     const embeddingsPath = path.join(app.getPath('userData'), 'embeddings');
     await fsPromises.mkdir(embeddingsPath, { recursive: true });
     return embeddingsPath;
+  });
+
+  // Notes persistence handlers
+  ipcMain.handle('notes:load', async (event, pdfPath) => {
+    try {
+      const userData = app.getPath('userData');
+      const pdfId = path.basename(pdfPath, path.extname(pdfPath));
+      const notesFile = path.join(userData, `notes-${pdfId}.json`);
+      if (fs.existsSync(notesFile)) {
+        const data = fs.readFileSync(notesFile, 'utf-8');
+        return JSON.parse(data);
+      }
+      return [];
+    } catch (e) {
+      return [];
+    }
+  });
+  ipcMain.handle('notes:save', async (event, pdfPath, notes) => {
+    try {
+      const userData = app.getPath('userData');
+      const pdfId = path.basename(pdfPath, path.extname(pdfPath));
+      const notesFile = path.join(userData, `notes-${pdfId}.json`);
+      fs.writeFileSync(notesFile, JSON.stringify(notes, null, 2), 'utf-8');
+      return true;
+    } catch (e) {
+      return false;
+    }
+  });
+
+  ipcMain.handle('dict:define', async (_event, { word, context, apiKey, model, profile }) => {
+    if (!apiKey) {
+      return { ok: false, error: 'Missing API key. Select a saved AI profile first.' };
+    }
+
+    try {
+      const requestProfile = profile && typeof profile === 'object'
+        ? { ...profile, key: profile.key || apiKey, model: profile.model || model || 'gemini-2.0-flash' }
+        : { format: 'gemini', key: apiKey, model: model || 'gemini-2.0-flash' };
+      const prompt = [
+        'You are a dictionary assistant for a PDF reader.',
+        'Return ONLY valid JSON with keys: term, definition, source.',
+        'Use source="llm".',
+        `Term: ${word}`,
+        `Context: ${context || ''}`,
+        'Definition should be concise, accurate, and specific to the selected term.'
+      ].join('\n');
+
+      const result = await handleLLMGenerate(null, {
+        profile: requestProfile,
+        parts: [{ text: prompt }]
+      });
+
+      if (!result?.ok) {
+        return { ok: false, error: result?.error || 'Definition lookup failed' };
+      }
+
+      const rawText = String(result.text || '').trim();
+      const jsonText = rawText.startsWith('```')
+        ? rawText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '')
+        : rawText;
+
+      let parsed;
+      try {
+        parsed = JSON.parse(jsonText);
+      } catch {
+        parsed = {
+          term: word,
+          definition: rawText,
+          source: 'llm'
+        };
+      }
+
+      return { ok: true, result: parsed };
+    } catch (error) {
+      console.error('Definition lookup failed:', error);
+      return { ok: false, error: error.message || 'Definition lookup failed' };
+    }
+  });
+
+  ipcMain.handle('agent:invoke', async (_event, data) => {
+    try {
+      const response = await axios.post('http://localhost:8000/agent/invoke', data);
+      return { ok: true, result: response.data };
+    } catch (error) {
+      console.error('Agent invocation failed:', error);
+      return { ok: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('glossary:get', async () => {
+    try {
+      const glossaryFile = path.join(app.getPath('userData'), 'glossary.json');
+      if (fs.existsSync(glossaryFile)) {
+        const data = await fsPromises.readFile(glossaryFile, 'utf8');
+        return JSON.parse(data);
+      }
+      return { terms: [], pdfGlossaries: {} };
+    } catch (error) {
+      console.error('Failed to get glossary:', error);
+      return { terms: [], pdfGlossaries: {} };
+    }
+  });
+
+  ipcMain.handle('glossary:add', async (_event, payload) => {
+    try {
+      const glossaryFile = path.join(app.getPath('userData'), 'glossary.json');
+      let glossary = { terms: [], pdfGlossaries: {} };
+      
+      if (fs.existsSync(glossaryFile)) {
+        const data = await fsPromises.readFile(glossaryFile, 'utf8');
+        glossary = JSON.parse(data);
+      }
+
+      // Handle global vs PDF-specific glossary if needed, for now just global terms
+      const existingIndex = glossary.terms.findIndex(t => t.term.toLowerCase() === payload.term.toLowerCase());
+      if (existingIndex > -1) {
+        glossary.terms[existingIndex] = { ...glossary.terms[existingIndex], ...payload, frequency: (glossary.terms[existingIndex].frequency || 1) + 1 };
+      } else {
+        glossary.terms.push({ ...payload, dateAdded: new Date().toISOString(), frequency: 1 });
+      }
+
+      await fsPromises.writeFile(glossaryFile, JSON.stringify(glossary, null, 2), 'utf8');
+      return true;
+    } catch (error) {
+      console.error('Failed to add to glossary:', error);
+      return false;
+    }
+  });
+
+  ipcMain.handle('glossary:remove', async (_event, term) => {
+    try {
+      const glossaryFile = path.join(app.getPath('userData'), 'glossary.json');
+      if (fs.existsSync(glossaryFile)) {
+        const data = await fsPromises.readFile(glossaryFile, 'utf8');
+        const glossary = JSON.parse(data);
+        glossary.terms = glossary.terms.filter(t => t.term !== term);
+        await fsPromises.writeFile(glossaryFile, JSON.stringify(glossary, null, 2), 'utf8');
+      }
+      return true;
+    } catch (error) {
+      console.error('Failed to remove from glossary:', error);
+      return false;
+    }
   });
 }
 

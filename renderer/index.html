@@ -18,6 +18,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf_viewer.min.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
 </head>
 <body>
   <div class="custom-title-bar">
@@ -37,6 +38,8 @@
       <button class="activity-btn" id="nav-settings" title="Settings"><i class="fa-solid fa-gear"></i></button>
       <button class="activity-btn" id="nav-outline" title="Toggle table of contents"><i class="fa-solid fa-list"></i></button>
       <button class="activity-btn" id="nav-thumbs" title="Toggle thumbnails"><i class="fa-regular fa-images"></i></button>
+      <button class="activity-btn" id="nav-glossary" title="Toggle glossary"><i class="fa-solid fa-spell-check"></i></button>
+      <button class="activity-btn" id="nav-notes" title="Toggle notes"><i class="fa-solid fa-note-sticky"></i></button>
       <button class="activity-btn" id="nav-chat" title="Toggle chat"><i class="fa-solid fa-comments"></i></button>
     </nav>
 
@@ -226,6 +229,36 @@
             <h4>Page Thumbnails</h4>
             <div id="thumbnail-list" class="thumb-list"></div>
           </div>
+          
+          <div class="sidebar-block" id="glossary-block">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+              <h4 style="margin: 0;">Glossary</h4>
+              <button class="btn icon-btn" id="glossary-export-btn" title="Export Glossary"><i class="fa-solid fa-file-export"></i></button>
+            </div>
+            <div class="search-box" style="margin-bottom: 10px;">
+              <input type="text" id="glossary-search" placeholder="Search terms..." style="width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel-soft); color: var(--text); font-size: 0.8rem;" />
+            </div>
+            <div id="glossary-list" class="glossary-list">
+              <!-- Terms will be injected here -->
+            </div>
+          </div>
+
+          <div class="sidebar-block" id="notes-block">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+              <h4 style="margin: 0;">Research Notes</h4>
+              <div class="dropdown">
+                <button class="btn icon-btn dropdown-toggle" id="notes-export-btn" title="Export Options"><i class="fa-solid fa-file-export"></i></button>
+                <div class="dropdown-content">
+                  <a href="#" id="export-md">Markdown (.md)</a>
+                  <a href="#" id="export-pdf">PDF Document</a>
+                  <a href="#" id="export-latex">LaTeX Source (.tex)</a>
+                </div>
+              </div>
+            </div>
+            <div id="notes-list" class="notes-list">
+              <!-- Notes will be injected here -->
+            </div>
+          </div>
         </aside>
 
         <div class="pdf-stage" id="pdf-stage">
@@ -247,7 +280,10 @@
       <div class="resizer chat-resizer" id="chat-resizer"></div>
       <div class="chat-header">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-          <h2 style="margin:0;">PDF Chat</h2>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <h2 style="margin:0;">PDF Chat</h2>
+            <button id="ai-capabilities-btn" class="btn icon-btn" title="AI Capabilities" style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem;"><i class="fa-solid fa-circle-info"></i></button>
+          </div>
           <button id="chat-close-btn" class="btn icon-btn" title="Close Chat" style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem;"><i class="fa-solid fa-xmark"></i></button>
         </div>
         <p>Ask questions using selected text or snippets.</p>
@@ -282,5 +318,43 @@
   </div>
 
   <script type="module" src="js/app.js"></script>
+  <div id="ai-capabilities-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-circle-info"></i> About the AI Assistant</h3>
+        <button class="close-modal" id="close-ai-capabilities">&times;</button>
+      </div>
+      <div style="padding: 12px; color: var(--text-base);">
+        <p><strong>What I can do:</strong></p>
+        <ul>
+          <li>Answer questions about the open PDF using document content.</li>
+          <li>Highlight text, create structured notes, and generate mind maps.</li>
+          <li>Define terms (context-aware) and build a glossary you can export.</li>
+        </ul>
+        <p><strong>How to understand my answers:</strong></p>
+        <ul>
+          <li>Responses labeled <em>Document Only</em> come strictly from the PDF.</li>
+          <li>Responses labeled <em>AI Knowledge</em> may use background knowledge beyond the PDF.</li>
+          <li>If I'm uncertain, I'll say so. Use the chat buttons to ask for sources or evidence.</li>
+        </ul>
+        <p style="font-size:0.9rem; color:var(--text-soft)">Tip: Use the capability chips on the chat welcome card to try common actions.</p>
+      </div>
+    </div>
+  </div>
+
+  <div id="mindmap-modal" class="modal">
+    <div class="modal-content mindmap-content">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-diagram-project"></i> Concept Mind Map</h3>
+        <button class="close-modal" id="close-mindmap">&times;</button>
+      </div>
+      <div id="mindmap-viewer" class="mermaid">
+        <!-- Mermaid diagram will be rendered here -->
+      </div>
+      <div class="modal-footer">
+        <button class="btn" id="export-mindmap-svg">Export SVG</button>
+      </div>
+    </div>
+  </div>
 </body>
 </html>

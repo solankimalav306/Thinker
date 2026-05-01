@@ -1,4 +1,4 @@
-const DEFAULT_GEMINI_MODEL = "gemini-2.0-flash";
+const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash-lite";
 const DEFAULT_OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 
 const fetchFn = globalThis.fetch;
@@ -75,7 +75,7 @@ async function handleLLMGenerate(_event, payload) {
   const profile = payload?.profile || {};
   const format = String(profile.format || payload?.format || "gemini").toLowerCase();
   const model = String(profile.model || payload?.model || DEFAULT_GEMINI_MODEL).trim() || DEFAULT_GEMINI_MODEL;
-  const apiKey = String(profile.key || profile.apiKey || payload?.apiKey || process.env.GEMINI_API_KEY || "").trim();
+  const apiKey = String(profile.key || profile.apiKey || payload?.apiKey || "").trim();
   const endpointUrl = normalizeUrl(profile.url || payload?.url || "");
   const parts = Array.isArray(payload?.parts) ? payload.parts : [];
 
