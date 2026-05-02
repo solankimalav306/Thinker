@@ -20,6 +20,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Notes persistence
   loadNotes: (pdfPath) => ipcRenderer.invoke('notes:load', pdfPath),
   saveNotes: (pdfPath, notes) => ipcRenderer.invoke('notes:save', pdfPath, notes),
+  // Mindmap persistence
+  loadMindmaps: (pdfPath) => ipcRenderer.invoke('mindmaps:list', pdfPath),
+  saveMindmap: (pdfPath, mindmap) => ipcRenderer.invoke('mindmaps:save', pdfPath, mindmap),
+  deleteMindmap: (pdfPath, id) => ipcRenderer.invoke('mindmaps:delete', pdfPath, id),
+  saveTextFile: (payload) => ipcRenderer.invoke('dialog:saveTextFile', payload),
 
   // Expose synchronous local storage replacement
   getItem: (key) => ipcRenderer.sendSync('storage:getItem', key),

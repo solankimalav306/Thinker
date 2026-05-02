@@ -67,6 +67,10 @@ const elements = {
   navNotes: document.getElementById("nav-notes"),
   notesBlock: document.getElementById("notes-block"),
   notesList: document.getElementById("notes-list"),
+  navMindmaps: document.getElementById("nav-mindmaps"),
+  mindmapsBlock: document.getElementById("mindmaps-block"),
+  mindmapsList: document.getElementById("mindmaps-list"),
+  mindmapNewBtn: document.getElementById("mindmap-new-btn"),
   exportMd: document.getElementById("export-md"),
   exportPdf: document.getElementById("export-pdf"),
   exportLatex: document.getElementById("export-latex"),
@@ -185,11 +189,13 @@ function syncLayoutToggles() {
   elements.navOutline.classList.toggle("active", showSidebar && sidebarPanel === "outline");
   elements.navThumbs.classList.toggle("active", showSidebar && sidebarPanel === "thumbs");
   elements.navGlossary.classList.toggle("active", showSidebar && sidebarPanel === "glossary");
-  elements.navNotes.classList.toggle("active", showSidebar && sidebarPanel === "notes");
-  elements.navChat.classList.toggle("active", showChat);
+  elements.navNotes?.classList.toggle("active", showSidebar && sidebarPanel === "notes");
+  elements.navMindmaps?.classList.toggle("active", showSidebar && sidebarPanel === "mindmaps");
+  elements.navChat?.classList.toggle("active", showChat);
 
-  elements.glossaryBlock.classList.toggle("visible", showSidebar && sidebarPanel === "glossary");
-  elements.notesBlock.classList.toggle("visible", showSidebar && sidebarPanel === "notes");
+  elements.glossaryBlock?.classList.toggle("visible", showSidebar && sidebarPanel === "glossary");
+  elements.notesBlock?.classList.toggle("visible", showSidebar && sidebarPanel === "notes");
+  elements.mindmapsBlock?.classList.toggle("visible", showSidebar && sidebarPanel === "mindmaps");
 }
 
 function showWelcome() {
@@ -564,6 +570,25 @@ async function boot() {
     getStorageKey: () => `pdf-annotations:${pdf.getCurrentPath()}:page-${pdf.getPageNum()}`
   });
 
+  const notes = new NotesController({
+    notesList: elements.notesList,
+    onStatus: setStatus
+  });
+
+  let mindmap;
+  try {
+    mindmap = new MindMapController({
+      modal: elements.mindmapModal,
+      viewer: elements.mindmapViewer,
+      closeBtn: elements.closeMindmap,
+      exportBtn: elements.exportMindmapSvg,
+      listContainer: elements.mindmapsList,
+      onStatus: setStatus
+    });
+  } catch (e) {
+    console.error("Failed to initialize MindMapController:", e);
+  }
+
   const chat = new ChatController({
     chatHistory: elements.chatHistory,
     chatInput: elements.chatInput,
@@ -581,9 +606,9 @@ async function boot() {
         sidebarVisible = true;
         showReader();
       } else if (action.type === 'mindmap') {
-        mindmap.show(action.code);
+        if (mindmap) mindmap.show(action.code);
       } else if (action.type === 'comment') {
-        annotation.addStickyNote(action.text, 50, 50); // Add at top-left by default
+        annotation.addStickyNote(action.text, 50, 50);
         setStatus("Agent added a sticky note to this page.");
       } else if (action.type === 'websearch') {
         setStatus("Agent performed a web search.");
@@ -596,19 +621,6 @@ async function boot() {
         setStatus(`Agent added "${data.term}" to glossary.`);
       }
     }
-  });
-
-  const notes = new NotesController({
-    notesList: elements.notesList,
-    onStatus: setStatus
-  });
-
-  const mindmap = new MindMapController({
-    modal: elements.mindmapModal,
-    viewer: elements.mindmapViewer,
-    closeBtn: elements.closeMindmap,
-    exportBtn: elements.exportMindmapSvg,
-    onStatus: setStatus
   });
 
   // AI Capabilities modal handlers
@@ -845,6 +857,7 @@ async function boot() {
     await pdf.load(path, savedState);
     await chat.loadPdfHistory(path);
     await notes.load(path);
+    await mindmap.load(path);
     chat.setEnabled(currentView === "reader" && chatVisible);
     showReader();
     renderAll();
@@ -1000,6 +1013,25 @@ async function boot() {
     showReader();
     notes.render();
   });
+  elements.navMindmaps.addEventListener("click", () => {
+    if (!activeTabPath) {
+      setStatus("Open a PDF tab before showing mind maps.");
+      return;
+    }
+
+    sidebarVisible = !(sidebarVisible && sidebarPanel === "mindmaps");
+    sidebarPanel = "mindmaps";
+    showReader();
+  });
+
+  elements.mindmapNewBtn.addEventListener("click", () => {
+    chatVisible = true;
+    showReader();
+    elements.chatInput.value = "Generate a comprehensive mind map of this document.";
+    elements.chatInput.focus();
+    setStatus("Ask the AI to generate a map.");
+  });
+
   elements.navChat.addEventListener("click", () => {
     if (!activeTabPath) {
       setStatus("Open a PDF tab before using chat.");

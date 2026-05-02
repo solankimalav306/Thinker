@@ -102,6 +102,25 @@ function createWindow() {
     return canceled ? null : filePaths[0];
   });
 
+  ipcMain.handle('dialog:saveTextFile', async (_event, payload) => {
+    try {
+      const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+        defaultPath: payload?.defaultPath || 'mindmap.svg',
+        filters: payload?.filters || [{ name: 'All Files', extensions: ['*'] }]
+      });
+
+      if (canceled || !filePath) {
+        return { ok: false, canceled: true };
+      }
+
+      await fsPromises.writeFile(filePath, payload?.content || '', 'utf8');
+      return { ok: true, filePath };
+    } catch (error) {
+      console.error('Failed to save text file:', error);
+      return { ok: false, error: error.message || 'Save failed' };
+    }
+  });
+
   ipcMain.handle('llm:generate', handleLLMGenerate);
 
   ipcMain.handle('chat:loadHistory', async (_event, pdfPath) => {
@@ -157,6 +176,62 @@ function createWindow() {
       return true;
     } catch (e) {
       return false;
+    }
+  });
+
+  // Mindmaps persistence per-PDF
+  ipcMain.handle('mindmaps:list', async (_event, pdfPath) => {
+    try {
+      const userData = app.getPath('userData');
+      const pdfId = crypto.createHash('sha256').update(String(pdfPath)).digest('hex');
+      const file = path.join(userData, `mindmaps-${pdfId}.json`);
+      if (fs.existsSync(file)) {
+        const data = await fsPromises.readFile(file, 'utf8');
+        return JSON.parse(data);
+      }
+      return [];
+    } catch (e) {
+      console.error('Failed to list mindmaps:', e);
+      return [];
+    }
+  });
+
+  ipcMain.handle('mindmaps:save', async (_event, pdfPath, mindmap) => {
+    try {
+      const userData = app.getPath('userData');
+      const pdfId = crypto.createHash('sha256').update(String(pdfPath)).digest('hex');
+      const file = path.join(userData, `mindmaps-${pdfId}.json`);
+      let arr = [];
+      if (fs.existsSync(file)) {
+        arr = JSON.parse(await fsPromises.readFile(file, 'utf8')) || [];
+      }
+      mindmap.id = mindmap.id || String(Date.now());
+      mindmap.createdAt = mindmap.createdAt || new Date().toISOString();
+      const idx = arr.findIndex(m => m.id === mindmap.id);
+      if (idx > -1) arr[idx] = mindmap; else arr.push(mindmap);
+      await fsPromises.writeFile(file, JSON.stringify(arr, null, 2), 'utf8');
+      return { ok: true, result: mindmap };
+    } catch (e) {
+      console.error('Failed to save mindmap:', e);
+      return { ok: false };
+    }
+  });
+
+  ipcMain.handle('mindmaps:delete', async (_event, pdfPath, id) => {
+    try {
+      const userData = app.getPath('userData');
+      const pdfId = crypto.createHash('sha256').update(String(pdfPath)).digest('hex');
+      const file = path.join(userData, `mindmaps-${pdfId}.json`);
+      let arr = [];
+      if (fs.existsSync(file)) {
+        arr = JSON.parse(await fsPromises.readFile(file, 'utf8')) || [];
+      }
+      arr = arr.filter(m => m.id !== id);
+      await fsPromises.writeFile(file, JSON.stringify(arr, null, 2), 'utf8');
+      return { ok: true };
+    } catch (e) {
+      console.error('Failed to delete mindmap:', e);
+      return { ok: false };
     }
   });
 

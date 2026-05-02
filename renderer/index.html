@@ -19,6 +19,75 @@
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf_viewer.min.css"/>
   <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/d3@7.8.5/dist/d3.min.js"></script>
+  <!-- markmap-view exposes: Markmap, defaultColorFn, etc. on window.markmap -->
+  <script src="https://cdn.jsdelivr.net/npm/markmap-view@0.16.0/dist/browser/index.js"></script>
+  <!-- Corrected inline Transformer: absolute-indent-based tree parsing -->
+  <script>
+    (function() {
+      /**
+       * Parse Markdown into a markmap node tree.
+       * Strategy:
+       *   - '# Header' lines set header nodes at depth (hashes - 1)
+       *   - '- list' lines at absolute indent level: depth = lastHeaderDepth + 1 + floor(indent/2)
+       *   - Stack is used to find the correct parent by comparing absolute depths
+       */
+      function parseMarkdown(md) {
+        var lines = md.split('\n');
+        // Sentinel root so we always have a parent
+        var sentinel = { content: '', children: [], depth: -1 };
+        var stack = [sentinel];
+        var lastHeaderDepth = 0;
+
+        for (var i = 0; i < lines.length; i++) {
+          var line = lines[i];
+          if (!line.trim()) continue;
+
+          var hm = line.match(/^(#{1,6})\s+(.+)/);
+          var lm = line.match(/^(\s*)[-*+]\s+(.+)/);
+
+          if (hm) {
+            var nodeDepth = hm[1].length - 1; // 0-indexed: # → 0, ## → 1
+            var nodeContent = hm[2].trim();
+            lastHeaderDepth = nodeDepth;
+            var node = { content: nodeContent, children: [], depth: nodeDepth };
+            // Pop until stack top has smaller depth
+            while (stack.length > 1 && stack[stack.length - 1].depth >= nodeDepth) {
+              stack.pop();
+            }
+            stack[stack.length - 1].children.push(node);
+            stack.push(node);
+
+          } else if (lm) {
+            var indentLen = lm[1].length;
+            var nodeContent = lm[2].trim();
+            // Absolute depth: relative to the last header, not the stack top
+            var nodeDepth = lastHeaderDepth + 1 + Math.floor(indentLen / 2);
+            var node = { content: nodeContent, children: [], depth: nodeDepth };
+            // Pop until stack top has smaller depth than this node
+            while (stack.length > 1 && stack[stack.length - 1].depth >= nodeDepth) {
+              stack.pop();
+            }
+            stack[stack.length - 1].children.push(node);
+            stack.push(node);
+          }
+        }
+        return sentinel;
+      }
+
+      function MinimalTransformer() {}
+      MinimalTransformer.prototype.transform = function(md) {
+        var sentinel = parseMarkdown(md);
+        // Unwrap sentinel: if there's one child (the # root), promote it
+        var root = sentinel.children.length === 1 ? sentinel.children[0] : sentinel;
+        return { root: root };
+      };
+
+      window.markmap = window.markmap || {};
+      window.markmap.Transformer = MinimalTransformer;
+      console.debug('MinimalTransformer registered on window.markmap');
+    })();
+  </script>
 </head>
 <body>
   <div class="custom-title-bar">
@@ -40,6 +109,7 @@
       <button class="activity-btn" id="nav-thumbs" title="Toggle thumbnails"><i class="fa-regular fa-images"></i></button>
       <button class="activity-btn" id="nav-glossary" title="Toggle glossary"><i class="fa-solid fa-spell-check"></i></button>
       <button class="activity-btn" id="nav-notes" title="Toggle notes"><i class="fa-solid fa-note-sticky"></i></button>
+      <button class="activity-btn" id="nav-mindmaps" title="Toggle mind maps"><i class="fa-solid fa-diagram-project"></i></button>
       <button class="activity-btn" id="nav-chat" title="Toggle chat"><i class="fa-solid fa-comments"></i></button>
     </nav>
 
@@ -259,6 +329,16 @@
               <!-- Notes will be injected here -->
             </div>
           </div>
+
+          <div class="sidebar-block" id="mindmaps-block">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+              <h4 style="margin: 0;">Mind Maps</h4>
+              <button class="btn icon-btn" id="mindmap-new-btn" title="New Mind Map (Ask AI)"><i class="fa-solid fa-plus"></i></button>
+            </div>
+            <div id="mindmaps-list" class="mindmaps-list">
+              <!-- Mind maps will be injected here -->
+            </div>
+          </div>
         </aside>
 
         <div class="pdf-stage" id="pdf-stage">
@@ -348,8 +428,8 @@
         <h3><i class="fa-solid fa-diagram-project"></i> Concept Mind Map</h3>
         <button class="close-modal" id="close-mindmap">&times;</button>
       </div>
-      <div id="mindmap-viewer" class="mermaid">
-        <!-- Mermaid diagram will be rendered here -->
+      <div id="mindmap-viewer" class="mindmap-viewer-container">
+        <!-- Markmap diagram will be rendered here -->
       </div>
       <div class="modal-footer">
         <button class="btn" id="export-mindmap-svg">Export SVG</button>

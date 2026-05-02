@@ -1913,7 +1913,8 @@ body.snipping-active #text-layer {
 
 .mindmap-content {
   width: 90%;
-  height: 85vh;
+  height: 90vh;
+  max-width: 1400px;
 }
 
 .modal-header {
@@ -1942,14 +1943,56 @@ body.snipping-active #text-layer {
   color: var(--text);
 }
 
-.mermaid {
+.mindmap-viewer-container {
   flex: 1;
-  overflow: auto;
-  padding: 24px;
-  background: white; /* Mermaid often looks better on white/light backgrounds */
+  overflow: hidden;
+  position: relative;
+  background: var(--panel); /* Match app dark theme */
   display: flex;
-  justify-content: center;
-  align-items: center;
+  flex-direction: column;
+}
+
+.mindmaps-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.mindmap-item {
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  position: relative;
+}
+
+.mindmap-item:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  background: var(--panel);
+}
+
+.mindmap-item .delete-btn {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.mindmap-item:hover .delete-btn {
+  opacity: 1;
+}
+
+.mindmap-export-menu {
+  animation: fadeIn 0.2s ease-out;
+  border-color: var(--line) !important;
+}
+
+.markmap-node text {
+  transition: fill 0.3s ease;
 }
 
 .modal-footer {

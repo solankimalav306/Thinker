@@ -3,7 +3,11 @@ const path = require('path');
 const fs = require('fs');
 
 const getStorageDir = () => path.join(app.getPath('userData'), 'local-storage-jsonl');
-const getFilePath = (key) => path.join(getStorageDir(), `${key}.jsonl`);
+const getFilePath = (key) => {
+  // Sanitize key to produce a safe filename on all platforms (encode to avoid illegal chars)
+  const safe = encodeURIComponent(String(key));
+  return path.join(getStorageDir(), `${safe}.jsonl`);
+};
 
 function ensureStorageDir() {
   const dir = getStorageDir();

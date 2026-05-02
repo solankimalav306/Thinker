@@ -182,19 +182,30 @@ def mindmap_node(state: AgentState):
     llm = ChatGoogleGenerativeAI(model=state["model"], google_api_key=state["api_key"])
     context = "\n".join(state["rag_chunks"])
     
-    prompt = f"""Create a Mermaid.js mindmap structure based on the core concepts in this text.
-    Use the format:
-    mindmap
-      root((Topic))
-        Branch1
-          SubBranch1
-        Branch2
-    
-    Return ONLY the mermaid code block.
-    
-    Context:
-    {context}
-    """
+    prompt = f"""Create a deep, multi-level mind map using Markdown.
+    The mind map must visualize the core concepts and their recursive sub-topics.
+
+Rules:
+- Return ONLY the Markdown code, no markdown fences or explanation.
+- Start with EXACTLY one '# ' header for the Root Topic.
+- Use EXACTLY '-' for all branches and sub-levels.
+- Indent EXACTLY 2 spaces for each deeper level (recursive).
+- You MUST map at least 3-4 levels deep where appropriate.
+- Keep labels concise (1 to 5 words).
+
+Output format example:
+# Root Topic
+- Main Branch 1
+  - Sub-topic 1.1
+    - Detail 1.1.1
+    - Detail 1.1.2
+  - Sub-topic 1.2
+- Main Branch 2
+  - Sub-topic 2.1
+
+Context:
+{context}
+"""
     
     response = llm.invoke(prompt)
     return {

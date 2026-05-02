@@ -427,8 +427,19 @@ export class ChatController {
       }
 
       const agentRes = res.result;
-      const replyText = agentRes.response_text || "No response.";
-      
+      console.debug('Agent result actions:', agentRes.actions);
+      console.debug('Agent raw response_text:', agentRes.response_text);
+
+      // Prefer concise user-facing messages when the agent produced notes,
+      // avoid surfacing internal critic/meta-analysis strings directly.
+      let replyText = agentRes.response_text || "No response.";
+      const hasNoteAction = agentRes.actions && agentRes.actions.some(a => a.type === 'note');
+      if (hasNoteAction) {
+        const noteAction = agentRes.actions.find(a => a.type === 'note');
+        const excerpt = (noteAction?.content || '').slice(0, 200).trim();
+        replyText = `Generated structured notes saved to Research Notes panel.${excerpt ? "\n\n" + excerpt : ""}`;
+      }
+
       this.appendMessage("Bot", replyText, null);
 
       const botEntry = {
