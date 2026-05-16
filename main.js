@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const fsPromises = require('fs/promises');
 const crypto = require('crypto');
+const { PDFDocument, rgb } = require('pdf-lib');
 require('dotenv').config();
 
 const { getItemSync, setItemSync, removeItemSync } = require('./app-storage');
@@ -28,6 +29,70 @@ function getPdfId(filePath) {
     console.error('Failed to compute PDF ID for', filePath, ':', error.message);
     return null;
   }
+}
+
+function toLocalPath(filePath) {
+  if (!filePath) return filePath;
+  if (filePath.startsWith('file:///')) {
+    return decodeURIComponent(filePath.replace('file:///', '').replace(/\//g, '\\'));
+  }
+  if (filePath.startsWith('file://')) {
+    return decodeURIComponent(filePath.replace('file://', ''));
+  }
+  return filePath;
+}
+
+function parseColor(input) {
+  const raw = String(input || '').trim();
+  if (!raw) return { color: rgb(1, 0.92, 0.23), opacity: 1 };
+
+  const hex = raw.match(/^#([0-9a-f]{6})$/i);
+  if (hex) {
+    const v = hex[1];
+    const r = parseInt(v.slice(0, 2), 16) / 255;
+    const g = parseInt(v.slice(2, 4), 16) / 255;
+    const b = parseInt(v.slice(4, 6), 16) / 255;
+    return { color: rgb(r, g, b), opacity: 1 };
+  }
+
+  const rgba = raw.match(/^rgba?\(([^)]+)\)$/i);
+  if (rgba) {
+    const parts = rgba[1].split(',').map((p) => p.trim());
+    const r = Math.max(0, Math.min(255, Number(parts[0]) || 0)) / 255;
+    const g = Math.max(0, Math.min(255, Number(parts[1]) || 0)) / 255;
+    const b = Math.max(0, Math.min(255, Number(parts[2]) || 0)) / 255;
+    const a = parts.length > 3 ? Math.max(0, Math.min(1, Number(parts[3]) || 0)) : 1;
+    return { color: rgb(r, g, b), opacity: a };
+  }
+
+  return { color: rgb(1, 0.92, 0.23), opacity: 1 };
+}
+
+function toPdfPoint(nx, ny, width, height) {
+  const x = Math.max(0, Math.min(1, Number(nx) || 0)) * width;
+  const y = (1 - Math.max(0, Math.min(1, Number(ny) || 0))) * height;
+  return { x, y };
+}
+
+function toPdfRect(nx, ny, nw, nh, width, height) {
+  const x = Math.max(0, Math.min(1, Number(nx) || 0)) * width;
+  const yTop = Math.max(0, Math.min(1, Number(ny) || 0)) * height;
+  const w = Math.max(0, Math.min(1, Number(nw) || 0)) * width;
+  const h = Math.max(0, Math.min(1, Number(nh) || 0)) * height;
+  const y = Math.max(0, height - yTop - h);
+  return { x, y, w, h };
+}
+
+function inferStrokeWidth(pathData, pageWidth) {
+  const norm = Number(pathData?.widthNorm);
+  if (Number.isFinite(norm) && norm > 0) {
+    return Math.max(0.6, norm * pageWidth);
+  }
+  const abs = Number(pathData?.width);
+  if (Number.isFinite(abs) && abs > 0) {
+    return Math.max(0.6, abs * 0.8);
+  }
+  return 1.5;
 }
 
 ipcMain.on('storage:getItem', getItemSync);
@@ -150,6 +215,184 @@ function createWindow() {
     const embeddingsPath = path.join(app.getPath('userData'), 'embeddings');
     await fsPromises.mkdir(embeddingsPath, { recursive: true });
     return embeddingsPath;
+  });
+
+  ipcMain.handle('pdf:saveAnnotated', async (_event, payload) => {
+    try {
+      const sourcePath = toLocalPath(payload?.pdfPath);
+      if (!sourcePath || !fs.existsSync(sourcePath)) {
+        return { ok: false, error: 'Source PDF not found.' };
+      }
+
+      const annotationsByPage = payload?.annotationsByPage || {};
+      const highlightBoxesByPage = payload?.highlightBoxesByPage || {};
+      const inputBytes = await fsPromises.readFile(sourcePath);
+      const pdfDoc = await PDFDocument.load(inputBytes);
+      const pages = pdfDoc.getPages();
+
+      for (let pageIndex = 0; pageIndex < pages.length; pageIndex += 1) {
+        const pageNumber = pageIndex + 1;
+        const pageData = annotationsByPage[String(pageNumber)] || annotationsByPage[pageNumber] || { paths: [], stickyNotes: [] };
+        const highlightBoxes = highlightBoxesByPage[String(pageNumber)] || highlightBoxesByPage[pageNumber] || [];
+
+        const page = pages[pageIndex];
+        const { width, height } = page.getSize();
+        const paths = Array.isArray(pageData.paths) ? pageData.paths : [];
+        const stickyNotes = Array.isArray(pageData.stickyNotes) ? pageData.stickyNotes : [];
+        if (paths.length === 0 && stickyNotes.length === 0 && highlightBoxes.length === 0) {
+          continue;
+        }
+
+        for (const pathData of paths) {
+          const points = Array.isArray(pathData.points) ? pathData.points : [];
+          if (points.length < 2) continue;
+
+          const { color, opacity } = parseColor(pathData.color);
+          const thickness = inferStrokeWidth(pathData, width);
+
+          for (let i = 1; i < points.length; i += 1) {
+            const p1 = points[i - 1];
+            const p2 = points[i];
+            const a = toPdfPoint(p1.x, p1.y, width, height);
+            const b = toPdfPoint(p2.x, p2.y, width, height);
+
+            page.drawLine({
+              start: a,
+              end: b,
+              thickness,
+              color,
+              opacity: Math.max(0.1, Math.min(1, opacity ?? pathData.alpha ?? 1))
+            });
+          }
+        }
+
+        // Render AI highlights as translucent rectangles
+        for (const box of highlightBoxes) {
+          const rect = toPdfRect(box.x, box.y, box.w, box.h, width, height);
+          if (rect.w <= 0 || rect.h <= 0) continue;
+          page.drawRectangle({
+            x: rect.x,
+            y: rect.y,
+            width: rect.w,
+            height: rect.h,
+            color: rgb(1, 0.92, 0.35),
+            opacity: 0.35
+          });
+        }
+
+        for (const note of stickyNotes) {
+          const p = toPdfPoint(note.x, note.y, width, height);
+          const boxW = Math.max(100, Math.min(220, width * 0.24));
+          const boxH = 44;
+          const yBottom = Math.max(6, p.y - boxH + 8);
+          const xLeft = Math.max(6, Math.min(width - boxW - 6, p.x - 12));
+          const text = String(note.text || '').replace(/\s+/g, ' ').trim().slice(0, 280) || 'Note';
+
+          page.drawRectangle({
+            x: xLeft,
+            y: yBottom,
+            width: boxW,
+            height: boxH,
+            color: rgb(1, 0.94, 0.55),
+            opacity: 0.9,
+            borderColor: rgb(0.55, 0.46, 0.1),
+            borderWidth: 0.8
+          });
+
+          page.drawText(text, {
+            x: xLeft + 6,
+            y: yBottom + boxH - 15,
+            size: 9,
+            color: rgb(0.24, 0.22, 0.12),
+            maxWidth: boxW - 10,
+            lineHeight: 10
+          });
+        }
+      }
+
+      // Append detailed notes (if any) as extra pages at the end of the PDF
+      try {
+        if (payload?.includeNotes !== false) {
+          const pdfId = path.basename(sourcePath, path.extname(sourcePath));
+          const notesFile = path.join(app.getPath('userData'), `notes-${pdfId}.json`);
+          if (fs.existsSync(notesFile)) {
+            const raw = await fsPromises.readFile(notesFile, 'utf8');
+            let notesArr = [];
+            try { notesArr = JSON.parse(raw); } catch { notesArr = []; }
+
+            if (Array.isArray(notesArr) && notesArr.length > 0) {
+              // Use first page size as reference, or A4 fallback
+              const ref = pages.length > 0 ? pages[0].getSize() : { width: 595, height: 842 };
+              const pageWidth = ref.width || 595;
+              const pageHeight = ref.height || 842;
+
+              // Prepare text lines
+              const header = `Research Notes (${notesArr.length})`;
+              let bodyLines = [];
+              notesArr.forEach((n, idx) => {
+                const when = n.date ? new Date(n.date).toLocaleString() : '';
+                const source = n.source ? `(${n.source})` : '';
+                const title = `Note ${idx + 1} ${source} ${when}`.trim();
+                bodyLines.push(title);
+                const content = String(n.content || '').replace(/\r/g, '').split(/\n/).map(l => l.trim());
+                content.forEach(line => {
+                  // wrap long lines at ~80 chars
+                  if (line.length <= 120) {
+                    bodyLines.push(line);
+                  } else {
+                    let pos = 0;
+                    while (pos < line.length) {
+                      bodyLines.push(line.slice(pos, pos + 120));
+                      pos += 120;
+                    }
+                  }
+                });
+                bodyLines.push('');
+              });
+
+              // Create pages and write lines
+              const linesPerPage = Math.floor((pageHeight - 80) / 12);
+              let currentPage = null;
+              let currentLines = 0;
+              for (let i = 0; i < bodyLines.length; i += 1) {
+                if (!currentPage || currentLines >= linesPerPage) {
+                  currentPage = pdfDoc.addPage([pageWidth, pageHeight]);
+                  currentLines = 0;
+                  // Header for first line on new page
+                  if (currentLines === 0) {
+                    currentPage.drawText(header, { x: 40, y: pageHeight - 40, size: 14, color: rgb(0, 0, 0) });
+                    currentLines += 2;
+                  }
+                }
+                const y = pageHeight - 40 - (currentLines * 12) - 16;
+                currentPage.drawText(bodyLines[i] || '', { x: 40, y, size: 10, color: rgb(0, 0, 0), lineHeight: 12, maxWidth: pageWidth - 80 });
+                currentLines += 1;
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to append detailed notes to PDF export:', e);
+      }
+
+      const parsed = path.parse(sourcePath);
+      const defaultPath = path.join(parsed.dir, `${parsed.name}-annotated.pdf`);
+      const dialogResult = await dialog.showSaveDialog(mainWindow, {
+        defaultPath,
+        filters: [{ name: 'PDF Files', extensions: ['pdf'] }]
+      });
+
+      if (dialogResult.canceled || !dialogResult.filePath) {
+        return { ok: false, canceled: true };
+      }
+
+      const outBytes = await pdfDoc.save();
+      await fsPromises.writeFile(dialogResult.filePath, outBytes);
+      return { ok: true, filePath: dialogResult.filePath };
+    } catch (error) {
+      console.error('Failed to save annotated PDF:', error);
+      return { ok: false, error: error.message || 'Failed to save annotated PDF.' };
+    }
   });
 
   // Notes persistence handlers

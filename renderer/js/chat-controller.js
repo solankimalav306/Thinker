@@ -23,6 +23,12 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;");
 }
 
+function summarizeText(text, max = 120) {
+  const clean = String(text || "").replace(/\s+/g, " ").trim();
+  if (clean.length <= max) return clean;
+  return `${clean.slice(0, max - 1)}...`;
+}
+
 export class ChatController {
   constructor(options) {
     this.chatHistory = options.chatHistory;
@@ -77,44 +83,30 @@ export class ChatController {
 
     html += markdownToHtml(text);
     
+    // Subtle Evaluation Footnote
+    if (usage && usage.evaluation) {
+      const evalData = usage.evaluation;
+      const score = Number(evalData.score);
+      if (Number.isFinite(score)) {
+        const precisionLabel = score > 0.8 ? "High Precision" : score > 0.5 ? "Standard Precision" : "Low Precision";
+        html += `<div class="message-subtle-eval"><i class="fa-solid fa-circle-info"></i> ${precisionLabel} response</div>`;
+      }
+    }
+
+    // Subtle Action Pills
+    if (usage && usage.actions && usage.actions.length > 0) {
+      const pages = [...new Set(usage.actions.map(a => Number(a.page)).filter(p => Number.isFinite(p)))];
+      if (pages.length > 0) {
+        html += `<div class="message-action-pills">`;
+        pages.forEach(p => {
+          html += `<button class="agent-action-pill" data-nav-page="${p}"><i class="fa-solid fa-location-dot"></i> Page ${p}</button>`;
+        });
+        html += `</div>`;
+      }
+    }
+
     if (usage && usage.totalTokenCount) {
-      html += `<div style="text-align: right; font-size: 0.65rem; color: var(--text-soft); margin-top: 6px; font-family: monospace; border-top: 1px dashed var(--line); padding-top: 4px;">Tokens: ${usage.totalTokenCount} (${usage.promptTokenCount} in, ${usage.candidatesTokenCount} out)</div>`;
-      
-      const globalTracker = document.getElementById("token-tracker");
-      if (globalTracker) {
-        globalTracker.innerText = `Tokens: ${usage.totalTokenCount}`;
-      }
-
-      // Update session stats on home dashboard
-      const sessionKey = "__tokenSession";
-      if (!window[sessionKey]) window[sessionKey] = { prompt: 0, response: 0, total: 0, requests: 0 };
-      const s = window[sessionKey];
-      s.prompt += usage.promptTokenCount || 0;
-      s.response += usage.candidatesTokenCount || 0;
-      s.total += usage.totalTokenCount || 0;
-      s.requests += 1;
-      s.last = usage.totalTokenCount;
-
-      const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val.toLocaleString(); };
-      setEl("stat-prompt-tokens", s.prompt);
-      setEl("stat-response-tokens", s.response);
-      setEl("stat-total-tokens", s.total);
-      setEl("stat-total-requests", s.requests);
-      const lastEl = document.getElementById("stat-last-tokens");
-      if (lastEl) lastEl.innerText = `${s.last.toLocaleString()} tokens`;
-
-      const barPrompt = document.getElementById("bar-prompt");
-      const barResponse = document.getElementById("bar-response");
-      if (barPrompt && barResponse && s.total > 0) {
-        const pct = Math.round((s.prompt / s.total) * 100);
-        barPrompt.style.width = `${pct}%`;
-        barResponse.style.width = `${100 - pct}%`;
-      }
-
-      const empty = document.getElementById("token-usage-empty");
-      const stats = document.getElementById("token-usage-stats");
-      if (empty) empty.style.display = "none";
-      if (stats) stats.style.display = "flex";
+      html += `<div style="text-align: right; font-size: 0.65rem; color: var(--text-soft); margin-top: 6px; font-family: monospace; border-top: 1px dashed var(--line); padding-top: 4px; opacity: 0.5;">Tokens: ${usage.totalTokenCount}</div>`;
     }
 
     msg.innerHTML = html;
@@ -158,6 +150,8 @@ export class ChatController {
     this.chatHistory.appendChild(welcome);
   }
 
+
+
   appendUserMessage(question, quoteText, image = null) {
     const msg = document.createElement("div");
     msg.className = "user-msg";
@@ -177,6 +171,8 @@ export class ChatController {
     this.chatHistory.appendChild(msg);
     this.chatHistory.scrollTop = this.chatHistory.scrollHeight;
   }
+
+
 
   setSelectedText(text) {
     if (!text) {
@@ -440,7 +436,17 @@ export class ChatController {
         replyText = `Generated structured notes saved to Research Notes panel.${excerpt ? "\n\n" + excerpt : ""}`;
       }
 
-      this.appendMessage("Bot", replyText, null);
+      // Selective Interactivity: Only show interactive pills for explanations, questions, or analytical responses
+      const isInteractiveIntent = (agentRes.intent === 'explain' || agentRes.intent === 'question' || agentRes.intent === 'analyze') 
+        || /explain|why|how|what|detail|analyze|question|\?/.test(questionText.toLowerCase());
+
+      const botMetadata = {
+        totalTokenCount: agentRes.usage?.total_tokens || 0,
+        actions: isInteractiveIntent ? (agentRes.actions || []) : [],
+        evaluation: agentRes.evaluation || null
+      };
+
+      this.appendMessage("Bot", replyText, null, botMetadata);
 
       const botEntry = {
         role: "assistant",
@@ -487,6 +493,14 @@ export class ChatController {
       const citation = event.target.closest(".page-citation");
       if (citation) {
         const pageNum = parseInt(citation.getAttribute("data-page"), 10);
+        if (!isNaN(pageNum)) {
+          window.dispatchEvent(new CustomEvent("navigate-pdf-page", { detail: { page: pageNum } }));
+        }
+      }
+
+      const actionBtn = event.target.closest(".agent-action-btn, .agent-action-pill");
+      if (actionBtn) {
+        const pageNum = parseInt(actionBtn.getAttribute("data-nav-page"), 10);
         if (!isNaN(pageNum)) {
           window.dispatchEvent(new CustomEvent("navigate-pdf-page", { detail: { page: pageNum } }));
         }

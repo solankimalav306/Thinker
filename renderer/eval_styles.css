@@ -1,0 +1,66 @@
+
+/* ═══════════════════════════════════════════════
+   EVALUATION CARD
+   ═══════════════════════════════════════════════ */
+.evaluation-card {
+  margin-top: 14px;
+  background: color-mix(in srgb, var(--accent) 5%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--line));
+  border-radius: 12px;
+  padding: 14px 18px;
+  animation: slideUp 0.3s ease-out;
+}
+
+.evaluation-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.evaluation-score {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--text);
+  margin-bottom: 12px;
+  font-family: 'Outfit', sans-serif;
+}
+
+.evaluation-improve {
+  font-size: 0.82rem;
+  color: var(--text-soft);
+  margin-bottom: 12px;
+}
+
+.evaluation-improve strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--text);
+}
+
+.evaluation-improve ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.evaluation-improve li {
+  margin-bottom: 4px;
+}
+
+.evaluation-regen {
+  font-size: 0.72rem;
+  font-style: italic;
+  color: color-mix(in srgb, var(--accent) 70%, var(--text-soft));
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}

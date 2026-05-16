@@ -25,6 +25,8 @@ import { PdfContextMenu } from "./pdf-context-menu.js";
 import { DictionaryTooltip } from "./dictionary-tooltip.js";
 import { NotesController } from "./notes-controller.js";
 import { MindMapController } from "./mindmap-controller.js";
+import { StickyNotesController } from "./sticky-notes-controller.js";
+import { HistoryController } from "./history-controller.js";
 
 const elements = {
   appShell: document.querySelector(".app-shell"),
@@ -65,8 +67,13 @@ const elements = {
   glossarySearch: document.getElementById("glossary-search"),
   glossaryExportBtn: document.getElementById("glossary-export-btn"),
   navNotes: document.getElementById("nav-notes"),
+  navHistory: document.getElementById("nav-history"),
   notesBlock: document.getElementById("notes-block"),
+  historyBlock: document.getElementById("history-block"),
+  historyList: document.getElementById("history-list"),
+  historyRefreshBtn: document.getElementById("history-refresh-btn"),
   notesList: document.getElementById("notes-list"),
+  stickyNotesList: document.getElementById("sticky-notes-list"),
   navMindmaps: document.getElementById("nav-mindmaps"),
   mindmapsBlock: document.getElementById("mindmaps-block"),
   mindmapsList: document.getElementById("mindmaps-list"),
@@ -93,6 +100,30 @@ const elements = {
   annotationCanvas: document.getElementById("annotation-canvas"),
   snipSelection: document.getElementById("snip-selection"),
   screenshotBtn: document.getElementById("screenshot-btn"),
+  saveAnnotationsBtn: document.getElementById("save-annotations-btn"),
+  saveModal: document.getElementById("save-modal"),
+  saveModalClose: document.getElementById("save-modal-close"),
+  saveModalCancel: document.getElementById("save-modal-cancel"),
+  saveModalConfirm: document.getElementById("save-modal-confirm"),
+  saveOptPen: document.getElementById("save-opt-pen"),
+  saveOptSticky: document.getElementById("save-opt-sticky"),
+  saveOptHighlights: document.getElementById("save-opt-highlights"),
+  saveOptNotes: document.getElementById("save-opt-notes"),
+  statStrokes: document.getElementById("stat-strokes"),
+  statHighlights: document.getElementById("stat-highlights"),
+  statStickies: document.getElementById("stat-stickies"),
+  statNotes: document.getElementById("stat-notes"),
+  userStickyBtn: document.getElementById("sticky-note-btn"),
+  userStickyDialog: document.getElementById("user-sticky-dialog"),
+  userStickyText: document.getElementById("user-sticky-text"),
+  userStickyConfirm: document.getElementById("user-sticky-confirm"),
+  userStickyCancel: document.getElementById("user-sticky-cancel"),
+  userStickyClose: document.getElementById("user-sticky-close"),
+  tabResearchNotes: document.getElementById("tab-research-notes"),
+  tabStickyNotes: document.getElementById("tab-sticky-notes"),
+  panelResearch: document.getElementById("panel-research"),
+  panelSticky: document.getElementById("panel-sticky"),
+  addUserStickyBtn: document.getElementById("add-user-sticky-btn"),
   eraserBtn: document.getElementById("eraser-btn"),
   modeSingleBtn: document.getElementById("mode-single"),
   modeTwoBtn: document.getElementById("mode-two"),
@@ -138,6 +169,9 @@ let activeTabPath = null;
 let currentView = "home";
 let sidebarVisible = true;
 let sidebarPanel = "outline";
+let notesPanelTab = "research"; // "research" or "sticky"
+let isPlacingSticky = false;
+let stickyPlacementPoint = null;
 let chatVisible = true;
 let apiProfiles = [];
 const tabViewState = new Map();
@@ -190,12 +224,22 @@ function syncLayoutToggles() {
   elements.navThumbs.classList.toggle("active", showSidebar && sidebarPanel === "thumbs");
   elements.navGlossary.classList.toggle("active", showSidebar && sidebarPanel === "glossary");
   elements.navNotes?.classList.toggle("active", showSidebar && sidebarPanel === "notes");
+  elements.navHistory?.classList.toggle("active", showSidebar && sidebarPanel === "history");
   elements.navMindmaps?.classList.toggle("active", showSidebar && sidebarPanel === "mindmaps");
   elements.navChat?.classList.toggle("active", showChat);
 
   elements.glossaryBlock?.classList.toggle("visible", showSidebar && sidebarPanel === "glossary");
   elements.notesBlock?.classList.toggle("visible", showSidebar && sidebarPanel === "notes");
+  elements.historyBlock?.classList.toggle("visible", showSidebar && sidebarPanel === "history");
   elements.mindmapsBlock?.classList.toggle("visible", showSidebar && sidebarPanel === "mindmaps");
+
+  // Notes internal tabs
+  if (sidebarPanel === "notes") {
+    elements.tabResearchNotes?.classList.toggle("active", notesPanelTab === "research");
+    elements.tabStickyNotes?.classList.toggle("active", notesPanelTab === "sticky");
+    elements.panelResearch?.classList.toggle("active", notesPanelTab === "research");
+    elements.panelSticky?.classList.toggle("active", notesPanelTab === "sticky");
+  }
 }
 
 function showWelcome() {
@@ -567,13 +611,94 @@ async function boot() {
     highlighterButtons: elements.highlighterButtons,
     eraserButton: elements.eraserBtn,
     onStatus: setStatus,
-    getStorageKey: () => `pdf-annotations:${pdf.getCurrentPath()}:page-${pdf.getPageNum()}`
+    getStorageKeyForPage: (pageNum) => `pdf-annotations:${pdf.getCurrentPath()}:page-${pageNum}`,
+    getCurrentPage: () => pdf.getPageNum(),
+    getPageCount: () => pdf.getPageCount()
+  });
+
+  const stickyNotes = new StickyNotesController({
+    list: elements.stickyNotesList,
+    annotation,
+    pdf,
+    onStatus: setStatus
   });
 
   const notes = new NotesController({
     notesList: elements.notesList,
     onStatus: setStatus
   });
+
+  const history = new HistoryController({
+    list: elements.historyList,
+    getPdfPath: () => pdf.getCurrentPath(),
+    onStatus: setStatus,
+    onRevert: (entry) => {
+      annotation.applyDocumentAnnotations(entry.annotationsByPage || {});
+      pdf.setPersistentHighlightsByPage(entry.highlightTextsByPage || {});
+      stickyNotes.refresh();
+      try {
+        if (pdf.viewMode === "single" && pdf.textLayerDiv) {
+          pdf.applyHighlightsToLayer(pdf.textLayerDiv, pdf.getPageNum());
+        } else if (pdf.multiView) {
+          const cards = Array.from(pdf.multiView.querySelectorAll('.pdf-page-card'));
+          for (const card of cards) {
+            const pageNum = Number(card.dataset.page);
+            const textLayer = card.querySelector('.pdf-page-text-layer');
+            if (textLayer) pdf.applyHighlightsToLayer(textLayer, pageNum);
+          }
+        }
+      } catch (e) {
+        console.warn("Failed to reapply highlights after history revert", e);
+      }
+      setStatus("Reverted annotations from history.");
+    }
+  });
+
+  const renderStickyMarkersOnCard = ({ card, pageNum, viewport }) => {
+    if (!card || !viewport) return;
+    const notesForPage = annotation.getStickyNotesForPage(pageNum);
+    const existing = card.querySelector(".sticky-layer");
+    if (existing) existing.remove();
+    if (!notesForPage || notesForPage.length === 0) return;
+
+    card.style.position = "relative";
+    const layer = document.createElement("div");
+    layer.className = "sticky-layer";
+    layer.style.position = "absolute";
+    layer.style.left = "0";
+    layer.style.top = "0";
+    layer.style.width = `${viewport.width}px`;
+    layer.style.height = `${viewport.height}px`;
+    layer.style.pointerEvents = "none";
+
+    notesForPage.forEach((note) => {
+      const marker = document.createElement("div");
+      marker.className = "sticky-marker";
+      marker.style.left = `${(note.x * viewport.width) - 9}px`;
+      marker.style.top = `${(note.y * viewport.height) - 9}px`;
+      marker.style.pointerEvents = "auto";
+      marker.addEventListener("mousedown", (e) => {
+        e.stopPropagation();
+        const rect = marker.getBoundingClientRect();
+        annotation.showStickyNotePopover(note, rect.left + rect.width / 2, rect.bottom + 6);
+      });
+      layer.appendChild(marker);
+    });
+
+    card.appendChild(layer);
+  };
+
+  pdf.onPageRendered = renderStickyMarkersOnCard;
+
+  // ensure the sticky list refreshes after page renders
+  const prevOnRendered = pdf.onRendered;
+  pdf.onRendered = (meta) => {
+    try {
+      if (typeof prevOnRendered === 'function') prevOnRendered(meta);
+    } finally {
+      try { stickyNotes.refresh(); } catch (e) { /* ignore */ }
+    }
+  };
 
   let mindmap;
   try {
@@ -599,7 +724,7 @@ async function boot() {
     getChatConfig: getCurrentChatConfig,
     onAgentAction: (action) => {
       if (action.type === 'highlight') {
-        pdf.findAndHighlight(action.text);
+        pdf.findAndHighlight(action);
       } else if (action.type === 'note') {
         notes.addNote(action.content);
         sidebarPanel = "notes";
@@ -608,8 +733,23 @@ async function boot() {
       } else if (action.type === 'mindmap') {
         if (mindmap) mindmap.show(action.code);
       } else if (action.type === 'comment') {
-        annotation.addStickyNote(action.text, 50, 50);
-        setStatus("Agent added a sticky note to this page.");
+        const comments = Array.isArray(action.comments) && action.comments.length > 0
+          ? action.comments
+          : [{ text: action.text, page: action.page, x: action.x, y: action.y }];
+        annotation.addAgentComments(comments);
+        try { stickyNotes.refresh(); } catch (e) { /* ignore */ }
+        // Also persist a short summary into detailed notes for review
+        try {
+          comments.forEach((c) => {
+            const page = Number(c.page) || annotation.getCurrentPage();
+            const summary = `[Page ${page}] ${String(c.text || '').trim()}`;
+            notes.addNote(summary, 'Agent');
+          });
+        } catch (e) {
+          console.warn('Failed to add comments to detailed notes', e);
+        }
+
+        setStatus(`Agent added ${comments.length} sticky note${comments.length === 1 ? '' : 's'}.`);
       } else if (action.type === 'websearch') {
         setStatus("Agent performed a web search.");
       }
@@ -858,6 +998,8 @@ async function boot() {
     await chat.loadPdfHistory(path);
     await notes.load(path);
     await mindmap.load(path);
+    history.load(path);
+    stickyNotes.refresh();
     chat.setEnabled(currentView === "reader" && chatVisible);
     showReader();
     renderAll();
@@ -961,6 +1103,137 @@ async function boot() {
   elements.modeTwoBtn.addEventListener("click", () => pdf.setViewMode("two"));
   elements.modeScrollBtn.addEventListener("click", () => pdf.setViewMode("scroll"));
 
+  const saveOptionsKey = "save-options";
+  const getSaveOptions = () => {
+    try {
+      const raw = window.electronAPI.getItem(saveOptionsKey);
+      const parsed = JSON.parse(raw || "{}");
+      return {
+        pen: parsed.pen !== false,
+        sticky: parsed.sticky !== false,
+        highlights: parsed.highlights !== false,
+        notes: parsed.notes !== false
+      };
+    } catch {
+      return { pen: true, sticky: true, highlights: true, notes: true };
+    }
+  };
+
+  const setSaveOptions = (opts) => {
+    window.electronAPI.setItem(saveOptionsKey, JSON.stringify(opts));
+  };
+
+  const openSaveModal = async () => {
+    const opts = getSaveOptions();
+    if (elements.saveOptPen) elements.saveOptPen.checked = opts.pen;
+    if (elements.saveOptSticky) elements.saveOptSticky.checked = opts.sticky;
+    if (elements.saveOptHighlights) elements.saveOptHighlights.checked = opts.highlights;
+    if (elements.saveOptNotes) elements.saveOptNotes.checked = opts.notes;
+
+    // Update stats
+    const annotationsByPage = annotation.collectDocumentAnnotations();
+    const highlightBoxes = await pdf.collectHighlightBoxesByPage();
+    
+    let strokeCount = 0;
+    let stickyCount = 0;
+    Object.values(annotationsByPage).forEach(page => {
+      strokeCount += (page.paths || []).length;
+      stickyCount += (page.stickyNotes || []).length;
+    });
+
+    let hlCount = 0;
+    Object.values(highlightBoxes).forEach(boxes => hlCount += boxes.length);
+
+    if (elements.statStrokes) elements.statStrokes.textContent = strokeCount;
+    if (elements.statHighlights) elements.statHighlights.textContent = hlCount;
+    if (elements.statStickies) elements.statStickies.textContent = stickyCount;
+    if (elements.statNotes) elements.statNotes.textContent = notes.notes.length;
+
+    if (elements.saveModal) elements.saveModal.style.display = "flex";
+  };
+
+  const closeSaveModal = () => {
+    if (elements.saveModal) elements.saveModal.style.display = "none";
+  };
+
+  elements.saveModalClose?.addEventListener("click", closeSaveModal);
+  elements.saveModalCancel?.addEventListener("click", closeSaveModal);
+  elements.saveModal?.addEventListener("click", (e) => {
+    if (e.target === elements.saveModal) closeSaveModal();
+  });
+
+  elements.saveAnnotationsBtn?.addEventListener("click", async () => {
+    if (!pdf.hasDocument() || !pdf.getCurrentPath()) {
+      setStatus("Open a PDF before saving annotations.");
+      return;
+    }
+    openSaveModal();
+  });
+
+  elements.saveModalConfirm?.addEventListener("click", async () => {
+    if (!pdf.hasDocument() || !pdf.getCurrentPath()) {
+      setStatus("Open a PDF before saving annotations.");
+      closeSaveModal();
+      return;
+    }
+
+    const opts = {
+      pen: Boolean(elements.saveOptPen?.checked),
+      sticky: Boolean(elements.saveOptSticky?.checked),
+      highlights: Boolean(elements.saveOptHighlights?.checked),
+      notes: Boolean(elements.saveOptNotes?.checked)
+    };
+    setSaveOptions(opts);
+
+    let annotationsByPage = annotation.collectDocumentAnnotations();
+    Object.keys(annotationsByPage).forEach((key) => {
+      const entry = annotationsByPage[key];
+      if (!opts.pen) entry.paths = [];
+      if (!opts.sticky) entry.stickyNotes = [];
+      if ((entry.paths?.length || 0) === 0 && (entry.stickyNotes?.length || 0) === 0) {
+        delete annotationsByPage[key];
+      }
+    });
+
+    const highlightBoxesByPage = opts.highlights ? await pdf.collectHighlightBoxesByPage() : {};
+    const hasAnything = Object.keys(annotationsByPage).length > 0
+      || (opts.highlights && Object.keys(highlightBoxesByPage).length > 0)
+      || (opts.notes && (notes.notes?.length || 0) > 0);
+
+    if (!hasAnything) {
+      setStatus("Nothing selected to save.");
+      closeSaveModal();
+      return;
+    }
+
+    setStatus("Saving annotated PDF...");
+    const result = await window.electronAPI.saveAnnotatedPdf({
+      pdfPath: pdf.getCurrentPath(),
+      annotationsByPage,
+      highlightBoxesByPage,
+      includeNotes: opts.notes
+    });
+
+    if (result?.ok) {
+      const historySnapshot = {
+        id: String(Date.now()),
+        timestamp: Date.now(),
+        label: "Saved annotations",
+        options: opts,
+        annotationsByPage,
+        highlightTextsByPage: opts.highlights ? pdf.getPersistentHighlightsByPage() : {},
+        highlightBoxesByPage
+      };
+      history.addSnapshot(pdf.getCurrentPath(), historySnapshot);
+      setStatus(`Annotated PDF saved: ${result.filePath}`);
+    } else if (!result?.canceled) {
+      setStatus(`Save failed: ${result?.error || 'Unknown error'}`);
+    } else {
+      setStatus("Save canceled.");
+    }
+    closeSaveModal();
+  });
+
   elements.navHome.addEventListener("click", showWelcome);
   elements.navReader.addEventListener("click", () => {
     if (!activeTabPath) {
@@ -1012,6 +1285,107 @@ async function boot() {
     sidebarPanel = "notes";
     showReader();
     notes.render();
+    stickyNotes.refresh();
+  });
+
+  elements.tabResearchNotes?.addEventListener("click", () => {
+    notesPanelTab = "research";
+    syncLayoutToggles();
+    notes.render();
+  });
+
+  elements.tabStickyNotes?.addEventListener("click", () => {
+    notesPanelTab = "sticky";
+    syncLayoutToggles();
+    stickyNotes.refresh();
+  });
+
+  // User Sticky Note Placement Logic
+  const startStickyPlacement = () => {
+    if (!activeTabPath) return;
+    isPlacingSticky = true;
+    annotation.stopMode();
+    elements.userStickyBtn?.classList.add("active");
+    document.body.classList.add("sticky-placement-mode");
+    setStatus("Click on the PDF page to place a sticky note.");
+    
+    // Create hint element if not exists
+    let hint = document.querySelector(".placement-hint");
+    if (!hint) {
+      hint = document.createElement("div");
+      hint.className = "placement-hint";
+      hint.innerHTML = `<i class="fa-solid fa-map-pin"></i> Click anywhere to place note (Esc to cancel)`;
+      document.body.appendChild(hint);
+    }
+  };
+
+  const stopStickyPlacement = () => {
+    isPlacingSticky = false;
+    elements.userStickyBtn?.classList.remove("active");
+    document.body.classList.remove("sticky-placement-mode");
+    const hint = document.querySelector(".placement-hint");
+    if (hint) hint.remove();
+  };
+
+  elements.userStickyBtn?.addEventListener("click", () => {
+    if (isPlacingSticky) stopStickyPlacement();
+    else startStickyPlacement();
+  });
+
+  elements.addUserStickyBtn?.addEventListener("click", () => {
+    startStickyPlacement();
+  });
+
+  // Intercept canvas click for sticky placement
+  const originalHandleCanvasClick = annotation.handleCanvasClick;
+  annotation.handleCanvasClick = (event) => {
+    if (isPlacingSticky) {
+      const rect = elements.canvas.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      
+      stickyPlacementPoint = { x, y };
+      elements.userStickyText.value = "";
+      elements.userStickyDialog.style.display = "flex";
+      elements.userStickyText.focus();
+      return; // Skip original hit testing
+    }
+    originalHandleCanvasClick.call(annotation, event);
+  };
+
+  elements.userStickyConfirm?.addEventListener("click", () => {
+    const text = elements.userStickyText.value.trim();
+    if (text && stickyPlacementPoint) {
+      annotation.addStickyNote(text, stickyPlacementPoint.x, stickyPlacementPoint.y);
+      stickyNotes.refresh();
+      setStatus("Sticky note placed.");
+    }
+    elements.userStickyDialog.style.display = "none";
+    stopStickyPlacement();
+  });
+
+  elements.userStickyCancel?.addEventListener("click", () => {
+    elements.userStickyDialog.style.display = "none";
+    stopStickyPlacement();
+  });
+
+  elements.userStickyClose?.addEventListener("click", () => {
+    elements.userStickyDialog.style.display = "none";
+    stopStickyPlacement();
+  });
+  elements.navHistory.addEventListener("click", () => {
+    if (!activeTabPath) {
+      setStatus("Open a PDF tab before showing history.");
+      return;
+    }
+
+    sidebarVisible = !(sidebarVisible && sidebarPanel === "history");
+    sidebarPanel = "history";
+    showReader();
+    history.load(pdf.getCurrentPath());
+  });
+  elements.historyRefreshBtn?.addEventListener("click", () => {
+    history.load(pdf.getCurrentPath());
   });
   elements.navMindmaps.addEventListener("click", () => {
     if (!activeTabPath) {

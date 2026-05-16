@@ -22,13 +22,15 @@ export class AnnotationController {
     this.highlighterButtons = options.highlighterButtons;
     this.eraserButton = options.eraserButton;
     this.onStatus = options.onStatus;
-    this.getStorageKey = options.getStorageKey;
+    this.getStorageKeyForPage = options.getStorageKeyForPage;
+    this.getCurrentPage = options.getCurrentPage;
+    this.getPageCount = options.getPageCount;
 
     this.isAnnotating = false;
     this.toolType = null;
     this.tool = null;
     this.drawing = false;
-    this.currentPath = null;
+    this.activePath = null;
     this.paths = [];
 
     this.penStates = this.penButtons.map((_, i) => ({
@@ -42,12 +44,28 @@ export class AnnotationController {
     }));
     
     this.activeButtonIndex = -1;
-    this.stickyNotes = []; // { text, x, y, date }
+    this.stickyNotes = []; // { text, x, y, date } where x/y are normalized 0..1
 
     this.isEnabled = true;
     this.eraserSize = 12;
     
     this.updateButtonColors();
+
+    this.pdfViewer.addEventListener("mousedown", (event) => {
+      // Only handle if not currently in an active drawing mode
+      if (!this.isAnnotating && this.isEnabled) {
+        this.handleCanvasClick(event);
+      }
+    });
+
+    // Add mousemove to show pointer cursor over stickies
+    this.pdfViewer.addEventListener("mousemove", (event) => {
+      if (!this.isAnnotating && this.isEnabled) {
+        const point = this.getPoint(event);
+        const hit = this.findStickyNoteAtPoint(point);
+        this.pdfViewer.style.cursor = hit ? "pointer" : "";
+      }
+    });
   }
 
   updateButtonColors() {
@@ -74,6 +92,29 @@ export class AnnotationController {
     };
   }
 
+  toNormalized(point) {
+    const w = Math.max(1, this.canvas.width || 1);
+    const h = Math.max(1, this.canvas.height || 1);
+    return {
+      x: Math.max(0, Math.min(1, point.x / w)),
+      y: Math.max(0, Math.min(1, point.y / h))
+    };
+  }
+
+  fromNormalized(point) {
+    return {
+      x: (Number(point?.x) || 0) * Math.max(1, this.canvas.width || 1),
+      y: (Number(point?.y) || 0) * Math.max(1, this.canvas.height || 1)
+    };
+  }
+
+  widthToCanvas(path) {
+    if (Number.isFinite(path?.widthNorm) && path.widthNorm > 0) {
+      return Math.max(1, path.widthNorm * Math.max(1, this.canvas.width || 1));
+    }
+    return Math.max(1, Number(path?.width) || 1);
+  }
+
   resizeTo(width, height) {
     this.canvas.width = width;
     this.canvas.height = height;
@@ -82,32 +123,111 @@ export class AnnotationController {
     this.redraw();
   }
 
-  getStorageData() {
-    const raw = window.electronAPI.getItem(this.getStorageKey());
+  getStorageData(pageNum = this.getCurrentPage()) {
+    const key = this.getStorageKeyForPage(pageNum);
+    const raw = window.electronAPI.getItem(key);
     if (!raw) {
-      return [];
+      return { paths: [], stickyNotes: [] };
     }
 
     try {
       const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : [];
+      if (Array.isArray(parsed)) {
+        return { paths: parsed, stickyNotes: [] };
+      }
+      return {
+        paths: Array.isArray(parsed.paths) ? parsed.paths : [],
+        stickyNotes: Array.isArray(parsed.stickyNotes) ? parsed.stickyNotes : []
+      };
     } catch {
-      return [];
+      return { paths: [], stickyNotes: [] };
     }
   }
 
-  loadPageAnnotations() {
-    const data = this.getStorageData();
-    this.paths = data.paths || (Array.isArray(data) ? data : []);
-    this.stickyNotes = data.stickyNotes || [];
+  normalizeLoadedPath(path) {
+    const points = Array.isArray(path?.points) ? path.points : [];
+    const looksNormalized = points.length > 0 && points.every((pt) => Number(pt?.x) <= 1 && Number(pt?.y) <= 1);
+    const normalizedPoints = looksNormalized ? points : points.map((pt) => this.toNormalized(pt));
+    const width = Number(path?.width) || 2;
+    const widthNorm = Number(path?.widthNorm) || (width / Math.max(1, this.canvas.width || 1));
+
+    return {
+      color: path?.color || '#222222',
+      width,
+      widthNorm,
+      alpha: Number(path?.alpha) || 1,
+      points: normalizedPoints
+    };
+  }
+
+  normalizeLoadedNote(note) {
+    const maybeNorm = Number(note?.x) <= 1 && Number(note?.y) <= 1;
+    if (maybeNorm) {
+      return {
+        text: String(note?.text || ''),
+        x: Math.max(0, Math.min(1, Number(note?.x) || 0)),
+        y: Math.max(0, Math.min(1, Number(note?.y) || 0)),
+        date: Number(note?.date) || Date.now()
+      };
+    }
+
+    const converted = this.toNormalized({ x: Number(note?.x) || 0, y: Number(note?.y) || 0 });
+    return {
+      text: String(note?.text || ''),
+      x: converted.x,
+      y: converted.y,
+      date: Number(note?.date) || Date.now()
+    };
+  }
+
+  loadPageAnnotations(pageNum = this.getCurrentPage()) {
+    const data = this.getStorageData(pageNum);
+    this.paths = (data.paths || []).map((path) => this.normalizeLoadedPath(path));
+    this.stickyNotes = (data.stickyNotes || []).map((note) => this.normalizeLoadedNote(note));
     this.redraw();
   }
 
-  savePageAnnotations() {
-    window.electronAPI.setItem(this.getStorageKey(), JSON.stringify({
+  savePageAnnotations(pageNum = this.getCurrentPage()) {
+    const key = this.getStorageKeyForPage(pageNum);
+    window.electronAPI.setItem(key, JSON.stringify({
       paths: this.paths,
       stickyNotes: this.stickyNotes
     }));
+  }
+
+  collectDocumentAnnotations() {
+    const total = this.getPageCount ? Number(this.getPageCount()) : 0;
+    const byPage = {};
+    for (let page = 1; page <= total; page += 1) {
+      const data = this.getStorageData(page);
+      if ((data.paths?.length || 0) === 0 && (data.stickyNotes?.length || 0) === 0) {
+        continue;
+      }
+
+      byPage[page] = {
+        paths: (data.paths || []).map((path) => this.normalizeLoadedPath(path)),
+        stickyNotes: (data.stickyNotes || []).map((note) => this.normalizeLoadedNote(note))
+      };
+    }
+    return byPage;
+  }
+
+  applyDocumentAnnotations(byPage = {}) {
+    const total = this.getPageCount ? Number(this.getPageCount()) : 0;
+    for (let page = 1; page <= total; page += 1) {
+      const pageData = byPage[String(page)] || byPage[page] || { paths: [], stickyNotes: [] };
+      const normalized = {
+        paths: (pageData.paths || []).map((path) => this.normalizeLoadedPath(path)),
+        stickyNotes: (pageData.stickyNotes || []).map((note) => this.normalizeLoadedNote(note))
+      };
+      window.electronAPI.setItem(this.getStorageKeyForPage(page), JSON.stringify(normalized));
+    }
+    this.loadPageAnnotations(this.getCurrentPage());
+  }
+
+  getStickyNotesForPage(pageNum = this.getCurrentPage()) {
+    const data = this.getStorageData(pageNum);
+    return (data.stickyNotes || []).map((note) => this.normalizeLoadedNote(note));
   }
 
   redraw() {
@@ -115,13 +235,14 @@ export class AnnotationController {
 
     for (const path of this.paths) {
       this.ctx.strokeStyle = path.color;
-      this.ctx.lineWidth = path.width;
+      this.ctx.lineWidth = this.widthToCanvas(path);
       this.ctx.lineCap = "round";
       this.ctx.lineJoin = "round";
       this.ctx.globalAlpha = path.alpha || 1;
       this.ctx.beginPath();
 
-      path.points.forEach((pt, index) => {
+      path.points.forEach((rawPoint, index) => {
+        const pt = this.fromNormalized(rawPoint);
         if (index === 0) {
           this.ctx.moveTo(pt.x, pt.y);
         } else {
@@ -140,7 +261,7 @@ export class AnnotationController {
   }
 
   drawStickyNoteIcon(note) {
-    const { x, y } = note;
+    const { x, y } = this.fromNormalized(note);
     const size = 24;
     
     // Shadow
@@ -171,15 +292,130 @@ export class AnnotationController {
     this.ctx.stroke();
   }
 
-  addStickyNote(text, x, y) {
+  handleCanvasClick(event) {
+    if (!this.isEnabled) return;
+    
+    const point = this.getPoint(event);
+    const hit = this.findStickyNoteAtPoint(point);
+    
+    if (hit) {
+      this.showStickyNotePopover(hit.note, event.clientX, event.clientY);
+      // If we hit a sticky, we stop propagation if we're in drawing mode to prevent accidental strokes
+      if (this.isAnnotating) {
+        this.drawing = false;
+        event.stopImmediatePropagation();
+      }
+      return;
+    }
+
+    // Normal annotation logic continues if no sticky hit
+    if (this.isAnnotating) {
+      // (Mousedown for drawing is handled in bindEvents, this handleCanvasClick 
+      // is primarily for sticky hit testing via the shared listener)
+    }
+  }
+
+  findStickyNoteAtPoint(point) {
+    // Increased radius for better hit testing
+    const radius = 20;
+    if (!this.stickyNotes || this.stickyNotes.length === 0) {
+      console.debug("No sticky notes to check");
+      return null;
+    }
+
+    for (const note of this.stickyNotes) {
+      const p = this.fromNormalized(note);
+      const dx = point.x - p.x;
+      const dy = point.y - p.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist <= radius) {
+        return { note };
+      }
+    }
+    return null;
+  }
+
+  showStickyNotePopover(note, clientX, clientY) {
+    const existing = document.querySelector(".sticky-tooltip");
+    if (existing) existing.remove();
+
+    const el = document.createElement("div");
+    el.className = "sticky-tooltip";
+    el.innerHTML = `
+      <div class="sticky-tooltip-header">
+        <div class="sticky-tooltip-title">Sticky Note</div>
+        <button class="sticky-tooltip-close"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="sticky-tooltip-body">${String(note?.text || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>
+    `;
+
+    document.body.appendChild(el);
+    el.style.left = `${clientX}px`;
+    el.style.top = `${clientY}px`;
+
+    const rect = el.getBoundingClientRect();
+    if (rect.right > window.innerWidth) {
+      el.style.left = `${window.innerWidth - rect.width - 16}px`;
+    }
+    if (rect.bottom > window.innerHeight) {
+      const top = clientY - rect.height - 10;
+      el.style.top = `${Math.max(10, top)}px`;
+    }
+
+    el.querySelector(".sticky-tooltip-close").addEventListener("click", () => el.remove());
+    const clickOutside = (e) => {
+      if (!el.contains(e.target)) {
+        el.remove();
+        document.removeEventListener("mousedown", clickOutside);
+      }
+    };
+    setTimeout(() => document.addEventListener("mousedown", clickOutside), 10);
+  }
+
+  addStickyNote(text, x, y, pageNum = this.getCurrentPage()) {
+    if (pageNum !== this.getCurrentPage()) {
+      const data = this.getStorageData(pageNum);
+      const normalized = this.toNormalized({ x, y });
+      data.stickyNotes = Array.isArray(data.stickyNotes) ? data.stickyNotes : [];
+      data.stickyNotes.push({
+        text,
+        x: normalized.x,
+        y: normalized.y,
+        date: Date.now()
+      });
+      window.electronAPI.setItem(this.getStorageKeyForPage(pageNum), JSON.stringify(data));
+      return;
+    }
+
+    const normalized = this.toNormalized({ x, y });
     this.stickyNotes.push({
       text,
-      x,
-      y,
+      x: normalized.x,
+      y: normalized.y,
       date: Date.now()
     });
     this.savePageAnnotations();
     this.redraw();
+  }
+
+  addAgentComments(comments = []) {
+    comments.forEach((comment) => {
+      const page = Number(comment.page) || this.getCurrentPage();
+      const nx = Number(comment.x);
+      const ny = Number(comment.y);
+
+      if (Number.isFinite(nx) && Number.isFinite(ny)) {
+        const px = nx <= 1 ? nx * Math.max(1, this.canvas.width || 1) : nx;
+        const py = ny <= 1 ? ny * Math.max(1, this.canvas.height || 1) : ny;
+        this.addStickyNote(comment.text, px, py, page);
+      } else {
+        const fallbackX = 56 + ((page * 37) % 120);
+        const fallbackY = 72 + ((page * 53) % 240);
+        this.addStickyNote(comment.text, fallbackX, fallbackY, page);
+      }
+    });
+
+    this.loadPageAnnotations(this.getCurrentPage());
   }
 
   clearButtonStates() {
@@ -280,10 +516,11 @@ export class AnnotationController {
 
   eraseAt(point) {
     const radius = this.eraserSize;
-    const hit = (path) => path.points.some((pt) => {
+    const hit = (path) => path.points.some((rawPoint) => {
+      const pt = this.fromNormalized(rawPoint);
       const dx = pt.x - point.x;
       const dy = pt.y - point.y;
-      const threshold = Math.max(radius, path.width * 0.7);
+      const threshold = Math.max(radius, this.widthToCanvas(path) * 0.7);
       return (dx * dx + dy * dy) <= threshold * threshold;
     });
 
@@ -309,25 +546,26 @@ export class AnnotationController {
 
       this.drawing = true;
       const point = this.getPoint(event);
-      this.currentPath = {
+      this.activePath = {
         color: this.tool.color,
         width: this.tool.width,
+        widthNorm: this.tool.width / Math.max(1, this.canvas.width || 1),
         alpha: this.tool.alpha,
-        points: [point]
+        points: [this.toNormalized(point)]
       };
-      this.paths.push(this.currentPath);
+      this.paths.push(this.activePath);
       this.redraw();
     });
 
     this.canvas.addEventListener("mousemove", (event) => {
-      if (!this.drawing || !this.currentPath) {
+      if (!this.drawing || !this.activePath) {
         if (this.drawing && this.toolType === "eraser") {
           this.eraseAt(this.getPoint(event));
         }
         return;
       }
 
-      this.currentPath.points.push(this.getPoint(event));
+      this.activePath.points.push(this.toNormalized(this.getPoint(event)));
       this.redraw();
     });
 
@@ -336,7 +574,7 @@ export class AnnotationController {
         return;
       }
       this.drawing = false;
-      this.currentPath = null;
+      this.activePath = null;
       this.savePageAnnotations();
     };
 

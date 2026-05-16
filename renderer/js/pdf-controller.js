@@ -1,13 +1,29 @@
 function toPdfSource(path) {
+  // Already a URL — pass through untouched
   if (/^https?:\/\//i.test(path) || /^file:\/\//i.test(path) || /^\.\//.test(path)) {
     return path;
   }
 
-  return `file:///${path.replace(/\\/g, "/")}`;
+  // Encode each segment individually so special filename chars (#, ?, %, &, spaces…)
+  // don't get misinterpreted as URL fragment/query separators by PDF.js.
+  const segments = path.replace(/\\/g, '/').split('/');
+  const encoded = segments.map((seg, idx) => {
+    // Windows drive letter "C:" — preserve colon, don't encode it
+    if (idx === 0 && /^[A-Za-z]:$/.test(seg)) return seg;
+    return encodeURIComponent(seg);
+  });
+  return 'file:///' + encoded.join('/');
 }
 
 function fileName(path) {
   return path.split(/[/\\]/).pop() || "Untitled";
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
 
@@ -32,8 +48,10 @@ export class PdfController {
     this.onStatus = options.onStatus;
     this.onPathChange = options.onPathChange;
     this.onRendered = options.onRendered;
+    this.onPageRendered = options.onPageRendered;
     this.storagePath = options.storagePath;
-    this.persistentHighlights = new Map(); // pageNum -> Set of texts
+    this.persistentHighlights = new Map(); // pageNum -> string[]
+    this.highlightStoragePrefix = ''; // set on load
     this.pdfDoc = null;
     this.currentPath = "";
     this.pageNum = 1;
@@ -64,6 +82,30 @@ export class PdfController {
     return this.pageNum;
   }
 
+  getPageCount() {
+    return this.pdfDoc ? this.pdfDoc.numPages : 0;
+  }
+
+  getPersistentHighlightsByPage() {
+    const out = {};
+    for (const [page, texts] of this.persistentHighlights.entries()) {
+      out[page] = Array.isArray(texts) ? [...texts] : [];
+    }
+    return out;
+  }
+
+  setPersistentHighlightsByPage(highlightsByPage = {}) {
+    this.persistentHighlights = new Map();
+    Object.keys(highlightsByPage || {}).forEach((key) => {
+      const page = Number(key);
+      const texts = highlightsByPage[key];
+      if (Number.isFinite(page) && Array.isArray(texts) && texts.length > 0) {
+        this.persistentHighlights.set(page, texts);
+        this._saveHighlightsForPage(page); // persist to storage
+      }
+    });
+  }
+
   hasDocument() {
     return Boolean(this.pdfDoc);
   }
@@ -77,6 +119,32 @@ export class PdfController {
   }
 
   
+  _highlightKey(pageNum) {
+    return `pdf-highlights:${this.currentPath}:page-${pageNum}`;
+  }
+
+  _saveHighlightsForPage(pageNum) {
+    if (!this.currentPath || !window.electronAPI) return;
+    const texts = this.persistentHighlights.get(pageNum) || [];
+    window.electronAPI.setItem(this._highlightKey(pageNum), JSON.stringify(texts));
+  }
+
+  _loadHighlightsFromStorage() {
+    if (!this.currentPath || !window.electronAPI || !this.pdfDoc) return;
+    this.persistentHighlights = new Map();
+    for (let p = 1; p <= this.pdfDoc.numPages; p++) {
+      const raw = window.electronAPI.getItem(this._highlightKey(p));
+      if (raw) {
+        try {
+          const arr = JSON.parse(raw);
+          if (Array.isArray(arr) && arr.length > 0) {
+            this.persistentHighlights.set(p, arr);
+          }
+        } catch {}
+      }
+    }
+  }
+
   async load(path, viewState = null) {
     this.onStatus("Loading PDF...");
 
@@ -94,6 +162,9 @@ export class PdfController {
       this.viewMode = nextMode;
       this.scrollCacheKey = "";
 
+      // Load persisted highlights from storage
+      this._loadHighlightsFromStorage();
+
       this.onPathChange(fileName(path));
       this.updateControls();
       this.queueRender(this.pageNum);
@@ -103,8 +174,47 @@ export class PdfController {
       this.startIndexing();
       this.onStatus("PDF loaded.");
     } catch (error) {
-      console.error("PDF load failed", error);
-      this.onStatus("Could not load PDF.");
+      // Full diagnostic trace — shows in both DevTools console and app status bar
+      const errName    = error?.name    || 'UnknownError';
+      const errMsg     = error?.message || String(error);
+      const errCode    = error?.code    !== undefined ? ` (code: ${error.code})` : '';
+      const errStatus  = error?.status  !== undefined ? ` (HTTP ${error.status})` : '';
+      const source     = toPdfSource(path);
+
+      console.error('═══ PDF LOAD FAILED ═══');
+      console.error('Path supplied :', path);
+      console.error('URL generated :', source);
+      console.error('Error name    :', errName);
+      console.error('Error message :', errMsg + errCode + errStatus);
+      console.error('Full error obj:', error);
+      if (error?.stack) console.error('Stack trace   :\n', error.stack);
+
+      // Show readable message in the status bar
+      this.onStatus(`PDF error: ${errName} — ${errMsg}${errCode}${errStatus}`);
+
+      // Also paint an error card inside the viewer so it's impossible to miss
+      if (this.pdfViewer) {
+        this.pdfViewer.innerHTML = `
+          <div style="padding: 32px; color: var(--text); font-family: Manrope, sans-serif; max-width: 600px; margin: 40px auto;">
+            <div style="background: var(--panel); border: 1px solid #ef444488; border-radius: 12px; padding: 24px;">
+              <h3 style="color: #ef4444; margin-top: 0;">⚠ PDF Could Not Be Loaded</h3>
+              <table style="width:100%; border-collapse: collapse; font-size: 0.85rem;">
+                <tr><td style="padding: 6px 12px 6px 0; color: var(--text-soft); white-space:nowrap">Error type</td>
+                    <td style="padding: 6px 0; font-weight: 600; color: var(--text);">${errName}${errCode}${errStatus}</td></tr>
+                <tr><td style="padding: 6px 12px 6px 0; color: var(--text-soft)">Message</td>
+                    <td style="padding: 6px 0; color: var(--text);">${errMsg}</td></tr>
+                <tr><td style="padding: 6px 12px 6px 0; color: var(--text-soft)">File path</td>
+                    <td style="padding: 6px 0; color: var(--text); word-break:break-all;">${path}</td></tr>
+                <tr><td style="padding: 6px 12px 6px 0; color: var(--text-soft)">URL used</td>
+                    <td style="padding: 6px 0; color: var(--text); word-break:break-all; font-size:0.78rem;">${source}</td></tr>
+              </table>
+              <p style="margin-bottom:0; margin-top: 16px; font-size:0.8rem; color: var(--text-soft);">
+                Check the DevTools console (Ctrl+Shift+I) for the full stack trace.
+              </p>
+            </div>
+          </div>`;
+        this.pdfViewer.style.display = 'block';
+      }
     }
   }
 
@@ -208,33 +318,178 @@ export class PdfController {
     this.jumpToPage(prev);
   }
 
-  async findAndHighlight(text) {
-    if (!text || !this.pdfDoc) return;
-    
-    // Save for persistence
-    if (!this.persistentHighlights.has(this.pageNum)) {
-      this.persistentHighlights.set(this.pageNum, new Set());
+  async findAndHighlight(action) {
+    if (!this.pdfDoc) return;
+
+    const text = typeof action === "string" ? action : String(action?.text || "").trim();
+    if (!text) return;
+
+    const requestedPage = Number(action?.page);
+    const numPages = this.pdfDoc.numPages;
+    const targetPages = new Set();
+
+    const lowerTarget = text.toLowerCase();
+
+    // Helper to add highlight to a page's persistentHighlights
+    const addToPage = (p) => {
+      if (!this.persistentHighlights.has(p)) this.persistentHighlights.set(p, []);
+      const arr = this.persistentHighlights.get(p);
+      if (!arr.some(e => String(e || '').toLowerCase() === lowerTarget)) {
+        arr.push(text);
+        this._saveHighlightsForPage(p); // persist to storage immediately
+      }
+      targetPages.add(p);
+    };
+
+    // If a requested page is provided and within range, first try that page
+    if (Number.isFinite(requestedPage) && requestedPage >= 1 && requestedPage <= numPages) {
+      const page = await this.pdfDoc.getPage(requestedPage);
+      const content = await page.getTextContent();
+      const pageText = content.items.map(i => String(i.str || '')).join(' ').toLowerCase();
+      if (pageText.includes(lowerTarget)) {
+        addToPage(requestedPage);
+      } else {
+        // fallback: search all pages
+        for (let p = 1; p <= numPages; p += 1) {
+          const pg = await this.pdfDoc.getPage(p);
+          const c = await pg.getTextContent();
+          const t = c.items.map(i => String(i.str || '')).join(' ').toLowerCase();
+          if (t.includes(lowerTarget)) addToPage(p);
+        }
+      }
+    } else {
+      // No valid page requested: search across all pages
+      for (let p = 1; p <= numPages; p += 1) {
+        const pg = await this.pdfDoc.getPage(p);
+        const c = await pg.getTextContent();
+        const t = c.items.map(i => String(i.str || '')).join(' ').toLowerCase();
+        if (t.includes(lowerTarget)) addToPage(p);
+      }
     }
-    this.persistentHighlights.get(this.pageNum).add(text);
 
-    const textLayer = this.textLayerDiv;
-    if (!textLayer) return;
+    // If no page matched, as a last resort add to current page
+    if (targetPages.size === 0) {
+      addToPage(this.pageNum);
+    }
 
-    this.applyHighlightsToLayer(textLayer, this.pageNum);
+    // Re-apply highlights for visible pages depending on view mode
+    try {
+      if (this.viewMode === 'single') {
+        if (this.textLayerDiv) this.applyHighlightsToLayer(this.textLayerDiv, this.pageNum);
+      } else {
+        // For two or scroll mode, find any rendered page cards and refresh their text layers
+        if (this.multiView) {
+          const cards = Array.from(this.multiView.querySelectorAll('.pdf-page-card'));
+          for (const card of cards) {
+            const pageNum = Number(card.dataset.page);
+            const textLayer = card.querySelector('.pdf-page-text-layer');
+            if (textLayer) this.applyHighlightsToLayer(textLayer, pageNum);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to reapply highlights after searching pages', e);
+    }
   }
 
   applyHighlightsToLayer(textLayer, pageNum) {
     const texts = this.persistentHighlights.get(pageNum);
-    if (!texts || texts.size === 0) return;
+    if (!texts || texts.length === 0) return;
 
-    texts.forEach(text => {
-      const regex = new RegExp(`(${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-      const items = textLayer.querySelectorAll('span');
-      items.forEach(span => {
-        if (regex.test(span.textContent)) {
-          span.innerHTML = span.textContent.replace(regex, '<span class="ai-highlight active">$1</span>');
+    const spans = Array.from(textLayer.querySelectorAll("span"));
+    if (spans.length === 0) return;
+
+    spans.forEach((span) => {
+      if (span.dataset.rawText === undefined) {
+        span.dataset.rawText = span.textContent || "";
+      }
+      span.textContent = span.dataset.rawText;
+    });
+
+    // We'll try a windowed span concatenation approach to find exact phrase matches.
+    const maxWindow = 6; // combine up to 6 spans for cross-span matches
+
+    const lowerSpans = spans.map(s => (s.dataset.rawText || "").toLowerCase());
+
+    const markRange = (startIdx, startOff, endIdx, endOff) => {
+      for (let i = startIdx; i <= endIdx; i += 1) {
+        const span = spans[i];
+        const text = span.dataset.rawText || "";
+        const localStart = i === startIdx ? startOff : 0;
+        const localEnd = i === endIdx ? endOff : text.length;
+        const before = escapeHtml(text.slice(0, localStart));
+        const middle = escapeHtml(text.slice(localStart, localEnd));
+        const after = escapeHtml(text.slice(localEnd));
+        span.innerHTML = `${before}<span class="ai-highlight active">${middle}</span>${after}`;
+      }
+    };
+
+    texts.forEach((needle) => {
+      const target = String(needle || "").trim().toLowerCase();
+      if (!target || target.length < 2) return;
+
+      // Try each start span index
+      for (let i = 0; i < lowerSpans.length; i += 1) {
+        let accum = "";
+        for (let w = 0; w < maxWindow && (i + w) < lowerSpans.length; w += 1) {
+          const j = i + w;
+          const part = lowerSpans[j];
+          const sep = accum.length === 0 ? '' : ' ';
+          const combined = accum + sep + part;
+          accum = combined;
+
+          const found = combined.indexOf(target);
+          if (found !== -1) {
+            // Validate word boundaries for better precision when needle is simple word/phrase
+            let ok = true;
+            // If target contains non-word chars (spaces/punctuation), relax boundary checks
+            if (/^[\w\s]+$/.test(target)) {
+              const before = combined.charAt(found - 1) || '';
+              const after = combined.charAt(found + target.length) || '';
+              const isBeforeWord = /\w/.test(before);
+              const isAfterWord = /\w/.test(after);
+              if (isBeforeWord || isAfterWord) ok = false;
+            }
+            if (!ok) {
+              // continue searching within this window by skipping this start
+              continue;
+            }
+            // Determine offsets within spans
+            // Walk to compute character indices in each span
+            let remaining = found;
+            let startIdx = i;
+            let startOff = 0;
+            for (let k = i; k <= j; k += 1) {
+              const len = (lowerSpans[k] || '').length + (k === i ? 0 : 1); // account for single-space join
+              if (remaining < len) {
+                startIdx = k;
+                startOff = (k === i) ? remaining : Math.max(0, remaining - 1);
+                break;
+              }
+              remaining -= len;
+            }
+
+            const endPos = found + target.length;
+            remaining = endPos;
+            let endIdx = i;
+            let endOff = 0;
+            for (let k = i; k <= j; k += 1) {
+              const len = (lowerSpans[k] || '').length + (k === i ? 0 : 1);
+              if (remaining <= len) {
+                endIdx = k;
+                endOff = (k === i) ? remaining : Math.max(0, remaining - 1);
+                break;
+              }
+              remaining -= len;
+            }
+
+            markRange(startIdx, startOff, endIdx, endOff);
+            // after marking, move i forward to avoid nested matches
+            i = j;
+            break;
+          }
         }
-      });
+      }
     });
   }
 
@@ -419,6 +674,7 @@ export class PdfController {
 
     const card = document.createElement("div");
     card.className = "pdf-page-card";
+    card.dataset.page = String(pageNum);
     card.style.width = `${viewport.width}px`;
     card.style.height = `${viewport.height}px`;
 
@@ -446,7 +702,75 @@ export class PdfController {
 
     this.applyHighlightsToLayer(textLayer, pageNum);
 
+    if (typeof this.onPageRendered === "function") {
+      try {
+        this.onPageRendered({ card, pageNum, viewport, mode: this.viewMode });
+      } catch (e) {
+        console.warn("onPageRendered failed", e);
+      }
+    }
+
     return card;
+  }
+
+  async collectHighlightBoxesByPage() {
+    if (!this.pdfDoc) return {};
+    const out = {};
+    const pages = Array.from(this.persistentHighlights.keys());
+    for (const pageNum of pages) {
+      const texts = this.persistentHighlights.get(pageNum);
+      if (!texts || texts.length === 0) continue;
+      const boxes = await this.computeHighlightBoxesForPage(pageNum);
+      if (boxes.length > 0) out[pageNum] = boxes;
+    }
+    return out;
+  }
+
+  async computeHighlightBoxesForPage(pageNum) {
+    if (!this.pdfDoc) return [];
+    const page = await this.pdfDoc.getPage(pageNum);
+    const viewport = page.getViewport({ scale: 1 });
+
+    const container = document.createElement("div");
+    container.style.position = "absolute";
+    container.style.left = "-10000px";
+    container.style.top = "0";
+    container.style.width = `${viewport.width}px`;
+    container.style.height = `${viewport.height}px`;
+    container.style.pointerEvents = "none";
+    container.style.opacity = "0";
+
+    const textLayer = document.createElement("div");
+    textLayer.className = "textLayer";
+    textLayer.style.width = `${viewport.width}px`;
+    textLayer.style.height = `${viewport.height}px`;
+    container.appendChild(textLayer);
+    document.body.appendChild(container);
+
+    const textContent = await page.getTextContent();
+    await pdfjsLib.renderTextLayer({
+      textContent,
+      container: textLayer,
+      viewport,
+      textDivs: []
+    }).promise;
+
+    this.applyHighlightsToLayer(textLayer, pageNum);
+
+    const layerRect = textLayer.getBoundingClientRect();
+    const boxes = [];
+    textLayer.querySelectorAll(".ai-highlight").forEach((el) => {
+      const r = el.getBoundingClientRect();
+      if (r.width <= 0 || r.height <= 0) return;
+      const nx = (r.left - layerRect.left) / viewport.width;
+      const ny = (r.top - layerRect.top) / viewport.height;
+      const nw = r.width / viewport.width;
+      const nh = r.height / viewport.height;
+      if (nw > 0 && nh > 0) boxes.push({ x: nx, y: ny, w: nw, h: nh });
+    });
+
+    container.remove();
+    return boxes;
   }
 
   async buildThumbnails() {

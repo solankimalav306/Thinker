@@ -109,6 +109,7 @@
       <button class="activity-btn" id="nav-thumbs" title="Toggle thumbnails"><i class="fa-regular fa-images"></i></button>
       <button class="activity-btn" id="nav-glossary" title="Toggle glossary"><i class="fa-solid fa-spell-check"></i></button>
       <button class="activity-btn" id="nav-notes" title="Toggle notes"><i class="fa-solid fa-note-sticky"></i></button>
+      <button class="activity-btn" id="nav-history" title="Toggle history"><i class="fa-solid fa-clock-rotate-left"></i></button>
       <button class="activity-btn" id="nav-mindmaps" title="Toggle mind maps"><i class="fa-solid fa-diagram-project"></i></button>
       <button class="activity-btn" id="nav-chat" title="Toggle chat"><i class="fa-solid fa-comments"></i></button>
     </nav>
@@ -145,7 +146,9 @@
             <button class="btn icon-btn tool-btn" id="highlighter-1" title="Highlighter"><i class="fa-solid fa-highlighter"></i></button>
             <button class="btn icon-btn tool-btn" id="highlighter-2" title="Highlighter"><i class="fa-solid fa-highlighter"></i></button>
             <button class="btn icon-btn tool-btn" id="eraser-btn" title="Eraser"><i class="fa-solid fa-eraser"></i></button>
+            <button class="btn icon-btn tool-btn" id="sticky-note-btn" title="Add Sticky Note (click on page)"><i class="fa-solid fa-note-sticky"></i></button>
             <button class="btn icon-btn" id="screenshot-btn" title="Take screenshot"><i class="fa-solid fa-camera"></i></button>
+            <button class="btn" id="save-annotations-btn" title="Save annotations to a new PDF"><i class="fa-solid fa-floppy-disk"></i> Save</button>
           </div>
         </div>
 
@@ -314,19 +317,50 @@
           </div>
 
           <div class="sidebar-block" id="notes-block">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-              <h4 style="margin: 0;">Research Notes</h4>
-              <div class="dropdown">
-                <button class="btn icon-btn dropdown-toggle" id="notes-export-btn" title="Export Options"><i class="fa-solid fa-file-export"></i></button>
-                <div class="dropdown-content">
-                  <a href="#" id="export-md">Markdown (.md)</a>
-                  <a href="#" id="export-pdf">PDF Document</a>
-                  <a href="#" id="export-latex">LaTeX Source (.tex)</a>
+            <!-- Notes Header with Tabs -->
+            <div class="notes-panel-header">
+              <div class="notes-tabs">
+                <button class="notes-tab active" id="tab-research-notes" data-tab="research"><i class="fa-solid fa-book-open"></i> Research Notes</button>
+                <button class="notes-tab" id="tab-sticky-notes" data-tab="sticky"><i class="fa-solid fa-note-sticky"></i> Sticky Notes</button>
+              </div>
+              <div class="notes-header-actions">
+                <button class="btn icon-btn" id="add-user-sticky-btn" title="Place a sticky note on the page"><i class="fa-solid fa-plus"></i></button>
+                <div class="dropdown">
+                  <button class="btn icon-btn dropdown-toggle" id="notes-export-btn" title="Export Options"><i class="fa-solid fa-file-export"></i></button>
+                  <div class="dropdown-content">
+                    <a href="#" id="export-md">Markdown (.md)</a>
+                    <a href="#" id="export-pdf">PDF Document</a>
+                    <a href="#" id="export-latex">LaTeX Source (.tex)</a>
+                  </div>
                 </div>
               </div>
             </div>
-            <div id="notes-list" class="notes-list">
-              <!-- Notes will be injected here -->
+
+            <!-- Research Notes Tab -->
+            <div class="notes-tab-panel active" id="panel-research">
+              <div id="notes-list" class="notes-list">
+                <!-- Detailed notes will be injected here -->
+              </div>
+            </div>
+
+            <!-- Sticky Notes Tab -->
+            <div class="notes-tab-panel" id="panel-sticky">
+              <div id="sticky-notes-list" class="sticky-notes-sidebar-list">
+                <!-- Sticky notes will be injected here -->
+              </div>
+            </div>
+          </div>
+
+          <div class="sidebar-block" id="history-block">
+            <div class="history-panel-header">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <i class="fa-solid fa-timeline" style="color: var(--accent);"></i>
+                <h4 style="margin: 0;">Timeline</h4>
+              </div>
+              <button class="btn icon-btn" id="history-refresh-btn" title="Refresh History"><i class="fa-solid fa-rotate"></i></button>
+            </div>
+            <div class="history-timeline" id="history-list">
+              <!-- History entries injected here -->
             </div>
           </div>
 
@@ -395,6 +429,117 @@
   <div id="status-toast" class="status-toast">
     <i class="fa-solid fa-info-circle"></i>
     <p id="status-text">Ready. Open a PDF to start reading.</p>
+  </div>
+
+    <div id="save-modal" class="modal-overlay" style="display:none;">
+    <div class="save-modal-card">
+      <div class="save-modal-header">
+        <div class="save-modal-title">
+          <i class="fa-solid fa-file-pdf" style="color: var(--accent); font-size: 1.5rem;"></i>
+          <div>
+            <div style="font-size: 1rem; font-weight: 700;">Export Annotated PDF</div>
+            <div style="font-size: 0.75rem; color: var(--text-soft);">Choose what to include in your exported document</div>
+          </div>
+        </div>
+        <button class="btn icon-btn" id="save-modal-close"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="save-modal-body">
+        <div class="save-modal-options">
+          <div class="save-option-group">
+            <div class="save-option-group-label"><i class="fa-solid fa-pen"></i> Annotations</div>
+            <div class="save-option-row">
+              <div class="save-option-info">
+                <span class="save-option-name">Pen &amp; Highlighter strokes</span>
+                <span class="save-option-desc">Your manual drawings on the PDF</span>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="save-opt-pen" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="save-option-row">
+              <div class="save-option-info">
+                <span class="save-option-name">AI Highlights</span>
+                <span class="save-option-desc">Text highlighted by the AI assistant</span>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="save-opt-highlights" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+          <div class="save-option-group">
+            <div class="save-option-group-label"><i class="fa-solid fa-note-sticky"></i> Notes</div>
+            <div class="save-option-row">
+              <div class="save-option-info">
+                <span class="save-option-name">Sticky Notes</span>
+                <span class="save-option-desc">Notes placed on specific pages</span>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="save-opt-sticky" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="save-option-row">
+              <div class="save-option-info">
+                <span class="save-option-name">Research Notes</span>
+                <span class="save-option-desc">Append notes as extra pages at end</span>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="save-opt-notes" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="save-modal-preview">
+          <div class="save-preview-card">
+            <div class="save-preview-page">
+              <div class="save-preview-line"></div>
+              <div class="save-preview-line" style="width: 80%;"></div>
+              <div class="save-preview-highlight-bar"></div>
+              <div class="save-preview-line" style="width: 60%;"></div>
+              <div class="save-preview-pen-stroke"></div>
+              <div class="save-preview-sticky-icon">
+                <i class="fa-solid fa-note-sticky"></i>
+              </div>
+            </div>
+            <div class="save-preview-label">Document Preview</div>
+          </div>
+          <div class="save-preview-stats" id="save-preview-stats">
+            <div class="save-stat-row"><i class="fa-solid fa-pen"></i><span>Ink Strokes</span><span id="stat-strokes">&#x2014;</span></div>
+            <div class="save-stat-row"><i class="fa-solid fa-highlighter" style="color: #f1c40f;"></i><span>AI Highlights</span><span id="stat-highlights">&#x2014;</span></div>
+            <div class="save-stat-row"><i class="fa-solid fa-note-sticky" style="color: #f1c40f;"></i><span>Sticky Notes</span><span id="stat-stickies">&#x2014;</span></div>
+            <div class="save-stat-row"><i class="fa-solid fa-book-open" style="color: var(--accent);"></i><span>Research Notes</span><span id="stat-notes">&#x2014;</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="save-modal-footer">
+        <button class="btn" id="save-modal-cancel">Cancel</button>
+        <button class="btn primary" id="save-modal-confirm"><i class="fa-solid fa-file-arrow-down"></i> Export PDF</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- User Sticky Note Dialog -->
+  <div id="user-sticky-dialog" class="modal-overlay" style="display:none;">
+    <div class="modal-card" style="width:360px;">
+      <div class="modal-header">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <i class="fa-solid fa-note-sticky" style="color: #f1c40f; font-size: 1.2rem;"></i>
+          <h3 style="margin:0; font-size: 1rem;">Add Sticky Note</h3>
+        </div>
+        <button class="btn icon-btn" id="user-sticky-close"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div style="padding: 12px 0 4px;">
+        <p style="font-size: 0.8rem; color: var(--text-soft); margin: 0 0 10px;">After confirming, click anywhere on the current PDF page to place the note.</p>
+        <textarea id="user-sticky-text" placeholder="Type your note here..." rows="4" style="width: 100%; resize: vertical; border: 1px solid var(--line); background: var(--panel-soft); color: var(--text); border-radius: 8px; padding: 10px; font-family: inherit; font-size: 0.9rem; box-sizing: border-box;"></textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn" id="user-sticky-cancel">Cancel</button>
+        <button class="btn primary" id="user-sticky-confirm"><i class="fa-solid fa-map-pin"></i> Place on Page</button>
+      </div>
+    </div>
   </div>
 
   <script type="module" src="js/app.js"></script>

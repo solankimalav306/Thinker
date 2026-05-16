@@ -1,5 +1,6 @@
 import os
 import json
+import re
 from typing import Annotated, Dict, List, TypedDict, Union, Literal
 from langgraph.graph import StateGraph, END
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -17,11 +18,13 @@ class AgentState(TypedDict):
     user_context: str
     intent: str
     rag_chunks: List[str]
+    rag_hits: List[Dict]
     actions: List[Dict]
     glossary_terms: List[Dict]
     messages: List[Dict]
     parts: List[Dict]
     response_text: str
+    evaluation: Dict
 
 def supervisor_node(state: AgentState):
     llm = ChatGoogleGenerativeAI(model=state["model"], google_api_key=state["api_key"])
@@ -72,12 +75,18 @@ def supervisor_node(state: AgentState):
         "pdfId": state["pdf_id"],
         "storagePath": state["storage_path"]
     })
-    
-    chunks = [c["text"] for c in rag_res.get("chunks", [])]
+
+    hits = rag_res.get("chunks", []) if isinstance(rag_res, dict) else []
+    chunks = []
+    for hit in hits:
+        page = hit.get("page", "?")
+        text = hit.get("text", "")
+        chunks.append(f"[Page {page}] {text}")
     
     return {
         "intent": intent,
-        "rag_chunks": chunks
+        "rag_chunks": chunks,
+        "rag_hits": hits
     }
 
 def dictionary_node(state: AgentState):
@@ -135,10 +144,25 @@ def ask_node(state: AgentState):
 
 def highlight_node(state: AgentState):
     llm = ChatGoogleGenerativeAI(model=state["model"], google_api_key=state["api_key"])
-    context = "\n".join(state["rag_chunks"])
+    rag_hits = state.get("rag_hits", [])
+    snippets = []
+    for idx, hit in enumerate(rag_hits[:8], start=1):
+      page = hit.get("page", "?")
+      text = re.sub(r"\s+", " ", str(hit.get("text", ""))).strip()
+      snippets.append(f"{idx}. PAGE={page} | {text}")
+    context = "\n".join(snippets)
     
-    prompt = f"""Identify the top 3-5 most important key terms or short phrases from the context below that relate to the user's query.
-    Return ONLY a JSON list of strings.
+    prompt = f"""You are a precision highlighting assistant.
+    Choose 3-7 exact short spans (2-12 words each) from the snippets below that best answer the user query.
+    Every span must be copied exactly from the snippet text to improve matching quality in the PDF text layer.
+    Return ONLY valid JSON in this format:
+    [{{"text":"exact phrase","page":3}}]
+    
+    Rules:
+    - "text" must be exact, concise, and not paraphrased.
+    - "page" must be the PAGE value of the snippet the phrase came from.
+    - Avoid duplicates.
+    - Do not include markdown or explanation.
     
     Query: {state['user_query']}
     Context: {context}
@@ -149,13 +173,38 @@ def highlight_node(state: AgentState):
         content = response.content.strip()
         if "```json" in content:
             content = content.split("```json")[1].split("```")[0].strip()
-        highlights = json.loads(content)
-    except:
+        parsed = json.loads(content)
         highlights = []
+        if isinstance(parsed, list):
+            for item in parsed:
+                if isinstance(item, dict):
+                    text = str(item.get("text", "")).strip()
+                    page = item.get("page")
+                    if text:
+                        highlights.append({"type": "highlight", "text": text, "page": page})
+                elif isinstance(item, str):
+                    text = item.strip()
+                    if text:
+                        highlights.append({"type": "highlight", "text": text})
+    except Exception:
+        highlights = []
+
+    if not highlights:
+        fallback = []
+        for hit in rag_hits[:3]:
+            txt = re.sub(r"\s+", " ", str(hit.get("text", ""))).strip()
+            if not txt:
+                continue
+            fallback.append({
+                "type": "highlight",
+                "text": txt[:90],
+                "page": hit.get("page")
+            })
+        highlights = fallback
         
     return {
-        "response_text": f"I've highlighted {len(highlights)} key concepts for you.",
-        "actions": [{"type": "highlight", "text": t} for t in highlights]
+        "response_text": f"I've highlighted {len(highlights)} key passages with page-level precision.",
+        "actions": highlights
     }
 
 def notes_node(state: AgentState):
@@ -215,6 +264,7 @@ Context:
 
 def websearch_node(state: AgentState):
     query = state["user_query"]
+    results = []
     try:
         with DDGS() as ddgs:
             results = list(ddgs.text(query, max_results=5))
@@ -240,19 +290,72 @@ def websearch_node(state: AgentState):
 
 def comment_node(state: AgentState):
     llm = ChatGoogleGenerativeAI(model=state["model"], google_api_key=state["api_key"])
-    prompt = f"""Create a short, insightful sticky note or comment based on the following query and context.
-    The comment should be concise and helpful for future review.
+    rag_hits = state.get("rag_hits", [])
+    snippets = []
+    for idx, hit in enumerate(rag_hits[:10], start=1):
+        page = hit.get("page", "?")
+        text = re.sub(r"\s+", " ", str(hit.get("text", ""))).strip()
+        snippets.append(f"{idx}. PAGE={page} | {text}")
+
+    prompt = f"""You are a sticky-note planner for a PDF reader.
+    Create 3-7 concise sticky notes distributed across relevant pages.
+    Return ONLY valid JSON in this format:
+    [{{"text":"short note","page":3,"x":0.12,"y":0.2}}]
+
+    Rules:
+    - text: max 120 chars, useful for revision.
+    - page: integer from snippets.
+    - x and y: normalized 0..1 coordinates for note anchor.
+    - spread notes across different pages where possible.
+    - no markdown fences or explanation.
     
     Query: {state['user_query']}
-    Context: {state['user_context']}
-    
-    Return ONLY the comment text.
+    Selected Context: {state['user_context']}
+    Snippets:
+    {chr(10).join(snippets)}
     """
     
     response = llm.invoke(prompt)
+    comments = []
+    try:
+        content = response.content.strip()
+        if "```json" in content:
+            content = content.split("```json")[1].split("```")[0].strip()
+        parsed = json.loads(content)
+        if isinstance(parsed, list):
+            for item in parsed:
+                if not isinstance(item, dict):
+                    continue
+                text = str(item.get("text", "")).strip()
+                page = int(item.get("page", 1))
+                x = float(item.get("x", 0.12))
+                y = float(item.get("y", 0.16))
+                if text:
+                    comments.append({
+                        "text": text[:120],
+                        "page": max(1, page),
+                        "x": max(0.05, min(0.92, x)),
+                        "y": max(0.07, min(0.9, y))
+                    })
+    except Exception:
+        comments = []
+
+    if not comments:
+        for idx, hit in enumerate(rag_hits[:4]):
+            txt = re.sub(r"\s+", " ", str(hit.get("text", ""))).strip()
+            if not txt:
+                continue
+            comments.append({
+                "text": txt[:95],
+                "page": int(hit.get("page", 1) or 1),
+                "x": 0.1 + (idx % 2) * 0.32,
+                "y": 0.14 + (idx % 3) * 0.22
+            })
+
+    response_text = f"Added {len(comments)} sticky notes across relevant pages."
     return {
-        "response_text": "I've added a sticky note for you.",
-        "actions": [{"type": "comment", "text": response.content}]
+        "response_text": response_text,
+        "actions": [{"type": "comment", "comments": comments}]
     }
 
 def critic_node(state: AgentState):
@@ -276,6 +379,44 @@ def critic_node(state: AgentState):
     response = llm.invoke(prompt)
     return {"response_text": response.content}
 
+def precision_node(state: AgentState):
+    llm = ChatGoogleGenerativeAI(model=state["model"], google_api_key=state["api_key"])
+    generated = state.get("response_text", "")
+    context = "\n".join(state.get("rag_chunks", []))
+    query = state.get("user_query", "")
+
+    prompt = f"""You are a strict response quality evaluator for a PDF assistant.
+    Score the response on factual accuracy and grounding in the provided context.
+    Return ONLY valid JSON:
+    {{"score":0.0,"improvements":["..."],"should_regenerate":false}}
+
+    Rules:
+    - score is a float 0..1 (1 is best).
+    - improvements is an array of short, concrete fixes (max 3 items).
+    - should_regenerate is true if score < 0.7.
+
+    User Query: {query}
+    Context: {context}
+    Response: {generated}
+    """
+
+    response = llm.invoke(prompt)
+    content = response.content.strip()
+    if "```json" in content:
+        content = content.split("```json")[1].split("```")[0].strip()
+    try:
+        parsed = json.loads(content)
+        score = float(parsed.get("score", 0))
+        improvements = parsed.get("improvements", [])
+        should_regenerate = bool(parsed.get("should_regenerate", score < 0.7))
+        return {"evaluation": {
+            "score": max(0.0, min(1.0, score)),
+            "improvements": improvements if isinstance(improvements, list) else [],
+            "should_regenerate": should_regenerate
+        }}
+    except Exception:
+        return {"evaluation": {"score": 0.0, "improvements": ["Unable to score response."], "should_regenerate": False}}
+
 
 # Define the graph
 workflow = StateGraph(AgentState)
@@ -290,6 +431,7 @@ workflow.add_node("mindmap", mindmap_node)
 workflow.add_node("websearch", websearch_node)
 workflow.add_node("comment", comment_node)
 workflow.add_node("critic", critic_node)
+workflow.add_node("precision", precision_node)
 
 # Define edges
 workflow.set_entry_point("supervisor")
@@ -324,14 +466,15 @@ workflow.add_conditional_edges(
     }
 )
 
-workflow.add_edge("dictionary", END)
+workflow.add_edge("dictionary", "precision")
 workflow.add_edge("ask", "critic")
 workflow.add_edge("highlighter", END)
 workflow.add_edge("notes", "critic")
 workflow.add_edge("mindmap", END)
 workflow.add_edge("websearch", "critic")
 workflow.add_edge("comment", END)
-workflow.add_edge("critic", END)
+workflow.add_edge("critic", "precision")
+workflow.add_edge("precision", END)
 
 # Compile the graph
 app = workflow.compile()
@@ -346,11 +489,13 @@ def invoke_agent(query_data: dict):
         "user_context": query_data.get("context", ""),
         "intent": "",
         "rag_chunks": [],
+        "rag_hits": [],
         "actions": [],
         "glossary_terms": [],
         "messages": query_data.get("messages", []),
         "parts": query_data.get("parts", []),
-        "response_text": ""
+        "response_text": "",
+        "evaluation": {}
     }
     
     final_state = app.invoke(initial_state)
@@ -358,5 +503,6 @@ def invoke_agent(query_data: dict):
         "intent": final_state["intent"],
         "response_text": final_state["response_text"],
         "actions": final_state["actions"],
-        "glossary_terms": final_state["glossary_terms"]
+        "glossary_terms": final_state["glossary_terms"],
+        "evaluation": final_state.get("evaluation", {})
     }

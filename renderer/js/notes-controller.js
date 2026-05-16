@@ -48,7 +48,11 @@ export class NotesController {
     this.notesList.innerHTML = "";
 
     if (this.notes.length === 0) {
-      this.notesList.innerHTML = `<div style="padding: 20px; text-align: center; color: var(--text-soft); font-size: 0.85rem;">No notes yet. Ask the agent to generate some!</div>`;
+      this.notesList.innerHTML = `
+        <div class="notes-empty-state">
+          <i class="fa-solid fa-book-open"></i>
+          <p>No research notes yet.<br>Ask the AI assistant to summarize or take notes!</p>
+        </div>`;
       return;
     }
 
@@ -56,23 +60,34 @@ export class NotesController {
       const el = document.createElement("div");
       el.className = "note-item";
       
-      const date = new Date(note.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const date = new Date(note.date);
+      const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const dateStr = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
       
       // Using marked if available for rendering markdown in notes
       const contentHtml = window.marked ? window.marked.parse(note.content) : note.content.replace(/\n/g, '<br>');
 
       el.innerHTML = `
         <div class="note-header">
-          <span>${note.source} • ${date}</span>
-          <button class="note-remove" title="Remove note"><i class="fa-solid fa-trash-can"></i></button>
+          <div class="note-source-badge">${note.source || 'Agent'}</div>
+          <div class="note-date">${dateStr} · ${timeStr}</div>
+          <button class="btn icon-btn note-remove" title="Remove note" style="margin-left:auto; opacity:0.6; padding:2px 4px; height:auto;">
+            <i class="fa-solid fa-trash-can" style="font-size:0.75rem;"></i>
+          </button>
         </div>
         <div class="note-content">${contentHtml}</div>
       `;
 
-      el.querySelector(".note-remove").addEventListener("click", () => this.removeNote(note.id));
+      el.querySelector(".note-remove").addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (confirm("Remove this research note?")) {
+          this.removeNote(note.id);
+        }
+      });
       this.notesList.appendChild(el);
     });
   }
+
 
   getNotesMarkdown() {
     return this.notes.map(n => `## Note (${new Date(n.date).toLocaleString()})\n\n${n.content}`).join("\n\n---\n\n");

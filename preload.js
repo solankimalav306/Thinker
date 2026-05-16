@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   appendChatEntry: (payload) => ipcRenderer.invoke('chat:appendEntry', payload),
   getPdfId: (filePath) => ipcRenderer.invoke('pdf:getPdfId', filePath),
   getUserDataPath: () => ipcRenderer.invoke('app:getUserDataPath'),
+  saveAnnotatedPdf: (payload) => ipcRenderer.invoke('pdf:saveAnnotated', payload),
   indexPDF: (data) => ipcRenderer.invoke('pdf:index', data),
   queryPDF: (data) => ipcRenderer.invoke('pdf:query', data),
   invokeAgent: (data) => ipcRenderer.invoke('agent:invoke', data),
