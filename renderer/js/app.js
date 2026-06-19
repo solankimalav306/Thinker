@@ -27,6 +27,7 @@ import { NotesController } from "./notes-controller.js";
 import { MindMapController } from "./mindmap-controller.js";
 import { StickyNotesController } from "./sticky-notes-controller.js";
 import { HistoryController } from "./history-controller.js";
+import { FindController } from "./find-controller.js";
 
 const elements = {
   appShell: document.querySelector(".app-shell"),
@@ -595,6 +596,29 @@ async function boot() {
       elements.screenshotBtn.disabled = !meta.annotationSupported;
     }
   });
+
+  // ── Find Controller (Ctrl+F) ─────────────────────────────────────────
+  const findCtrl = new FindController({
+    pdfController: pdf,
+    findBar:   document.getElementById('find-bar'),
+    findInput: document.getElementById('find-input'),
+    findCount: document.getElementById('find-count'),
+    findPrev:  document.getElementById('find-prev'),
+    findNext:  document.getElementById('find-next'),
+    findClose: document.getElementById('find-close'),
+    findCase:  document.getElementById('find-case'),
+  });
+
+  // Re-run find after every page render so new text layers get highlighted
+  const _origOnRendered = pdf.onRendered;
+  pdf.onRendered = (meta) => {
+    if (typeof _origOnRendered === 'function') _origOnRendered(meta);
+    // Small delay to let PDF.js finish painting the text layer
+    if (document.getElementById('find-bar').style.display !== 'none' &&
+        document.getElementById('find-input').value) {
+      setTimeout(() => findCtrl._run(), 200);
+    }
+  };
 
   const annotation = new AnnotationController({
     canvas: elements.annotationCanvas,
@@ -1489,7 +1513,16 @@ async function boot() {
     if (event.key === "Escape") {
       snip.stop();
       annotation.stopMode();
+      findCtrl.close();
       setStatus("Ready.");
+    }
+
+    // Ctrl+F → open find bar (only when a PDF is open)
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
+      if (activeTabPath && currentView === "reader") {
+        event.preventDefault();
+        findCtrl.open();
+      }
     }
 
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "o") {

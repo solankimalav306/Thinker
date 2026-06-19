@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   --font-ui: "Manrope", "Segoe UI", sans-serif;
   --font-display: "Space Grotesk", "Segoe UI", sans-serif;
 }
@@ -2265,9 +2265,9 @@ body.snipping-active #text-layer {
 
 
 
-/* ═══════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    PREMIUM SAVE / EXPORT MODAL
-   ═══════════════════════════════════════════════ */
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 .save-modal-card {
   width: 740px;
   max-width: 95vw;
@@ -2521,9 +2521,9 @@ body.snipping-active #text-layer {
 }
 
 
-/* ═══════════════════════════════════════════════
-   RESEARCH NOTES PANEL — TABBED
-   ═══════════════════════════════════════════════ */
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   RESEARCH NOTES PANEL â€” TABBED
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 .notes-panel-header {
   display: flex;
   align-items: center;
@@ -2708,9 +2708,9 @@ body.snipping-active #text-layer {
 .notes-empty-state p { font-size: 0.8rem; margin: 0; opacity: 0.65; }
 
 
-/* ═══════════════════════════════════════════════
-   HISTORY TIMELINE — VS Code Style
-   ═══════════════════════════════════════════════ */
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   HISTORY TIMELINE â€” VS Code Style
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 .history-panel-header {
   display: flex;
   align-items: center;
@@ -2853,9 +2853,9 @@ body.snipping-active #text-layer {
 .history-empty p { font-size: 0.8rem; margin: 0; opacity: 0.6; }
 
 
-/* ═══════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    USER STICKY NOTE PLACEMENT
-   ═══════════════════════════════════════════════ */
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 body.sticky-placement-mode .pdf-stage { cursor: crosshair !important; }
 body.sticky-placement-mode #pdf-render { cursor: crosshair !important; }
 body.sticky-placement-mode #text-layer { cursor: crosshair !important; pointer-events: none; }
@@ -2901,9 +2901,9 @@ body.sticky-placement-mode #annotation-canvas { cursor: crosshair !important; }
 }
 
 
-/* ═══════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    PREMIUM SAVE / EXPORT MODAL
-   ═══════════════════════════════════════════════ */
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 .save-modal-card {
   width: 740px;
   max-width: 95vw;
@@ -3157,9 +3157,9 @@ body.sticky-placement-mode #annotation-canvas { cursor: crosshair !important; }
 }
 
 
-/* ═══════════════════════════════════════════════
-   RESEARCH NOTES PANEL — TABBED
-   ═══════════════════════════════════════════════ */
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   RESEARCH NOTES PANEL â€” TABBED
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 .notes-panel-header {
   display: flex;
   align-items: center;
@@ -3344,9 +3344,9 @@ body.sticky-placement-mode #annotation-canvas { cursor: crosshair !important; }
 .notes-empty-state p { font-size: 0.8rem; margin: 0; opacity: 0.65; }
 
 
-/* ═══════════════════════════════════════════════
-   HISTORY TIMELINE — VS Code Style
-   ═══════════════════════════════════════════════ */
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   HISTORY TIMELINE â€” VS Code Style
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 .history-panel-header {
   display: flex;
   align-items: center;
@@ -3489,9 +3489,9 @@ body.sticky-placement-mode #annotation-canvas { cursor: crosshair !important; }
 .history-empty p { font-size: 0.8rem; margin: 0; opacity: 0.6; }
 
 
-/* ═══════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    USER STICKY NOTE PLACEMENT
-   ═══════════════════════════════════════════════ */
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 body.sticky-placement-mode .pdf-stage { cursor: crosshair !important; }
 body.sticky-placement-mode #pdf-render { cursor: crosshair !important; }
 body.sticky-placement-mode #text-layer { cursor: crosshair !important; pointer-events: none; }
@@ -3536,9 +3536,9 @@ body.sticky-placement-mode #annotation-canvas { cursor: crosshair !important; }
   100% { opacity: 0.5; transform: scale(0.8); }
 }
 
-/* ═══════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    EVALUATION CARD
-   ═══════════════════════════════════════════════ */
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 .evaluation-card {
   margin-top: 14px;
   background: color-mix(in srgb, var(--accent) 5%, var(--panel));
@@ -3602,9 +3602,9 @@ body.sticky-placement-mode #annotation-canvas { cursor: crosshair !important; }
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* ═══════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    SUBTLE CHAT INTEGRATIONS
-   ═══════════════════════════════════════════════ */
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 .message-subtle-eval {
   font-size: 0.65rem;
@@ -3658,9 +3658,9 @@ body.sticky-placement-mode #annotation-canvas { cursor: crosshair !important; }
   color: var(--accent);
 }
 
-/* ═══════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    STICKY NOTE POPUP (POPOVER)
-   ═══════════════════════════════════════════════ */
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 .sticky-tooltip {
   position: fixed;
   z-index: 10000;
@@ -3721,4 +3721,155 @@ body.sticky-placement-mode #annotation-canvas { cursor: crosshair !important; }
 @keyframes popIn {
   from { opacity: 0; transform: scale(0.9) translateY(10px); }
   to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* ── Find Bar ──────────────────────────────────────────────────────── */
+.find-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.18);
+  animation: slideDown 0.15s ease;
+}
+
+@keyframes slideDown {
+  from { transform: translateY(-100%); opacity: 0; }
+  to   { transform: translateY(0);     opacity: 1; }
+}
+
+.find-bar-icon {
+  color: var(--accent);
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.find-input {
+  flex: 1;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--panel-soft);
+  color: var(--text);
+  font-size: 0.85rem;
+  font-family: inherit;
+  outline: none;
+  min-width: 0;
+  transition: border-color 0.2s;
+}
+.find-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+.find-input.find-no-match {
+  border-color: #e55;
+  background: color-mix(in srgb, #ff4444 10%, var(--panel-soft));
+}
+
+.find-count {
+  font-size: 0.75rem;
+  color: var(--text-soft);
+  white-space: nowrap;
+  min-width: 46px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.find-nav-btn {
+  width: 28px !important;
+  height: 28px !important;
+  padding: 0 !important;
+  flex-shrink: 0;
+}
+
+.find-case-label {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.78rem;
+  color: var(--text-soft);
+  cursor: pointer;
+  user-select: none;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 3px 7px;
+  white-space: nowrap;
+}
+.find-case-label:hover { border-color: var(--accent); color: var(--accent); }
+.find-case-label input { width: 13px; height: 13px; accent-color: var(--accent); margin: 0; }
+
+.find-close-btn {
+  width: 28px !important;
+  height: 28px !important;
+  padding: 0 !important;
+  flex-shrink: 0;
+}
+
+/* Highlight colour for find results */
+.find-highlight {
+  background: rgba(255, 220, 0, 0.45);
+  border-radius: 2px;
+  outline: 1px solid rgba(255,180,0,0.6);
+}
+.find-highlight.find-current {
+  background: rgba(255, 120, 0, 0.5);
+  outline: 2px solid rgba(255,100,0,0.9);
+}
+
+/* pdf-stage needs relative positioning so find-bar anchors to it */
+.pdf-stage {
+  position: relative;
+}
+
+/* ── Custom Context Menu (PDF right-click) ──────────────────────────── */
+.custom-context-menu {
+  position: fixed;
+  z-index: 9999;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.28);
+  padding: 4px;
+  min-width: 170px;
+  animation: fadeIn 0.12s ease;
+  font-family: 'Manrope', sans-serif;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.custom-context-menu .menu-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 12px;
+  border-radius: 7px;
+  font-size: 0.85rem;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.12s;
+  user-select: none;
+}
+.custom-context-menu .menu-item:hover {
+  background: var(--chip);
+  color: var(--accent);
+}
+.custom-context-menu .menu-item i {
+  width: 16px;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--accent);
+}
+.custom-context-menu .menu-separator {
+  height: 1px;
+  background: var(--line);
+  margin: 3px 6px;
 }

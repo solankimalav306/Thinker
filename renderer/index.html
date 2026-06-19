@@ -375,6 +375,18 @@
         </aside>
 
         <div class="pdf-stage" id="pdf-stage">
+          <!-- Find Bar -->
+          <div id="find-bar" class="find-bar" style="display:none;">
+            <i class="fa-solid fa-magnifying-glass find-bar-icon"></i>
+            <input type="text" id="find-input" class="find-input" placeholder="Find in document…" autocomplete="off" />
+            <span id="find-count" class="find-count">0 / 0</span>
+            <button class="btn icon-btn find-nav-btn" id="find-prev" title="Previous match (Shift+Enter)"><i class="fa-solid fa-chevron-up"></i></button>
+            <button class="btn icon-btn find-nav-btn" id="find-next" title="Next match (Enter)"><i class="fa-solid fa-chevron-down"></i></button>
+            <label class="find-case-label" title="Match case">
+              <input type="checkbox" id="find-case" /> Aa
+            </label>
+            <button class="btn icon-btn find-close-btn" id="find-close" title="Close (Esc)"><i class="fa-solid fa-xmark"></i></button>
+          </div>
           <div class="pdf-container">
             <div id="pdf-viewer" class="pdf-viewer">
               <canvas id="pdf-render"></canvas>

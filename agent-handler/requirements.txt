@@ -11,3 +11,4 @@ langchain-google-genai
 langgraph
 duckduckgo-search
 langchain-community
+langchain-openai

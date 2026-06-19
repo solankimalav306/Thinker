@@ -12,6 +12,32 @@ from duckduckgo_search import DDGS
 import concurrent.futures
 import string
 
+# ---------------------------------------------------------------------------
+# Multi-provider LLM factory
+# ---------------------------------------------------------------------------
+def create_llm(state: dict):
+    """Return the right LangChain chat model based on api_format in state.
+    Supports:
+      - "gemini"  (default) -> ChatGoogleGenerativeAI
+      - "openai"  -> ChatOpenAI (works for OpenAI, OpenRouter, local Ollama, etc.)
+    """
+    api_format = str(state.get("api_format", "") or "gemini").strip().lower()
+    model = str(state.get("model", "") or "gemini-2.5-flash-lite").strip()
+    api_key = str(state.get("api_key", "") or "").strip()
+    api_url  = str(state.get("api_url",  "") or "").strip()
+
+    if api_format in ("openai", "openai-compatible"):
+        from langchain_openai import ChatOpenAI
+        kwargs = {"model": model, "temperature": 0.2}
+        if api_key:
+            kwargs["openai_api_key"] = api_key
+        if api_url:
+            kwargs["openai_api_base"] = api_url
+        return ChatOpenAI(**kwargs)
+
+    # Default: Gemini
+    return ChatGoogleGenerativeAI(model=model, google_api_key=api_key)
+
 
 FOCUS_GROUPS = {
     "academic_paper": ["Problem", "Methodology", "Experiments", "Results", "Limitations", "Future Work"],
@@ -98,6 +124,8 @@ class AgentState(TypedDict):
     pdf_id: str
     storage_path: str
     api_key: str
+    api_format: str   # "gemini" | "openai" | "openai-compatible"
+    api_url: str       # base URL for OpenAI-compatible endpoints
     model: str
     user_context: str
     intent: str
@@ -192,7 +220,7 @@ def print_llm_tokens(llm, state: dict, prompt: str):
     print("Prompt Tokens:", prompt_tokens)
 
 def supervisor_node(state: AgentState):
-    llm = ChatGoogleGenerativeAI(model=state["model"], google_api_key=state["api_key"])
+    llm = create_llm(state)
     
     # Update knowledge cache with the current request
     cache = load_knowledge_cache(state.get("storage_path"), state.get("pdf_id"))
@@ -205,22 +233,27 @@ def supervisor_node(state: AgentState):
     cache["user_intents"] = user_intents[-20:]  # Keep last 20 queries/intents
     save_knowledge_cache(state.get("storage_path"), state.get("pdf_id"), cache)
     
-    # Classify intent
-    prompt = f"""You are a supervisor for a PDF reading assistant.
-    Classify the user query into one of these intents: 
-    - "ask" (general question about the PDF)
-    - "define" (asking for a definition of a term)
-    - "highlight" (asking to highlight specific concepts or text)
-    - "note" (asking to create notes or a summary)
-    - "mindmap" (asking to generate a mind map)
-    - "search" (asking for information not in the PDF or general web info)
-    - "comment" (asking to add a sticky note or comment on a page)
-    
-    User Query: {state['user_query']}
-    User Context (selected text): {state['user_context']}
-    
-    Return ONLY the intent string.
-    """
+    # Classify intent with an explicit, unambiguous prompt
+    prompt = f"""You are an intent classifier for a PDF assistant. Your job is to map a user query to EXACTLY ONE intent label.
+
+Intent definitions (read carefully before deciding):
+- "ask"      : The user is asking a question or wants an explanation, summary, or analysis about the PDF content. This is the DEFAULT for any question.
+- "define"   : The user wants a dictionary/glossary definition of a SINGLE specific technical word or acronym (e.g. "What does RAG mean?", "Define entropy"). Do NOT use this for multi-word questions or general queries.
+- "highlight": The user explicitly asks to highlight, mark, or underline text passages.
+- "note"     : The user explicitly asks to create, generate, or write notes, a summary document, or study guide.
+- "mindmap"  : The user explicitly asks for a mind map or concept map.
+- "search"   : The user asks for information clearly NOT in the PDF (e.g. current events, prices, external URLs).
+- "comment"  : The user explicitly asks to add a sticky note or comment on a specific page.
+
+Critical rules:
+- When in doubt, return "ask".
+- "define" ONLY when the entire query is about defining ONE word/term.
+- Questions starting with "what", "how", "why", "explain", "summarize" are almost always "ask".
+
+User Query: {state['user_query']}
+Selected Text (context): {state['user_context']}
+
+Return ONLY the intent label (one of: ask, define, highlight, note, mindmap, search, comment). No other text."""
     
     # Construct multi-modal content if parts are present
     content = [{"type": "text", "text": prompt}]
@@ -236,16 +269,20 @@ def supervisor_node(state: AgentState):
     
     print_llm_tokens(llm, state, prompt)
     response = llm.invoke([HumanMessage(content=content)])
-    intent = response.content.strip().lower()
+    raw_intent = response.content.strip().lower()
+    print(f"[supervisor_node] Raw intent from LLM: '{raw_intent}'", flush=True)
     
-    # Clean up intent (LLM might return extra text)
-    for possible in ["ask", "define", "highlight", "note", "mindmap", "search", "comment"]:
-        if possible in intent:
+    # Strict exact-word matching (avoids substring false-positives)
+    VALID_INTENTS = ["ask", "define", "highlight", "note", "mindmap", "search", "comment"]
+    intent = "ask"  # safe default
+    for possible in VALID_INTENTS:
+        # Match whole word so "define" doesn't accidentally match inside "undefined"
+        if re.search(rf"\b{possible}\b", raw_intent):
             intent = possible
             break
-    else:
-        intent = "ask"
-        
+
+    print(f"[supervisor_node] Final intent: '{intent}'", flush=True)
+    
     # Retrieve RAG context
     rag_res = retrieval_service({
         "query": state["user_query"],
@@ -277,7 +314,7 @@ def dictionary_node(state: AgentState):
     }
 
 def ask_node(state: AgentState):
-    llm = ChatGoogleGenerativeAI(model=state["model"], google_api_key=state["api_key"])
+    llm = create_llm(state)
     
     context = "\n".join(state["rag_chunks"])
     
@@ -331,7 +368,7 @@ def ask_node(state: AgentState):
     return {"response_text": response.content}
 
 def highlight_node(state: AgentState):
-    llm = ChatGoogleGenerativeAI(model=state["model"], google_api_key=state["api_key"])
+    llm = create_llm(state)
     rag_hits = state.get("rag_hits", [])
     snippets = []
     for idx, hit in enumerate(rag_hits[:8], start=1):
@@ -406,7 +443,7 @@ def notes_node(state: AgentState):
     return {"beginning_text": beginning_text}
 
 def mindmap_node(state: AgentState):
-    llm = ChatGoogleGenerativeAI(model=state["model"], google_api_key=state["api_key"])
+    llm = create_llm(state)
     context = "\n".join(state["rag_chunks"])
     
     prompt = f"""Create a deep, multi-level mind map using Markdown.
@@ -452,7 +489,7 @@ def websearch_node(state: AgentState):
         print(f"Web search failed: {e}")
         results_str = "No results found due to an error."
     
-    llm = ChatGoogleGenerativeAI(model=state["model"], google_api_key=state["api_key"])
+    llm = create_llm(state)
     prompt = f"""Based on the following web search results, answer the user's question.
     
     Question: {query}
@@ -484,7 +521,7 @@ def run_notes_planner(state: AgentState) -> Dict:
         return {"plan": plan}
         
     print("[run_notes_planner] Cache MISS! Running Planner LLM...", flush=True)
-    llm = ChatGoogleGenerativeAI(model=state["model"], google_api_key=state["api_key"])
+    llm = create_llm(state)
     beginning_text = state.get("beginning_text", "")
     if not beginning_text:
         print("[run_notes_planner] beginning_text not found in state. Querying metadata...", flush=True)
@@ -563,7 +600,7 @@ def run_document_analyzer(state: AgentState) -> Dict:
         return {"analysis": analysis}
         
     print("[run_document_analyzer] Cache MISS! Running Document Analyzer LLM...", flush=True)
-    llm = ChatGoogleGenerativeAI(model=state["model"], google_api_key=state["api_key"])
+    llm = create_llm(state)
     plan = state.get("plan", {})
     beginning_text = state.get("beginning_text", "")
     if not beginning_text:
@@ -622,7 +659,7 @@ def run_document_analyzer(state: AgentState) -> Dict:
 
 def run_parallel_workers(state: AgentState) -> Dict:
     print("[run_parallel_workers] Initiating parallel workers node...", flush=True)
-    llm = ChatGoogleGenerativeAI(model=state["model"], google_api_key=state["api_key"])
+    llm = create_llm(state)
     plan = state.get("plan", {})
     analysis = state.get("analysis", {})
     queries = analysis.get("queries", {})
@@ -749,7 +786,7 @@ def run_local_fact_checker(state: AgentState) -> Dict:
 
 def run_markdown_formatter(state: AgentState) -> Dict:
     print("[run_markdown_formatter] Initiating markdown formatter node...", flush=True)
-    llm = ChatGoogleGenerativeAI(model=state["model"], google_api_key=state["api_key"])
+    llm = create_llm(state)
     plan = state.get("plan", {})
     analysis = state.get("analysis", {})
     verified_drafts = state.get("verified_drafts", [])
@@ -792,7 +829,7 @@ def run_markdown_formatter(state: AgentState) -> Dict:
 
 
 def comment_node(state: AgentState):
-    llm = ChatGoogleGenerativeAI(model=state["model"], google_api_key=state["api_key"])
+    llm = create_llm(state)
     rag_hits = state.get("rag_hits", [])
     snippets = []
     for idx, hit in enumerate(rag_hits[:10], start=1):
@@ -863,7 +900,7 @@ def comment_node(state: AgentState):
     }
 
 def critic_node(state: AgentState):
-    llm = ChatGoogleGenerativeAI(model=state["model"], google_api_key=state["api_key"])
+    llm = create_llm(state)
     
     # Input is the generated response or notes
     generated = state.get("response_text", "")
@@ -885,7 +922,7 @@ def critic_node(state: AgentState):
     return {"response_text": response.content}
 
 def precision_node(state: AgentState):
-    llm = ChatGoogleGenerativeAI(model=state["model"], google_api_key=state["api_key"])
+    llm = create_llm(state)
     generated = state.get("response_text", "")
     context = "\n".join(state.get("rag_chunks", []))
     query = state.get("user_query", "")
@@ -999,12 +1036,21 @@ workflow.add_edge("comment", END)
 app = workflow.compile()
 
 def invoke_agent(query_data: dict):
+    # Resolve provider info from nested profile or flat keys
+    profile = query_data.get("profile") or {}
+    api_format = str(profile.get("format") or query_data.get("apiFormat") or "gemini").strip().lower()
+    api_url    = str(profile.get("url")    or query_data.get("apiUrl")    or "").strip()
+    api_key    = str(profile.get("key")    or query_data.get("apiKey")    or "").strip()
+    model      = str(profile.get("model")  or query_data.get("model")     or "gemini-2.5-flash-lite").strip()
+
     initial_state = {
         "user_query": query_data.get("query", ""),
         "pdf_id": query_data.get("pdfId", ""),
         "storage_path": query_data.get("storagePath", ""),
-        "api_key": query_data.get("apiKey", ""),
-        "model": query_data.get("model", "gemini-2.5-flash-lite"),
+        "api_key": api_key,
+        "api_format": api_format,
+        "api_url": api_url,
+        "model": model,
         "user_context": query_data.get("context", ""),
         "intent": "",
         "rag_chunks": [],
@@ -1016,6 +1062,8 @@ def invoke_agent(query_data: dict):
         "response_text": "",
         "evaluation": {}
     }
+
+    print(f"[invoke_agent] Provider: format={api_format}, url={api_url or '(default)'}, model={model}", flush=True)
     
     final_state = app.invoke(initial_state)
     return {

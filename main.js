@@ -558,7 +558,7 @@ function createMainWindow() {
   });
 
   ipcMain.handle('dict:define', async (_event, { word, context, apiKey, model, profile }) => {
-    if (!apiKey) {
+    if (!apiKey && (!profile || !profile.key)) {
       return { ok: false, error: 'Missing API key. Select a saved AI profile first.' };
     }
 
@@ -566,6 +566,11 @@ function createMainWindow() {
       const requestProfile = profile && typeof profile === 'object'
         ? { ...profile, key: profile.key || apiKey, model: profile.model || model || 'gemini-2.0-flash' }
         : { format: 'gemini', key: apiKey, model: model || 'gemini-2.0-flash' };
+
+      const apiFormat = requestProfile.format || 'gemini';
+      const apiUrl    = requestProfile.url    || '';
+      const effectiveKey = requestProfile.key || apiKey || '';
+
       const prompt = [
         'You are a dictionary assistant for a PDF reader.',
         'Return ONLY valid JSON with keys: term, definition, source.',

@@ -30,7 +30,9 @@ def define_word(data: dict):
     context = data.get("context", "")
     api_key = data.get("apiKey")
     model = data.get("model", "gemini-2.5-flash-lite")
-    return dictionary_service(word, context, api_key, model)
+    api_format = data.get("apiFormat", "gemini")
+    api_url = data.get("apiUrl", "")
+    return dictionary_service(word, context, api_key, model, api_format, api_url)
 
 @app.post("/agent/invoke")
 def agent_invoke(data: dict):

@@ -410,7 +410,10 @@ export class ChatController {
         pdfId,
         storagePath,
         apiKey: config.apiKey,
+        apiFormat: config.profile?.format || 'gemini',
+        apiUrl: config.profile?.url || '',
         model: config.model,
+        profile: config.profile || null,
         context: contextText,
         messages: this.entries.slice(-10),
         parts: parts
