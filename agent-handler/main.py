@@ -10,6 +10,10 @@ app = FastAPI()
 async def root():
     return {"message": "Hello World"}
 
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
 @app.post("/index")
 def index_pdf(data: dict):
     return indexing_service(data)
@@ -35,3 +39,7 @@ def agent_invoke(data: dict):
     except Exception as e:
         print(f"Agent invocation failed: {e}")
         return {"error": str(e)}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="127.0.0.1", port=8000)

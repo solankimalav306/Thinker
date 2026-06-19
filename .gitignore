@@ -18,3 +18,10 @@ npm-debug.log*
 Thumbs.db
 
 plan.md
+
+# Distribution
+build/
+dist/
+backend.exe
+backend.spec
+*.spec

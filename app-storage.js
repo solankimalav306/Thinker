@@ -50,4 +50,20 @@ function removeItemSync(event, key) {
   event.returnValue = true;
 }
 
-module.exports = { getItemSync, setItemSync, removeItemSync };
+function getItemDirect(key) {
+  ensureStorageDir();
+  const file = getFilePath(key);
+  if (!fs.existsSync(file)) return null;
+  try {
+    const data = fs.readFileSync(file, 'utf8');
+    const lines = data.trim().split('\n').filter(Boolean);
+    if (lines.length === 0) return null;
+    const lastLine = lines[lines.length - 1];
+    return JSON.parse(lastLine).value;
+  } catch (e) {
+    return null;
+  }
+}
+
+module.exports = { getItemSync, setItemSync, removeItemSync, getItemDirect };
+

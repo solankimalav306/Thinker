@@ -7,6 +7,7 @@ def retrieval_service(data):
     query = data["query"]
     pdf_id = data["pdfId"]
     storage = data["storagePath"]
+    k = data.get("k", 5)
 
     index_path = os.path.join(storage, f"{pdf_id}.index")
     print("LOOKING FOR INDEX AT:", index_path)
@@ -22,7 +23,7 @@ def retrieval_service(data):
     # BGE requires this
     q_vec = embed(["query: " + query]).astype("float32")
 
-    indices = search(index, q_vec, k=5)
+    indices = search(index, q_vec, k=k)
 
     results = []
     for i in indices:

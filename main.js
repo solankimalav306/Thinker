@@ -1,14 +1,91 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const fsPromises = require('fs/promises');
 const crypto = require('crypto');
 const { PDFDocument, rgb } = require('pdf-lib');
+const { spawn } = require('child_process');
+const axios = require('axios');
 require('dotenv').config();
 
-const { getItemSync, setItemSync, removeItemSync } = require('./app-storage');
-
+const { getItemSync, setItemSync, removeItemSync, getItemDirect } = require('./app-storage');
 const { handleLLMGenerate } = require('./llm-handler');
+
+// ── Backend process handle (so we can kill it cleanly on exit) ──────────────
+let backendProcess = null;
+
+// ── Spawn the Python/compiled backend ───────────────────────────────────────
+function startBackend() {
+  // Production: search multiple locations for backend.exe
+  const possiblePaths = [
+    path.join(path.dirname(app.getPath('exe')), 'backend.exe'),
+    path.join(process.resourcesPath, 'backend.exe'),
+    path.join(app.getAppPath(), '..', 'backend.exe')
+  ];
+  let exePath = null;
+  for (const p of possiblePaths) {
+    if (fs.existsSync(p)) {
+      exePath = p;
+      break;
+    }
+  }
+
+  if (exePath) {
+    console.log('[backend] Launching backend.exe:', exePath);
+    backendProcess = spawn(exePath, [], { detached: false });
+  } else {
+    // Dev fallback: use the venv uvicorn
+    console.log('[backend] backend.exe not found – falling back to venv uvicorn');
+    const venvPython = path.join(__dirname, 'venv', 'Scripts', 'python.exe');
+    const pythonBin = fs.existsSync(venvPython) ? venvPython : 'python';
+    backendProcess = spawn(
+      pythonBin,
+      ['-m', 'uvicorn', 'main:app', '--host', '127.0.0.1', '--port', '8000'],
+      { cwd: path.join(__dirname, 'agent-handler'), detached: false }
+    );
+  }
+
+  backendProcess.stdout.on('data', d => console.log('[backend]', d.toString().trim()));
+  backendProcess.stderr.on('data', d => console.error('[backend]', d.toString().trim()));
+  backendProcess.on('exit', code => console.log('[backend] exited with code', code));
+}
+
+// ── Poll /health until the backend responds ──────────────────────────────────
+async function waitForBackend(timeoutMs = 60_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const res = await axios.get('http://127.0.0.1:8000/health', { timeout: 2000 });
+      if (res.data?.status === 'ok') return true;
+    } catch { /* not ready yet */ }
+    await new Promise(r => setTimeout(r, 1000));
+  }
+  return false; // timed out
+}
+
+// ── Splash window ────────────────────────────────────────────────────────────
+let splashWindow = null;
+function createSplash() {
+  const theme = getItemDirect('smartpdf.theme') || 'dark';
+  const palette = getItemDirect('smartpdf.themePalette') || 'aurora';
+  const customAccent = getItemDirect('custom-accent-color') || '';
+
+  splashWindow = new BrowserWindow({
+    width: 480,
+    height: 320,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    center: true,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    webPreferences: { nodeIntegration: false, contextIsolation: true }
+  });
+  
+  splashWindow.loadFile('renderer/splash.html', {
+    query: { theme, palette, customAccent }
+  });
+}
 
 function getPdfId(filePath) {
   try {
@@ -109,6 +186,7 @@ app.commandLine.appendSwitch('disk-cache-dir', diskCachePath);
 let mainWindow;  // track your main window globally
 let snipWindow;  // track snipping tool window
 
+
 function getChatHistoryDir() {
   return path.join(app.getPath('userData'), 'chat-history');
 }
@@ -138,7 +216,7 @@ async function readJsonl(filePath) {
   }
 }
 
-function createWindow() {
+function createMainWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -158,6 +236,7 @@ function createWindow() {
   });
 
   mainWindow.loadFile('renderer/index.html');
+
 
   ipcMain.handle('dialog:openPDF', async () => {
     const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
@@ -595,9 +674,64 @@ function createWindow() {
   });
 }
 
-app.whenReady().then(createWindow);
+// Global security lockdown: block DevTools globally in production for all windows
+app.on('web-contents-created', (event, contents) => {
+  if (app.isPackaged) {
+    contents.on('before-input-event', (e, input) => {
+      if (
+        input.key === 'F12' ||
+        (input.control && input.shift && (input.key === 'I' || input.key === 'J' || input.key === 'C'))
+      ) {
+        e.preventDefault();
+      }
+    });
+    contents.on('devtools-opened', () => {
+      contents.closeDevTools();
+    });
+  }
+});
+
+// ── App startup flow ─────────────────────────────────────────────────────────
+app.whenReady().then(async () => {
+  // Hide application menu in production to prevent keyboard shortcut DevTools access
+  if (app.isPackaged) {
+    Menu.setApplicationMenu(null);
+  }
+
+  // 1. Show splash immediately
+  createSplash();
+
+  // 2. Start backend (exe or venv fallback)
+  startBackend();
+
+  // 3. Wait until /health returns ok (up to 60 s)
+  const ready = await waitForBackend(60_000);
+  if (!ready) {
+    console.warn('[startup] Backend did not become healthy within 60 s – opening anyway.');
+  } else {
+    // Signal the splash to animate to 100%
+    if (splashWindow && !splashWindow.isDestroyed()) {
+      await splashWindow.webContents.executeJavaScript('window.onBackendReady && window.onBackendReady()').catch(() => {});
+      await new Promise(r => setTimeout(r, 500)); // brief pause so the user sees "Ready"
+    }
+  }
+
+  // 4. Open the main window
+  createMainWindow();
+
+  // 5. Close splash
+  if (splashWindow && !splashWindow.isDestroyed()) {
+    splashWindow.close();
+    splashWindow = null;
+  }
+});
 
 app.on('window-all-closed', () => {
+  // Kill the backend process when the app closes
+  if (backendProcess) {
+    try { backendProcess.kill(); } catch { /* ignore */ }
+    backendProcess = null;
+  }
   if (process.platform !== 'darwin') app.quit();
 });
 
@@ -631,7 +765,7 @@ ipcMain.on('snip-complete', (event, dataUrl) => {
   }
 });
 
-const axios = require('axios');
+// axios is required at the top of the file
 
 ipcMain.handle('pdf:index', async (_event, data) => {
   try {

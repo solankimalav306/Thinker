@@ -18,8 +18,27 @@ def get_llm_definition(word: str, context: str, api_key: str = None, model: str 
             "{{\"term\": \"{word}\", \"definition\": \"...\", \"source\": \"llm\"}}"
         )
         
-        chain = prompt | llm
-        response = chain.invoke({"word": word, "context": context})
+        prompt_val = prompt.invoke({"word": word, "context": context})
+        prompt_text = prompt_val.to_string()
+        
+        try:
+            context_tokens = llm.get_num_tokens(context)
+            history_tokens = 0
+            selected_text_tokens = llm.get_num_tokens(word)
+            prompt_tokens = llm.get_num_tokens(prompt_text)
+        except Exception as e:
+            print(f"Error calculating token counts: {e}")
+            context_tokens = len(context) // 4
+            history_tokens = 0
+            selected_text_tokens = len(word) // 4
+            prompt_tokens = len(prompt_text) // 4
+
+        print("Context Tokens:", context_tokens)
+        print("History Tokens:", history_tokens)
+        print("Selected Text Tokens:", selected_text_tokens)
+        print("Prompt Tokens:", prompt_tokens)
+
+        response = llm.invoke(prompt_val)
         
         # Simple cleanup if LLM returns markdown blocks
         content = response.content.strip()

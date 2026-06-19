@@ -1,6 +1,7 @@
 import os
 import json
 import re
+import datetime
 from typing import Annotated, Dict, List, TypedDict, Union, Literal
 from langgraph.graph import StateGraph, END
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -8,6 +9,89 @@ from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 from services.retrieval import retrieval_service
 from services.dictionary import dictionary_service
 from duckduckgo_search import DDGS
+import concurrent.futures
+import string
+
+
+FOCUS_GROUPS = {
+    "academic_paper": ["Problem", "Methodology", "Experiments", "Results", "Limitations", "Future Work"],
+    "survey_paper": ["Scope", "Taxonomy", "Key Contributions", "Open Challenges"],
+    "textbook": ["Concepts", "Definitions", "Examples", "Formulas", "Exam Notes"],
+    "slides": ["Speaker Notes", "Missing Context", "Expanded Explanations"],
+    "contract": ["Parties", "Obligations", "Risky Clauses", "Termination", "Liability"],
+    "court_judgement": ["Facts", "Issues", "Arguments", "Decision", "Reasoning", "Precedents"],
+    "business_report": ["Executive Summary", "Financial Performance", "Key Operations", "Future Outlook"],
+    "default": ["Overview", "Key Concepts", "Detailed Summary", "Key Takeaways"]
+}
+
+SUBTYPE_TO_FOCUS_GROUP = {
+    # Academic
+    "research_paper": "academic_paper",
+    "survey_paper": "survey_paper",
+    "systematic_review": "academic_paper",
+    "thesis": "academic_paper",
+    "dissertation": "academic_paper",
+    "conference_paper": "academic_paper",
+    "technical_report": "academic_paper",
+    "whitepaper": "academic_paper",
+    # Education
+    "textbook": "textbook",
+    "textbook_chapter": "textbook",
+    "lecture_notes": "textbook",
+    "slides": "slides",
+    "lab_manual": "textbook",
+    "assignment": "textbook",
+    "tutorial": "textbook",
+    "study_material": "textbook",
+    # Legal
+    "contract": "contract",
+    "agreement": "contract",
+    "nda": "contract",
+    "court_judgement": "court_judgement",
+    "legal_brief": "court_judgement",
+    "statute": "court_judgement",
+    "policy_document": "contract",
+    "compliance_document": "contract",
+    # Business
+    "annual_report": "business_report",
+    "financial_report": "business_report",
+    "business_plan": "business_report",
+    "project_proposal": "business_report",
+    "meeting_minutes": "business_report",
+    "product_requirements_document": "business_report",
+    # Technical
+    "documentation": "textbook",
+    "api_reference": "textbook",
+    "software_design_doc": "textbook",
+    "architecture_doc": "textbook",
+    "research_specification": "academic_paper",
+    # Personal / Misc
+    "resume": "default",
+    "cv": "default",
+    "ebook": "default",
+    "article": "default",
+    "news_report": "default",
+    "manual": "default",
+    "form": "default"
+}
+
+STOPWORDS = {
+    "a", "about", "above", "after", "again", "against", "all", "am", "an", "and", "any", "are", "arent",
+    "as", "at", "be", "because", "been", "before", "being", "below", "between", "both", "but", "by",
+    "cant", "cannot", "could", "couldnt", "did", "didnt", "do", "does", "doesnt", "doing", "dont",
+    "down", "during", "each", "few", "for", "from", "further", "had", "hadnt", "has", "hasnt", "have",
+    "havent", "having", "he", "hed", "hell", "hes", "her", "here", "heres", "hers", "herself", "him",
+    "himself", "his", "how", "hows", "i", "id", "ill", "im", "ive", "if", "in", "into", "is", "isnt",
+    "it", "its", "itself", "lets", "me", "more", "most", "mustnt", "my", "myself", "no", "nor", "not",
+    "of", "off", "on", "once", "only", "or", "other", "ought", "our", "ours", "ourselves", "out",
+    "over", "own", "same", "shant", "she", "shed", "shell", "shes", "should", "shouldnt", "so",
+    "some", "such", "than", "that", "thats", "the", "their", "theirs", "them", "themselves", "then",
+    "there", "theres", "these", "they", "theyd", "theyll", "theyre", "theyve", "this", "those",
+    "through", "to", "too", "under", "until", "up", "very", "was", "wasnt", "we", "wed", "well",
+    "were", "weve", "werent", "what", "whats", "when", "whens", "where", "wheres", "which", "while",
+    "who", "whos", "whom", "why", "whys", "with", "wont", "would", "wouldnt", "you", "youd", "youll",
+    "youre", "youve", "your", "yours", "yourself", "yourselves"
+}
 
 class AgentState(TypedDict):
     user_query: str
@@ -25,9 +109,101 @@ class AgentState(TypedDict):
     parts: List[Dict]
     response_text: str
     evaluation: Dict
+    beginning_text: str
+    plan: Dict
+    analysis: Dict
+    drafts: List[Dict]
+    verified_drafts: List[Dict]
+
+def load_knowledge_cache(storage_path: str, pdf_id: str) -> dict:
+    if not storage_path or not pdf_id:
+        return {}
+    cache_path = os.path.join(storage_path, f"{pdf_id}_knowledge_cache.json")
+    if not os.path.exists(cache_path):
+        return {}
+    try:
+        with open(cache_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"[knowledge_cache] Error loading cache: {e}", flush=True)
+        return {}
+
+def save_knowledge_cache(storage_path: str, pdf_id: str, cache_data: dict):
+    if not storage_path or not pdf_id:
+        return
+    cache_path = os.path.join(storage_path, f"{pdf_id}_knowledge_cache.json")
+    try:
+        with open(cache_path, "w", encoding="utf-8") as f:
+            json.dump(cache_data, f, ensure_ascii=False, indent=2)
+            print(f"[knowledge_cache] Cache successfully updated and saved to {cache_path}", flush=True)
+    except Exception as e:
+        print(f"[knowledge_cache] Error saving cache: {e}", flush=True)
+
+def get_document_beginning(state: AgentState) -> str:
+    """Reads the first chunk of metadata to provide document context to the planner."""
+    pdf_id = state["pdf_id"]
+    storage = state["storage_path"]
+    meta_path = os.path.join(storage, f"{pdf_id}.json")
+    print(f"[get_document_beginning] Checking metadata file at: {meta_path}", flush=True)
+    if not os.path.exists(meta_path):
+        print(f"[get_document_beginning] Metadata file does not exist: {meta_path}", flush=True)
+        return ""
+    try:
+        with open(meta_path, "r", encoding="utf-8") as f:
+            metadata = json.load(f)
+            # Read only the first chunk to optimize token counts!
+            chunks = [metadata[i].get("text", "") for i in range(min(1, len(metadata)))]
+            print(f"[get_document_beginning] Loaded {len(chunks)} chunks successfully (optimized to 1 chunk).", flush=True)
+            return "\n".join(chunks)
+    except Exception as e:
+        print(f"[get_document_beginning] Error loading metadata: {e}", flush=True)
+        return ""
+
+
+def print_llm_tokens(llm, state: dict, prompt: str):
+    context = ""
+    if state.get("rag_chunks"):
+        context = "\n".join(state["rag_chunks"])
+    
+    history = ""
+    if state.get("messages"):
+        for msg in state["messages"][-5:]:
+            role = "User" if msg.get("role") == "user" else "Assistant"
+            text = msg.get("text", "")
+            history += f"{role}: {text}\n"
+            
+    selected_text = state.get("user_context", "")
+    
+    try:
+        context_tokens = llm.get_num_tokens(context)
+        history_tokens = llm.get_num_tokens(history)
+        selected_text_tokens = llm.get_num_tokens(selected_text or "")
+        prompt_tokens = llm.get_num_tokens(prompt)
+    except Exception as e:
+        print(f"Error calculating token counts: {e}")
+        context_tokens = len(context) // 4
+        history_tokens = len(history) // 4
+        selected_text_tokens = len(selected_text or "") // 4
+        prompt_tokens = len(prompt) // 4
+
+    print("Context Tokens:", context_tokens)
+    print("History Tokens:", history_tokens)
+    print("Selected Text Tokens:", selected_text_tokens)
+    print("Prompt Tokens:", prompt_tokens)
 
 def supervisor_node(state: AgentState):
     llm = ChatGoogleGenerativeAI(model=state["model"], google_api_key=state["api_key"])
+    
+    # Update knowledge cache with the current request
+    cache = load_knowledge_cache(state.get("storage_path"), state.get("pdf_id"))
+    user_intents = cache.get("user_intents", [])
+    user_intents.append({
+        "query": state.get("user_query", ""),
+        "context": state.get("user_context", ""),
+        "timestamp": str(datetime.datetime.now())
+    })
+    cache["user_intents"] = user_intents[-20:]  # Keep last 20 queries/intents
+    save_knowledge_cache(state.get("storage_path"), state.get("pdf_id"), cache)
     
     # Classify intent
     prompt = f"""You are a supervisor for a PDF reading assistant.
@@ -58,6 +234,7 @@ def supervisor_node(state: AgentState):
                     }
                 })
     
+    print_llm_tokens(llm, state, prompt)
     response = llm.invoke([HumanMessage(content=content)])
     intent = response.content.strip().lower()
     
@@ -111,7 +288,17 @@ def ask_node(state: AgentState):
         text = msg.get("text", "")
         history += f"{role}: {text}\n"
 
-    prompt = f"""You are an intelligent PDF assistant. Answer the user's question accurately using the provided context from the document and the conversation history.
+    # Incorporate overall document knowledge from cache if available
+    cache = load_knowledge_cache(state.get("storage_path"), state.get("pdf_id"))
+    doc_info = ""
+    if cache.get("category") or cache.get("abstract"):
+        doc_info = f"Document Type: {cache.get('category')} ({cache.get('sub_type', 'default')})\n"
+        if cache.get("abstract"):
+            doc_info += f"Document Overview: {cache.get('abstract')}\n"
+
+    prompt = f"""You are an intelligent PDF assistant. Answer the user's question accurately using the provided context, document overview, and conversation history.
+    
+    {doc_info}
     
     Conversation History:
     {history}
@@ -139,6 +326,7 @@ def ask_node(state: AgentState):
                     }
                 })
     
+    print_llm_tokens(llm, state, prompt)
     response = llm.invoke([HumanMessage(content=content)])
     return {"response_text": response.content}
 
@@ -168,6 +356,7 @@ def highlight_node(state: AgentState):
     Context: {context}
     """
     
+    print_llm_tokens(llm, state, prompt)
     response = llm.invoke(prompt)
     try:
         content = response.content.strip()
@@ -208,24 +397,13 @@ def highlight_node(state: AgentState):
     }
 
 def notes_node(state: AgentState):
-    llm = ChatGoogleGenerativeAI(model=state["model"], google_api_key=state["api_key"])
-    context = "\n".join(state["rag_chunks"])
-    
-    prompt = f"""Generate structured markdown notes based on the following PDF content.
-    Include key concepts, definitions, and summaries.
-    
-    Context:
-    {context}
-    
-    Specific Request:
-    {state['user_query']}
-    """
-    
-    response = llm.invoke(prompt)
-    return {
-        "response_text": "I've generated some comprehensive notes for you in the Research Notes panel.",
-        "actions": [{"type": "note", "content": response.content}]
-    }
+    print("[notes_node] Starting notes pipeline...", flush=True)
+    beginning_text = get_document_beginning(state)
+    if not beginning_text:
+        print("[notes_node] Beginning text empty, using user query as fallback.", flush=True)
+        beginning_text = state.get("user_query", "")
+    print(f"[notes_node] Prepared beginning_text (length: {len(beginning_text)} chars).", flush=True)
+    return {"beginning_text": beginning_text}
 
 def mindmap_node(state: AgentState):
     llm = ChatGoogleGenerativeAI(model=state["model"], google_api_key=state["api_key"])
@@ -256,6 +434,7 @@ Context:
 {context}
 """
     
+    print_llm_tokens(llm, state, prompt)
     response = llm.invoke(prompt)
     return {
         "response_text": "I've visualized the concepts as a mind map.",
@@ -282,11 +461,335 @@ def websearch_node(state: AgentState):
     Provide a concise summary of the findings.
     """
     
+    print_llm_tokens(llm, state, prompt)
     response = llm.invoke(prompt)
     return {
         "response_text": response.content,
         "actions": [{"type": "websearch", "results": results}]
     }
+
+def run_notes_planner(state: AgentState) -> Dict:
+    print("[run_notes_planner] Initiating planner node...", flush=True)
+    
+    # Check cache first
+    cache = load_knowledge_cache(state.get("storage_path"), state.get("pdf_id"))
+    if cache.get("category") and cache.get("sub_type") and cache.get("focus_areas"):
+        print("[run_notes_planner] Cache HIT! Skipping Planner LLM call.", flush=True)
+        plan = {
+            "category": cache["category"],
+            "sub_type": cache["sub_type"],
+            "reasoning": cache.get("reasoning", "Loaded from cache."),
+            "focus_areas": cache["focus_areas"]
+        }
+        return {"plan": plan}
+        
+    print("[run_notes_planner] Cache MISS! Running Planner LLM...", flush=True)
+    llm = ChatGoogleGenerativeAI(model=state["model"], google_api_key=state["api_key"])
+    beginning_text = state.get("beginning_text", "")
+    if not beginning_text:
+        print("[run_notes_planner] beginning_text not found in state. Querying metadata...", flush=True)
+        beginning_text = get_document_beginning(state) or state.get("user_query", "")
+    
+    prompt = f"""You are a PDF Notes Planner. Read this sample of the document's beginning:
+    {beginning_text}
+    
+    1. Classify this PDF into one of these Categories and Sub-types:
+    - Academic: research_paper, survey_paper, systematic_review, thesis, dissertation, conference_paper, technical_report, whitepaper
+    - Education: textbook, textbook_chapter, lecture_notes, slides, lab_manual, assignment, tutorial, study_material
+    - Legal: contract, agreement, nda, court_judgement, legal_brief, statute, policy_document, compliance_document
+    - Business: annual_report, financial_report, business_plan, project_proposal, meeting_minutes, product_requirements_document
+    - Technical: documentation, api_reference, software_design_doc, architecture_doc, research_specification
+    - Personal / Misc: resume, cv, ebook, article, news_report, manual, form
+    
+    2. Output a JSON response in this exact format:
+    {{
+        "category": "Academic",
+        "sub_type": "research_paper",
+        "reasoning": "Brief explanation of classification..."
+    }}
+    Return ONLY valid JSON. Do not include markdown wraps.
+    """
+    
+    print("[run_notes_planner] Calling LLM...", flush=True)
+    print_llm_tokens(llm, state, prompt)
+    response = llm.invoke(prompt)
+    print("[run_notes_planner] LLM response received.", flush=True)
+    content = response.content.strip()
+    if "```json" in content:
+        content = content.split("```json")[1].split("```")[0].strip()
+    elif content.startswith("```"):
+        content = content.strip("`").strip()
+        
+    try:
+        plan = json.loads(content)
+        sub_type = str(plan.get("sub_type", "default")).lower().strip().replace(" ", "_").replace("-", "_")
+        plan["sub_type"] = sub_type
+        group = SUBTYPE_TO_FOCUS_GROUP.get(sub_type, "default")
+        plan["focus_areas"] = FOCUS_GROUPS.get(group, FOCUS_GROUPS["default"])
+        
+        # Save to cache
+        cache["category"] = plan.get("category", "Document")
+        cache["sub_type"] = sub_type
+        cache["reasoning"] = plan.get("reasoning", "")
+        cache["focus_areas"] = plan["focus_areas"]
+        save_knowledge_cache(state.get("storage_path"), state.get("pdf_id"), cache)
+        
+        print(f"[run_notes_planner] Successfully parsed plan and updated cache: {plan}", flush=True)
+        return {"plan": plan}
+    except Exception as e:
+        print(f"[run_notes_planner] Error parsing Planner JSON: {e}", flush=True)
+        fallback = {
+            "plan": {
+                "category": "Personal / Misc",
+                "sub_type": "default",
+                "reasoning": "Fallback to default category due to parsing failure.",
+                "focus_areas": FOCUS_GROUPS["default"]
+            }
+        }
+        print(f"[run_notes_planner] Using fallback plan: {fallback}", flush=True)
+        return fallback
+
+def run_document_analyzer(state: AgentState) -> Dict:
+    print("[run_document_analyzer] Initiating document analyzer node...", flush=True)
+    
+    # Check cache first
+    cache = load_knowledge_cache(state.get("storage_path"), state.get("pdf_id"))
+    if cache.get("abstract") and cache.get("queries"):
+        print("[run_document_analyzer] Cache HIT! Skipping Analyzer LLM call.", flush=True)
+        analysis = {
+            "abstract": cache["abstract"],
+            "queries": cache["queries"]
+        }
+        return {"analysis": analysis}
+        
+    print("[run_document_analyzer] Cache MISS! Running Document Analyzer LLM...", flush=True)
+    llm = ChatGoogleGenerativeAI(model=state["model"], google_api_key=state["api_key"])
+    plan = state.get("plan", {})
+    beginning_text = state.get("beginning_text", "")
+    if not beginning_text:
+        print("[run_document_analyzer] beginning_text not found in state. Querying metadata...", flush=True)
+        beginning_text = get_document_beginning(state) or state.get("user_query", "")
+    
+    prompt = f"""You are a Document Analyzer. Analyze this document beginning context:
+    {beginning_text}
+    
+    Notes Focus Areas for this document type ({plan.get('sub_type', 'default')}): {plan.get('focus_areas', [])}
+    
+    1. Extract a concise Abstract/Overview of the document.
+    2. For each focus area, provide a specific search query or keywords to retrieve the relevant text from our local index.
+    
+    Return a JSON response in this exact format:
+    {{
+        "abstract": "Concise abstract summarizing core topic...",
+        "queries": {{
+            "FocusArea1": "specific search query...",
+            "FocusArea2": "specific search query..."
+        }}
+    }}
+    Return ONLY valid JSON.
+    """
+    
+    print("[run_document_analyzer] Calling LLM...", flush=True)
+    print_llm_tokens(llm, state, prompt)
+    response = llm.invoke(prompt)
+    print("[run_document_analyzer] LLM response received.", flush=True)
+    content = response.content.strip()
+    if "```json" in content:
+        content = content.split("```json")[1].split("```")[0].strip()
+    elif content.startswith("```"):
+        content = content.strip("`").strip()
+        
+    try:
+        analysis = json.loads(content)
+        
+        # Save to cache
+        cache["abstract"] = analysis.get("abstract", "")
+        cache["queries"] = analysis.get("queries", {})
+        save_knowledge_cache(state.get("storage_path"), state.get("pdf_id"), cache)
+        
+        print(f"[run_document_analyzer] Successfully parsed analysis and updated cache: {analysis}", flush=True)
+        return {"analysis": analysis}
+    except Exception as e:
+        print(f"[run_document_analyzer] Error parsing Document Analyzer JSON: {e}", flush=True)
+        fallback = {
+            "analysis": {
+                "abstract": "Overview of the document context.",
+                "queries": {area: f"{area} in document" for area in plan.get("focus_areas", [])}
+            }
+        }
+        print(f"[run_document_analyzer] Using fallback analysis: {fallback}", flush=True)
+        return fallback
+
+def run_parallel_workers(state: AgentState) -> Dict:
+    print("[run_parallel_workers] Initiating parallel workers node...", flush=True)
+    llm = ChatGoogleGenerativeAI(model=state["model"], google_api_key=state["api_key"])
+    plan = state.get("plan", {})
+    analysis = state.get("analysis", {})
+    queries = analysis.get("queries", {})
+    
+    def draft_section(title: str) -> Dict:
+        try:
+            search_query = queries.get(title, f"{title} in document")
+            print(f"  [Worker - {title}] Querying local RAG index with: '{search_query}'", flush=True)
+            
+            # Local RAG retrieval with k=3 to optimize tokens (down from k=5)
+            rag_res = retrieval_service({
+                "query": search_query,
+                "pdfId": state["pdf_id"],
+                "storagePath": state["storage_path"],
+                "k": 3
+            })
+            hits = rag_res.get("chunks", []) if isinstance(rag_res, dict) else []
+            chunks = [f"[Page {h.get('page', '?')}] {h.get('text', '')}" for h in hits]
+            section_context = "\n".join(chunks)
+            print(f"  [Worker - {title}] Retrieved {len(hits)} RAG chunks (total context: {len(section_context)} chars). Calling LLM...", flush=True)
+            
+            prompt = f"""You are a Topic Expert Worker writing a section of study notes.
+            Write a concise, informative, and detailed note section for: "{title}"
+            Use the following retrieved document context:
+            {section_context}
+            
+            Include key insights and definitions. Be direct and clear. Limit the output to 200 words.
+            Do not add overall headers, just write the paragraph content of this section.
+            """
+            print_llm_tokens(llm, state, prompt)
+            response = llm.invoke(prompt)
+            print(f"  [Worker - {title}] LLM output completed (length: {len(response.content)} chars).", flush=True)
+            return {
+                "title": title,
+                "content": response.content,
+                "context_chunks": [h.get("text", "") for h in hits]
+            }
+        except Exception as ex:
+            print(f"  [Worker - {title}] Error during draft execution: {ex}", flush=True)
+            return {
+                "title": title,
+                "content": f"Failed to draft notes for this section due to error: {ex}",
+                "context_chunks": []
+            }
+        
+    drafts = []
+    focus_areas = plan.get("focus_areas", [])
+    print(f"[run_parallel_workers] Launching ThreadPoolExecutor with {len(focus_areas)} workers...", flush=True)
+    
+    max_workers = max(1, len(focus_areas))
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(draft_section, area): area for area in focus_areas}
+        for future in concurrent.futures.as_completed(futures):
+            area_name = futures[future]
+            try:
+                result = future.result()
+                drafts.append(result)
+                print(f"[run_parallel_workers] Finished thread for area: {area_name}", flush=True)
+            except Exception as e:
+                print(f"[run_parallel_workers] Thread for area {area_name} raised an exception: {e}", flush=True)
+                
+    # Sort drafts back into the order of focus_areas
+    drafts_dict = {d["title"]: d for d in drafts}
+    sorted_drafts = []
+    for area in focus_areas:
+        if area in drafts_dict:
+            sorted_drafts.append(drafts_dict[area])
+            
+    print(f"[run_parallel_workers] Parallel drafting finished. Total sections drafted: {len(sorted_drafts)}", flush=True)
+    return {"drafts": sorted_drafts}
+
+def run_local_fact_checker(state: AgentState) -> Dict:
+    """Evaluates lexical term overlap between drafts and source RAG context locally (no LLM calls)."""
+    print("[run_local_fact_checker] Starting local fact check...", flush=True)
+    drafts = state.get("drafts", [])
+    print(f"[run_local_fact_checker] Processing {len(drafts)} drafted sections.", flush=True)
+    
+    def tokenize(text: str) -> set:
+        # Lowercase, strip punctuation, split into words
+        text = text.lower()
+        text = text.translate(str.maketrans("", "", string.punctuation))
+        words = text.split()
+        # Filter stopwords and short terms
+        return {w for w in words if w not in STOPWORDS and len(w) > 2}
+    checked_drafts = []
+    for draft in drafts:
+        title = draft["title"]
+        content = draft["content"]
+        source_text = " ".join(draft["context_chunks"])
+        source_words = tokenize(source_text)
+        
+        # Split draft content into sentences
+        # Simple sentence splitter on punctuation
+        sentences = re.split(r'(?<=[.!?]) +', content)
+        checked_sentences = []
+        
+        for sentence in sentences:
+            sentence = sentence.strip()
+            if not sentence:
+                continue
+            sentence_words = tokenize(sentence)
+            
+            if not sentence_words:
+                checked_sentences.append(sentence)
+                continue
+                
+            # Compute term overlap score
+            overlap = len(sentence_words & source_words) / len(sentence_words)
+            
+            # If overlap score is below 15%, flag it as unverified
+            if overlap < 0.15:
+                checked_sentences.append(f"{sentence} ⚠️ *[Unverified Claim]*")
+            else:
+                checked_sentences.append(sentence)
+                
+        checked_drafts.append({
+            "title": title,
+            "content": " ".join(checked_sentences)
+        })
+        print(f"[run_local_fact_checker] Completed local check for: {title}", flush=True)
+        
+    print(f"[run_local_fact_checker] Finished fact check node.", flush=True)
+    return {"verified_drafts": checked_drafts}
+
+def run_markdown_formatter(state: AgentState) -> Dict:
+    print("[run_markdown_formatter] Initiating markdown formatter node...", flush=True)
+    llm = ChatGoogleGenerativeAI(model=state["model"], google_api_key=state["api_key"])
+    plan = state.get("plan", {})
+    analysis = state.get("analysis", {})
+    verified_drafts = state.get("verified_drafts", [])
+    
+    sections_text = ""
+    for d in verified_drafts:
+        sections_text += f"### {d['title']}\n{d['content']}\n\n"
+        
+    prompt = f"""You are a Notes Formatter. Organize and compile the following note sections into a unified, premium study guide.
+    
+    Document Category: {plan.get('category', 'Document')} ({plan.get('sub_type', 'default')})
+    Abstract: {analysis.get('abstract', '')}
+    
+    Draft Sections:
+    {sections_text}
+    
+    Rules:
+    - Add a beautiful Markdown Title based on the core topic.
+    - Render the 'Abstract / Executive Summary' right under the title.
+    - Use clear markdown headers, bold text, lists, and blockquotes for key insights.
+    - Format key terms in **bold** and append a mini-glossary of defined terms at the bottom.
+    - Create structured comparison tables where appropriate to summarize topics.
+    - Use LaTeX formatting for equations if any are present.
+    - Preserve any '⚠️ [Unverified Claim]' flags exactly where they appear in the draft text.
+    - Make the styling highly readable and professional.
+    """
+    
+    print("[run_markdown_formatter] Calling LLM to format notes...", flush=True)
+    print_llm_tokens(llm, state, prompt)
+    response = llm.invoke(prompt)
+    print("[run_markdown_formatter] Formatting completed successfully.", flush=True)
+    
+    sub_type_label = plan.get('sub_type', 'document').replace('_', ' ')
+    response_text = f"I've generated comprehensive notes for the {sub_type_label}."
+    
+    return {
+        "response_text": response_text,
+        "actions": [{"type": "note", "content": response.content}]
+    }
+
 
 def comment_node(state: AgentState):
     llm = ChatGoogleGenerativeAI(model=state["model"], google_api_key=state["api_key"])
@@ -315,6 +818,7 @@ def comment_node(state: AgentState):
     {chr(10).join(snippets)}
     """
     
+    print_llm_tokens(llm, state, prompt)
     response = llm.invoke(prompt)
     comments = []
     try:
@@ -376,6 +880,7 @@ def critic_node(state: AgentState):
     Return ONLY the final (corrected) response text.
     """
     
+    print_llm_tokens(llm, state, prompt)
     response = llm.invoke(prompt)
     return {"response_text": response.content}
 
@@ -400,6 +905,7 @@ def precision_node(state: AgentState):
     Response: {generated}
     """
 
+    print_llm_tokens(llm, state, prompt)
     response = llm.invoke(prompt)
     content = response.content.strip()
     if "```json" in content:
@@ -418,6 +924,8 @@ def precision_node(state: AgentState):
         return {"evaluation": {"score": 0.0, "improvements": ["Unable to score response."], "should_regenerate": False}}
 
 
+
+
 # Define the graph
 workflow = StateGraph(AgentState)
 
@@ -430,8 +938,14 @@ workflow.add_node("notes", notes_node)
 workflow.add_node("mindmap", mindmap_node)
 workflow.add_node("websearch", websearch_node)
 workflow.add_node("comment", comment_node)
-workflow.add_node("critic", critic_node)
-workflow.add_node("precision", precision_node)
+workflow.add_node("plan", run_notes_planner)
+workflow.add_node("analyze", run_document_analyzer)
+workflow.add_node("parallel", run_parallel_workers)
+workflow.add_node("checker", run_local_fact_checker)
+workflow.add_node("formatter", run_markdown_formatter)
+# workflow.add_node("critic", critic_node)
+# workflow.add_node("precision", precision_node)
+
 
 # Define edges
 workflow.set_entry_point("supervisor")
@@ -466,15 +980,20 @@ workflow.add_conditional_edges(
     }
 )
 
-workflow.add_edge("dictionary", "precision")
-workflow.add_edge("ask", "critic")
+workflow.add_edge("dictionary", END)
+workflow.add_edge("ask", END)
 workflow.add_edge("highlighter", END)
-workflow.add_edge("notes", "critic")
+workflow.add_edge("notes", "plan")
+workflow.add_edge("plan", "analyze")
+workflow.add_edge("analyze", "parallel")
+workflow.add_edge("parallel", "checker")
+workflow.add_edge("checker", "formatter")
+workflow.add_edge("formatter", END)
 workflow.add_edge("mindmap", END)
-workflow.add_edge("websearch", "critic")
+workflow.add_edge("websearch", END)
 workflow.add_edge("comment", END)
-workflow.add_edge("critic", "precision")
-workflow.add_edge("precision", END)
+# workflow.add_edge("critic", END)
+# workflow.add_edge("precision", END)
 
 # Compile the graph
 app = workflow.compile()

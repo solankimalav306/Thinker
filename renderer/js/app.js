@@ -48,7 +48,6 @@ const elements = {
   thumbnailList: document.getElementById("thumbnail-list"),
   welcomeOpenBtn: document.getElementById("welcome-open-btn"),
   welcomeSettingsBtn: document.getElementById("welcome-settings-btn"),
-  welcomeSampleBtn: document.getElementById("welcome-sample-btn"),
   navHome: document.getElementById("nav-home"),
   navReader: document.getElementById("nav-reader"),
   navSettings: document.getElementById("nav-settings"),
@@ -1060,9 +1059,6 @@ async function boot() {
 
   elements.welcomeOpenBtn.addEventListener("click", openPdfDialog);
   elements.welcomeSettingsBtn.addEventListener("click", showSettings);
-  elements.welcomeSampleBtn.addEventListener("click", async () => {
-    await openTab("./sample2.pdf");
-  });
 
   elements.settingsApiAdd.addEventListener("click", addApiKeyFromSettings);
   elements.settingsActiveApi.addEventListener("change", () => {
