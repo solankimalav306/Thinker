@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   removeFromGlossary: (term) => ipcRenderer.invoke('glossary:remove', term),
   getGlossaryTerms: () => ipcRenderer.invoke('glossary:get'),
 
+  openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
   setTitleBarTheme: (theme) => ipcRenderer.invoke('theme:set', theme),
 
   // Settings registry

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const fsPromises = require('fs/promises');
@@ -14,6 +14,7 @@ const { createStore } = require('./store');
 const { importLegacyData } = require('./legacy-import');
 const { handleLLMGenerate } = require('./llm-handler');
 const { resolveSecrets, hasUnresolvedSecret, KEY_UNLOCK_ERROR } = require('./secrets');
+const { isAllowedExternalUrl } = require('./external-links');
 const { writeRealAnnotations } = require('./pdf-annotations');
 
 // ── Backend process handle (so we can kill it cleanly on exit) ──────────────
@@ -501,6 +502,13 @@ function registerIpcHandlers() {
       console.error('Failed to save annotated PDF:', error);
       return { ok: false, error: error.message || 'Failed to save annotated PDF.' };
     }
+  });
+
+  // Help links open in the default browser, but only for a short list of known HTTPS pages.
+  ipcMain.handle('shell:openExternal', async (_event, url) => {
+    if (!isAllowedExternalUrl(url)) return false;
+    await shell.openExternal(String(url));
+    return true;
   });
 
   // Keeps the native window controls in step with the app theme.

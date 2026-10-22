@@ -19,6 +19,7 @@
   <link rel="stylesheet" href="css/panels.css" />
   <link rel="stylesheet" href="css/chat.css" />
   <link rel="stylesheet" href="css/overlays.css" />
+  <link rel="stylesheet" href="css/help.css" />
   <link rel="stylesheet" href="css/pdf.css" />
   <link rel="stylesheet" href="vendor/pdfjs/pdf_viewer.min.css" />
   <script src="vendor/d3/d3.min.js"></script>
@@ -47,6 +48,7 @@
       <button class="activity-btn" id="nav-history" data-needs-doc title="History" aria-label="History"><i class="fa-solid fa-clock-rotate-left"></i><span>History</span></button>
       <div class="rail-spacer"></div>
       <button class="activity-btn" id="nav-chat" data-needs-doc title="Ask Thinker" aria-label="Chat"><i class="fa-solid fa-comments"></i><span>Chat</span></button>
+      <button class="activity-btn" id="nav-help" title="Help and tutorials" aria-label="Help"><i class="fa-regular fa-circle-question"></i><span>Help</span></button>
       <button class="activity-btn" id="nav-settings" title="Settings" aria-label="Settings"><i class="fa-solid fa-gear"></i><span>Settings</span></button>
     </nav>
 
@@ -115,6 +117,21 @@
               <button class="btn lg" id="welcome-settings-btn"><i class="fa-solid fa-wand-magic-sparkles"></i> Set up AI</button>
             </div>
           </header>
+
+          <section class="home-section getting-started" id="getting-started" aria-labelledby="gs-title" hidden>
+            <div class="gs-head">
+              <div>
+                <h3 id="gs-title">Get started</h3>
+                <p id="gs-sub" class="gs-sub"></p>
+              </div>
+              <div class="gs-tools">
+                <button type="button" class="btn" id="gs-tour"><i class="fa-solid fa-route"></i> Take the tour</button>
+                <button type="button" class="btn icon-btn" id="gs-hide" title="Hide this for now" aria-label="Hide Get started"><i class="fa-solid fa-xmark"></i></button>
+              </div>
+            </div>
+            <div class="gs-bar" role="progressbar" aria-label="Getting started progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="gs-fill"></span></div>
+            <ul class="gs-list" id="gs-list"></ul>
+          </section>
 
           <section class="home-section recent-card">
             <div class="card-head">
@@ -263,6 +280,10 @@
         </div>
       </section>
 
+      <section class="help-screen" id="help-screen">
+        <div class="settings" id="help-content"></div>
+      </section>
+
       <section class="reader-layout" id="reader-layout">
         <aside class="reader-sidebar" id="reader-sidebar">
           <div class="resizer sidebar-resizer" id="sidebar-resizer"></div>
@@ -347,6 +368,7 @@
 
         <div class="pdf-stage" id="pdf-stage">
           <div class="doc-state" id="doc-state" hidden></div>
+          <div class="tour-offer" id="tour-offer" hidden></div>
           <!-- Find Bar -->
           <div id="find-bar" class="find-bar" style="display:none;">
             <i class="fa-solid fa-magnifying-glass find-bar-icon"></i>

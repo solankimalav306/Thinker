@@ -47,6 +47,7 @@
       "database.js",
       "store.js",
       "legacy-import.js",
+      "external-links.js",
       "llm-handler.js",
       "renderer/**/*",
       "!renderer/sample.pdf",

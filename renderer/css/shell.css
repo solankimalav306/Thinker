@@ -506,3 +506,20 @@
   opacity: 0.4;
   pointer-events: none;
 }
+
+/* Short windows: tighten the rail so every destination fits without scrolling. */
+@media (max-height: 760px) {
+  .activity-btn {
+    min-height: 44px;
+    gap: 1px;
+    padding: 3px 2px;
+  }
+
+  .activity-btn i {
+    height: 22px;
+  }
+
+  .rail-divider {
+    margin: var(--space-1) 0;
+  }
+}

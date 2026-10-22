@@ -42,6 +42,8 @@ const click = (sel) => ev(`document.querySelector(${JSON.stringify(sel)})?.click
 await send('Runtime.enable');
 await send('Log.enable');
 await send('Page.enable');
+// Tours are covered by ui-tutorial-check.mjs; here they must not pop up over other tests.
+await ev(`window.electronAPI.setItem('smartpdf.onboarding', JSON.stringify({ done: {}, dismissed: false, tours: { welcome: true, reader: true, readerOffer: true } }))`);
 
 const shot = async (name) => {
   const r = await send('Page.captureScreenshot', { format: 'png' });
@@ -77,6 +79,8 @@ const layoutProblems = () => ev(`(() => {
   const vw = document.documentElement.clientWidth, vh = document.documentElement.clientHeight;
   if (document.documentElement.scrollWidth > vw + 1) out.push('page scrolls horizontally by ' + (document.documentElement.scrollWidth - vw));
   if (document.body.scrollHeight > vh + 1) out.push('page scrolls vertically');
+  const rail = document.querySelector('.activity-bar');
+  if (rail && rail.offsetParent && innerHeight >= 600 && rail.scrollHeight > rail.clientHeight + 1) out.push('the navigation rail scrolls (' + (rail.scrollHeight - rail.clientHeight) + 'px hidden)');
   const tb = document.querySelector('.toolbar-center');
   if (tb && tb.offsetParent && tb.scrollWidth > tb.clientWidth + 1 && !/auto|scroll/.test(getComputedStyle(tb).overflowX)) out.push('toolbar overflows by ' + (tb.scrollWidth - tb.clientWidth));
   const tabs = document.getElementById('pdf-tabs');
@@ -339,7 +343,7 @@ if (sections.has('audit')) {
     const issues = { contrast: [], fonts: [], small: [], icons: [], hit: [] };
     const sel = (el) => (el.id ? '#' + el.id : el.tagName.toLowerCase() + (el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\\s+/)[0] : ''));
     const seen = new Set();
-    const visibleRoots = document.querySelectorAll('.app-shell, .modal-overlay, .modal, .status-toast, .custom-context-menu, .dict-tooltip');
+    const visibleRoots = document.querySelectorAll('.app-shell, .modal-overlay, .modal, .status-toast, .custom-context-menu, .dict-tooltip, .tour-layer, .tour-offer');
     visibleRoots.forEach((root) => {
       if (root.offsetParent === null && getComputedStyle(root).position !== 'fixed') return;
       if (getComputedStyle(root).display === 'none') return;
@@ -399,13 +403,14 @@ if (sections.has('audit')) {
       await openDoc(doc);
       if (await ev(`!document.getElementById('chat-input').offsetParent`)) await click('#nav-chat');
       await sleep(500);
-      const views = [['reader', async () => click('#nav-reader')], ['home', async () => click('#nav-home')], ['settings', async () => click('#nav-settings')]];
+      const views = [['reader', async () => click('#nav-reader')], ['home', async () => click('#nav-home')], ['settings', async () => click('#nav-settings')], ['help', async () => click('#nav-help')]];
       if (!accent) {
         views.push(['chat-list', async () => { await click('#nav-reader'); await click('.convo-current'); }]);
         views.push(['notes', async () => { await click('#nav-reader'); await click('#nav-notes'); }]);
         views.push(['save-dialog', async () => { await click('#nav-reader'); await click('#save-annotations-btn'); }]);
         views.push(['instructions', async () => { await click('#save-modal-close'); await click('[data-convo-action=instructions], #instructions-btn'); }]);
-        views.push(['help-dialog', async () => { await ev(`document.querySelector('.instructions-overlay .btn.icon-btn')?.click()`); await click('#ai-capabilities-btn'); }]);
+        views.push(['tour', async () => { await click('#nav-help'); await ev(`document.querySelector('.help-tours .btn').click()`); await sleep(900); }]);
+        views.push(['help-dialog', async () => { await ev(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`); await sleep(400); await ev(`document.querySelector('.instructions-overlay .btn.icon-btn')?.click()`); await click('#nav-reader'); await click('#ai-capabilities-btn'); }]);
       }
       for (const [name, go] of views) {
         await go();

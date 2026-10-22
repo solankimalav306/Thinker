@@ -23,3 +23,17 @@ Password-protected fixtures need `pip install pypdf` (see the encrypt step in th
 | interact | No-AI-model guidance, form validation, Escape closes dialogs, rapid clicks, long toasts |
 
 `scripts/ui-tour.mjs` is the quicker screenshot-only tour used while designing.
+
+## Tutorials check
+
+`scripts/ui-tutorial-check.mjs` plays the experience of a brand-new person. Start the app with an
+**empty** `--user-data-dir` (so it is a true first run) and `--remote-debugging-port=9222`, then:
+
+```
+node scripts/ui-tutorial-check.mjs <outDir> <pdf> [WxH]
+```
+
+It checks that the welcome tour starts by itself once, every step's card stays fully on screen and
+off its own target, keyboard focus lands on Next, Escape skips, the reader nudge appears once, the
+Get started checklist ticks itself off, and Help renders without sideways scrolling. Run it at the
+normal and the minimum window size (`1280x800` and `960x620`).

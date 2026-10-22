@@ -22,6 +22,10 @@ import {
   removeRecent
 } from "./state.js";
 import { renderDocState, clearDocState } from "./doc-state.js";
+import { runTour } from "./tour-engine.js";
+import { buildTours } from "./tours.js";
+import { createOnboarding, TASKS, progress, nextTask } from "./onboarding.js";
+import { renderHelp, openGuide } from "./help.js";
 import { loadSettings, getSetting, setSetting, onSettingChange } from "./settings-registry.js";
 import { registerAllSettings } from "./settings-definitions.js";
 import { renderPreferences } from "./preferences-panel.js";
@@ -176,6 +180,14 @@ const elements = {
   usageSummary: document.getElementById("usage-summary"),
   tokenUsagePanel: document.getElementById("token-usage-panel"),
   docState: document.getElementById("doc-state"),
+  tourOffer: document.getElementById("tour-offer"),
+  navHelp: document.getElementById("nav-help"),
+  helpScreen: document.getElementById("help-screen"),
+  helpContent: document.getElementById("help-content"),
+  gettingStarted: document.getElementById("getting-started"),
+  gsList: document.getElementById("gs-list"),
+  gsSub: document.getElementById("gs-sub"),
+  gsFill: document.getElementById("gs-fill"),
   pdfContainer: document.querySelector(".pdf-container"),
   accentSwatches: document.getElementById("accent-swatches"),
   titleTyping: document.getElementById("title-typing"),
@@ -242,6 +254,7 @@ function syncLayoutToggles() {
 
   elements.welcomeScreen.classList.toggle("visible", currentView === "home");
   elements.settingsScreen.classList.toggle("visible", currentView === "settings");
+  elements.helpScreen.classList.toggle("visible", currentView === "help");
   elements.readerLayout.classList.toggle("visible", isReader);
   elements.readerLayout.classList.toggle("sidebar-hidden", !showSidebar);
   elements.readerSidebar.classList.toggle("hidden", !showSidebar);
@@ -253,6 +266,7 @@ function syncLayoutToggles() {
   elements.navHome.classList.toggle("active", currentView === "home");
   elements.navReader.classList.toggle("active", currentView === "reader");
   elements.navSettings.classList.toggle("active", currentView === "settings");
+  elements.navHelp.classList.toggle("active", currentView === "help");
   elements.navOutline.classList.toggle("active", showSidebar && sidebarPanel === "outline");
   elements.navThumbs.classList.toggle("active", showSidebar && sidebarPanel === "thumbs");
   elements.navGlossary.classList.toggle("active", showSidebar && sidebarPanel === "glossary");
@@ -295,6 +309,12 @@ function showWelcome() {
   syncLayoutToggles();
   renderTabs();
   refreshTokenDashboard(elements, elements.tokenUsageProfileFilter?.value || "all");
+}
+
+function showHelp() {
+  currentView = "help";
+  syncLayoutToggles();
+  renderTabs();
 }
 
 function showSettings() {
@@ -719,6 +739,7 @@ function addApiKeyFromSettings() {
   elements.settingsApiKey.value = "";
 
   renderSettings();
+  window.dispatchEvent(new CustomEvent("thinker:milestone", { detail: "model" }));
   setStatus(`${label} saved and ready to use.`);
 }
 
@@ -1291,6 +1312,8 @@ async function boot() {
     if (opened) {
       pushRecent(path);
       renderRecents(loadRecent);
+      window.dispatchEvent(new CustomEvent("thinker:milestone", { detail: "open" }));
+      maybeOfferReaderTour();
     }
   }
 
@@ -1364,6 +1387,187 @@ async function boot() {
     resetAccent();
     renderThemeSettings();
   });
+
+  // ---- Tutorials: guided tours, the Get started checklist and the Help screen ----
+  const onboarding = createOnboarding(
+    { get: (key) => window.electronAPI.getItem(key), set: (key, value) => window.electronAPI.setItem(key, value) },
+    () => renderChecklist()
+  );
+
+  const tourContext = {
+    goHome: () => showWelcome(),
+    goReader: () => { if (activeTabPath) showReader(); },
+    openChat: () => {
+      if (activeTabPath && !chatVisible) elements.navChat.click();
+    }
+  };
+  const tours = buildTours(tourContext);
+  let tourRunning = false;
+
+  async function startTour(name) {
+    if (tourRunning) return;
+    const tour = tours[name];
+    if (!tour) return;
+    if (name === "reader" && !activeTabPath) {
+      setStatus("Open a PDF first, then the reader tour can point at things on the page.");
+      return;
+    }
+    tourRunning = true;
+    hideTourOffer();
+    try {
+      const outcome = await runTour({ steps: tour.steps, ctx: tourContext, label: tour.label });
+      onboarding.markTourSeen(name);
+      if (outcome.completed) setStatus(name === "welcome" ? "Tour done. Help is always under the ? in the rail." : "That's the reader. Help has a guide for each part.");
+    } finally {
+      tourRunning = false;
+    }
+  }
+
+  function hideTourOffer() {
+    elements.tourOffer.hidden = true;
+    elements.tourOffer.textContent = "";
+  }
+
+  // A one-time, dismissible nudge the first time a document opens.
+  function maybeOfferReaderTour() {
+    if (onboarding.tourSeen("reader") || onboarding.tourSeen("readerOffer") || tourRunning) return;
+    onboarding.markTourSeen("readerOffer");
+    const box = elements.tourOffer;
+    box.textContent = "";
+    const text = document.createElement("span");
+    text.textContent = "New to the reader? A one-minute tour shows where everything is.";
+    const yes = document.createElement("button");
+    yes.type = "button";
+    yes.className = "btn primary";
+    yes.textContent = "Take the tour";
+    yes.addEventListener("click", () => startTour("reader"));
+    const no = document.createElement("button");
+    no.type = "button";
+    no.className = "btn";
+    no.textContent = "No thanks";
+    no.addEventListener("click", hideTourOffer);
+    box.append(text, yes, no);
+    box.hidden = false;
+    setTimeout(() => { if (!box.hidden) hideTourOffer(); }, 20000);
+  }
+
+  function runHelpAction(action) {
+    const [kind, value] = String(action).split(":");
+    if (kind === "tour") {
+      if (value === "welcome") showWelcome();
+      if (value === "reader" && !activeTabPath) {
+        setStatus("Open a PDF first, then the reader tour can point at things on the page.");
+        return;
+      }
+      startTour(value);
+    } else if (kind === "goto" && value === "settings") {
+      showSettings();
+    } else if (kind === "checklist") {
+      onboarding.show();
+      showWelcome();
+    }
+  }
+
+  function renderChecklist() {
+    const state = onboarding.get();
+    const box = elements.gettingStarted;
+    if (!box) return;
+    const stats = progress(state);
+    box.hidden = state.dismissed;
+    if (state.dismissed) return;
+
+    elements.gsFill.style.width = `${stats.percent}%`;
+    box.querySelector(".gs-bar").setAttribute("aria-valuenow", String(stats.percent));
+    elements.gsSub.textContent = stats.complete
+      ? "You've tried everything. Nicely done. Help has a guide for each part whenever you need it."
+      : `${stats.done} of ${stats.total} done. Each one ticks itself off when you try it.`;
+
+    elements.gsList.textContent = "";
+    const upNext = nextTask(state);
+    TASKS.forEach((task) => {
+      const done = Boolean(state.done[task.id]);
+      const item = document.createElement("li");
+      item.className = "gs-item" + (done ? " done" : "") + (upNext && upNext.id === task.id ? " next" : "");
+      const mark = document.createElement("span");
+      mark.className = "gs-check";
+      mark.innerHTML = done ? '<i class="fa-solid fa-check"></i>' : "";
+      mark.setAttribute("aria-hidden", "true");
+      const text = document.createElement("span");
+      text.className = "gs-text";
+      const title = document.createElement("strong");
+      title.textContent = task.title;
+      const hint = document.createElement("span");
+      hint.textContent = task.hint;
+      text.append(title, hint);
+      item.append(mark, text);
+      if (!done) {
+        const go = document.createElement("button");
+        go.type = "button";
+        go.className = "btn" + (upNext && upNext.id === task.id ? " primary" : "");
+        go.textContent = task.cta;
+        go.addEventListener("click", () => runChecklistTask(task.id));
+        item.appendChild(go);
+      } else {
+        const sr = document.createElement("span");
+        sr.className = "sr-only";
+        sr.textContent = "Done";
+        item.appendChild(sr);
+      }
+      elements.gsList.appendChild(item);
+    });
+  }
+
+  function runChecklistTask(id) {
+    if (id === "model") {
+      showSettings();
+      document.getElementById("settings-models")?.scrollIntoView({ block: "start" });
+      setTimeout(() => elements.settingsApiLabel?.focus(), 0);
+    } else if (id === "open") {
+      openPdfDialog();
+    } else if (!activeTabPath) {
+      setStatus("Open a PDF first. This step needs a document.");
+      openPdfDialog();
+    } else if (id === "ask") {
+      showReader();
+      if (!chatVisible) elements.navChat.click();
+      elements.chatInput.focus();
+    } else if (id === "markup") {
+      showReader();
+      startTour("reader");
+    } else if (id === "save") {
+      showReader();
+      elements.saveAnnotationsBtn.click();
+    }
+  }
+
+  // Everything people do in the app can complete a step.
+  window.addEventListener("thinker:milestone", (event) => onboarding.mark(event.detail));
+  // Work out what existing users have already done, so the checklist never asks for it again.
+  (async () => {
+    if (getApiProfiles().length > 0) onboarding.mark("model");
+    if (getRecents().length > 0) onboarding.mark("open");
+    try {
+      const usage = await window.electronAPI.getTokenUsageHistory();
+      if (Array.isArray(usage) && usage.length > 0) onboarding.mark("ask");
+    } catch { /* optional */ }
+    renderChecklist();
+  })();
+
+  document.getElementById("gs-tour")?.addEventListener("click", () => startTour("welcome"));
+  document.getElementById("gs-hide")?.addEventListener("click", () => {
+    onboarding.dismiss();
+    setStatus("Hidden. You can bring it back from Help.");
+  });
+  elements.navHelp.addEventListener("click", showHelp);
+  renderHelp(elements.helpContent, {
+    run: runHelpAction,
+    openLink: (url) => window.electronAPI.openExternal(url)
+  });
+
+  // First run only: someone with no recent files and no saved model gets the welcome tour once.
+  if (!onboarding.tourSeen("welcome") && getRecents().length === 0 && getApiProfiles().length === 0 && !new URLSearchParams(window.location.search).get("open")) {
+    setTimeout(() => startTour("welcome"), 900);
+  }
 
   // Escape closes the topmost dialog; clicking the dimmed backdrop does too.
   const DIALOG_IDS = ["user-sticky-dialog", "save-modal", "ai-capabilities-modal", "mindmap-modal"];
@@ -1510,6 +1714,7 @@ async function boot() {
     });
 
     if (result?.ok) {
+      window.dispatchEvent(new CustomEvent("thinker:milestone", { detail: "save" }));
       const historySnapshot = {
         id: String(Date.now()),
         timestamp: Date.now(),

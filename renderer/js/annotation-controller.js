@@ -396,6 +396,7 @@ export class AnnotationController {
     });
     this.savePageAnnotations();
     this.redraw();
+    window.dispatchEvent(new CustomEvent("thinker:milestone", { detail: "markup" }));
   }
 
   addAgentComments(comments = []) {
@@ -576,6 +577,7 @@ export class AnnotationController {
       this.drawing = false;
       this.activePath = null;
       this.savePageAnnotations();
+      window.dispatchEvent(new CustomEvent("thinker:milestone", { detail: "markup" }));
     };
 
     this.canvas.addEventListener("mouseup", stop);

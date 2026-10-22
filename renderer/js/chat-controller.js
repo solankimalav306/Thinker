@@ -893,6 +893,7 @@ export class ChatController {
         }
       }
 
+      window.dispatchEvent(new CustomEvent("thinker:milestone", { detail: "ask" }));
       this.onStatus(stillOpen() ? "Ready." : "An answer arrived in another chat. Open it to read it.");
     } catch (error) {
       console.error(error);
