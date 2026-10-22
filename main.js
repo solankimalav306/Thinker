@@ -13,7 +13,7 @@ const { openDatabase } = require('./database');
 const { createStore } = require('./store');
 const { importLegacyData } = require('./legacy-import');
 const { handleLLMGenerate } = require('./llm-handler');
-const { resolveSecrets } = require('./secrets');
+const { resolveSecrets, hasUnresolvedSecret, KEY_UNLOCK_ERROR } = require('./secrets');
 const { writeRealAnnotations } = require('./pdf-annotations');
 
 // ── Backend process handle (so we can kill it cleanly on exit) ──────────────
@@ -40,6 +40,7 @@ function pickFreePort() {
 // The renderer is not trusted to choose where the backend reads or writes: the storage
 // directory is fixed here and document ids must be content hashes.
 async function backendPost(route, data) {
+  if (hasUnresolvedSecret(data)) throw new Error(KEY_UNLOCK_ERROR);
   const body = { ...data };
   if ('pdfId' in body && !PDF_ID_PATTERN.test(String(body.pdfId))) {
     throw new Error('Invalid document id');
@@ -407,7 +408,7 @@ function registerIpcHandlers() {
       if (payload?.flatten) {
         flattenAnnotations(pdfDoc, annotationsByPage, highlightBoxesByPage);
       } else {
-        writeRealAnnotations(pdfDoc, annotationsByPage, highlightBoxesByPage);
+        writeRealAnnotations(pdfDoc, annotationsByPage, highlightBoxesByPage, { author: payload?.author });
       }
 
       // Append detailed notes (if any) as extra pages at the end of the PDF
@@ -491,6 +492,52 @@ function registerIpcHandlers() {
       return { ok: false, error: error.message || 'Failed to save annotated PDF.' };
     }
   });
+
+  // Settings registry values
+  const SETTING_KEY = /^[a-z][a-zA-Z0-9]*(\.[a-zA-Z0-9]+)+$/;
+  const SETTING_SCOPES = new Set(['app', 'workspace', 'document']);
+  ipcMain.handle('settings:getAll', () => store.getSettings());
+  ipcMain.handle('settings:set', (_event, key, scope, scopeId, value) => {
+    if (!SETTING_KEY.test(String(key)) || !SETTING_SCOPES.has(scope)) return false;
+    store.setSetting(key, scope, String(scopeId || ''), value);
+    return true;
+  });
+  ipcMain.handle('settings:reset', (_event, key, scope, scopeId) => {
+    if (!SETTING_KEY.test(String(key)) || !SETTING_SCOPES.has(scope)) return false;
+    store.resetSetting(key, scope, String(scopeId || ''));
+    return true;
+  });
+
+  // Conversations (several chats per document)
+  ipcMain.handle('conv:list', (_event, pdfPath) => (pdfPath ? store.listConversations(pdfPath) : []));
+  ipcMain.handle('conv:create', (_event, pdfPath, fields) => store.createConversation(pdfPath, fields || {}));
+  ipcMain.handle('conv:update', (_event, id, patch) => store.updateConversation(String(id), patch || {}));
+  ipcMain.handle('conv:delete', (_event, id) => {
+    store.deleteConversation(String(id));
+    return true;
+  });
+  ipcMain.handle('conv:messages', (_event, id) => store.getMessages(String(id)));
+  ipcMain.handle('conv:append', (_event, id, entry) => store.appendMessage(String(id), entry || {}));
+
+  // Custom AI instructions, layered global -> document -> conversation
+  ipcMain.handle('ins:list', (_event, scope, scopeId) => store.listInstructions(scope || null, scopeId || null));
+  ipcMain.handle('ins:save', (_event, fields) => store.saveInstruction(fields || {}));
+  ipcMain.handle('ins:delete', (_event, id) => {
+    store.deleteInstruction(String(id));
+    return true;
+  });
+  ipcMain.handle('ins:resolve', (_event, pdfPath, conversationId) => {
+    const layers = store.listInstructions('global', '').filter((i) => i.enabled);
+    const docId = pdfPath ? store.docIdForPath(pdfPath) : null;
+    if (docId) layers.push(...store.listInstructions('document', docId).filter((i) => i.enabled));
+    const conversation = conversationId ? store.getConversation(String(conversationId)) : null;
+    const result = layers.map(({ scope, title, body }) => ({ scope, title, body }));
+    if (conversation?.instructions?.trim()) {
+      result.push({ scope: 'conversation', title: '', body: conversation.instructions });
+    }
+    return result;
+  });
+  ipcMain.handle('doc:id', (_event, pdfPath) => (pdfPath ? store.docIdForPath(pdfPath) : null));
 
   // Notes persistence handlers
   ipcMain.handle('notes:load', async (_event, pdfPath) => {

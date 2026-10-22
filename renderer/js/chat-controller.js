@@ -33,6 +33,13 @@ export class ChatController {
     this.imagePreviewContainer = options.imagePreviewContainer;
     this.onStatus = options.onStatus;
     this.onSaveNote = options.onSaveNote;
+    this.getMode = options.getMode;
+    this.getInstructions = options.getInstructions;
+    this.onOpenInstructions = options.onOpenInstructions;
+    this.conversationBar = options.conversationBar;
+    this.conversationId = null;
+    this.conversations = [];
+    this.bindConversationControls();
     this.getChatConfig = options.getChatConfig;
     this.onAgentAction = options.onAgentAction;
     this.onGlossaryTermFound = options.onGlossaryTermFound;
@@ -267,15 +274,26 @@ export class ChatController {
   async loadPdfHistory(pdfPath) {
     this.activePdfPath = pdfPath;
     this.entries = [];
+    this.conversationId = null;
+    this.conversations = [];
     this.resetUi();
 
-    if (!window.electronAPI || !window.electronAPI.loadChatHistory || !pdfPath) {
+    if (!pdfPath) {
+      this.renderConversationBar();
       return;
     }
 
-    const loaded = await window.electronAPI.loadChatHistory(pdfPath);
+    this.conversations = (await window.electronAPI.listConversations(pdfPath)) || [];
+    await this.showConversation(this.conversations[0]?.id || null);
+  }
+
+  // Shows one conversation from the database, or an empty "new chat" when id is null.
+  async showConversation(id) {
+    this.conversationId = id;
+    const loaded = id ? await window.electronAPI.getConversationMessages(id) : [];
     this.entries = Array.isArray(loaded) ? loaded : [];
-    
+    this.resetUi();
+
     if (this.entries.length === 0) {
       this.appendWelcomeMessage();
     }
@@ -287,17 +305,161 @@ export class ChatController {
         this.appendMessage("Bot", entry.text || "");
       }
     });
+    this.renderConversationBar();
   }
 
-  async persistEntry(entry) {
-    if (!window.electronAPI || !window.electronAPI.appendChatEntry || !this.activePdfPath) {
+  // The conversation row is created lazily with the first message, so opening a document
+  // never leaves empty chats behind.
+  async persistEntry(entry, target = null) {
+    if (target) {
+      // A reply goes to the chat it was asked in, even if the user has switched chats since.
+      await window.electronAPI.appendConversationMessage(target.conversationId, entry);
+      if (target.pdfPath === this.activePdfPath) {
+        this.conversations = (await window.electronAPI.listConversations(this.activePdfPath)) || [];
+        this.renderConversationBar();
+      }
       return;
     }
 
-    await window.electronAPI.appendChatEntry({
-      pdfPath: this.activePdfPath,
-      entry
+    if (!this.activePdfPath) {
+      return;
+    }
+
+    if (!this.conversationId) {
+      const created = await window.electronAPI.createConversation(this.activePdfPath, { mode: this.getMode?.() });
+      this.conversationId = created.id;
+    }
+
+    await window.electronAPI.appendConversationMessage(this.conversationId, entry);
+    this.conversations = (await window.electronAPI.listConversations(this.activePdfPath)) || [];
+    this.renderConversationBar();
+  }
+
+  startNewConversation() {
+    this.conversationId = null;
+    this.entries = [];
+    this.resetUi();
+    this.appendWelcomeMessage();
+    this.renderConversationBar();
+    this.chatInput.focus();
+  }
+
+  async deleteConversation() {
+    if (!this.conversationId || !confirm("Delete this chat? This cannot be undone.")) return;
+    await window.electronAPI.deleteConversation(this.conversationId);
+    this.conversations = (await window.electronAPI.listConversations(this.activePdfPath)) || [];
+    await this.showConversation(this.conversations[0]?.id || null);
+  }
+
+  async togglePinned() {
+    const current = this.conversations.find((c) => c.id === this.conversationId);
+    if (!current) return;
+    await window.electronAPI.updateConversation(current.id, { pinned: !current.pinned });
+    this.conversations = (await window.electronAPI.listConversations(this.activePdfPath)) || [];
+    this.renderConversationBar();
+  }
+
+  // Electron has no window.prompt, so renaming happens in an inline text field.
+  startRename() {
+    const current = this.conversations.find((c) => c.id === this.conversationId);
+    const bar = this.conversationBar;
+    if (!current || !bar) return;
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "convo-rename-input";
+    input.value = current.title;
+    input.maxLength = 80;
+    input.setAttribute("aria-label", "Chat name");
+    bar.querySelector(".convo-select").replaceWith(input);
+    input.focus();
+    input.select();
+
+    let finished = false;
+    const finish = async (save) => {
+      if (finished) return;
+      finished = true;
+      const title = input.value.trim();
+      if (save && title && title !== current.title) {
+        await window.electronAPI.updateConversation(current.id, { title });
+        this.conversations = (await window.electronAPI.listConversations(this.activePdfPath)) || [];
+      }
+      this.renderConversationBar();
+    };
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") finish(true);
+      if (event.key === "Escape") finish(false);
     });
+    input.addEventListener("blur", () => finish(true));
+  }
+
+  bindConversationControls() {
+    const bar = this.conversationBar;
+    if (!bar) return;
+    bar.addEventListener("change", (event) => {
+      if (event.target.classList.contains("convo-select")) this.showConversation(event.target.value || null);
+    });
+    bar.addEventListener("click", (event) => {
+      const action = event.target.closest("[data-convo-action]")?.dataset.convoAction;
+      if (action === "new") this.startNewConversation();
+      else if (action === "rename") this.startRename();
+      else if (action === "pin") this.togglePinned();
+      else if (action === "delete") this.deleteConversation();
+      else if (action === "instructions") this.onOpenInstructions?.(this.conversationId);
+    });
+  }
+
+  async renderConversationBar() {
+    const bar = this.conversationBar;
+    if (!bar) return;
+    const hasDoc = Boolean(this.activePdfPath);
+    const current = this.conversations.find((c) => c.id === this.conversationId);
+
+    bar.textContent = "";
+    const select = document.createElement("select");
+    select.className = "convo-select";
+    select.setAttribute("aria-label", "Chats for this document");
+    select.disabled = !hasDoc;
+    const blank = document.createElement("option");
+    blank.value = "";
+    blank.textContent = "New chat";
+    select.appendChild(blank);
+    this.conversations.forEach((conversation) => {
+      const option = document.createElement("option");
+      option.value = conversation.id;
+      option.textContent = (conversation.pinned ? "★ " : "") + conversation.title;
+      select.appendChild(option);
+    });
+    select.value = current ? current.id : "";
+    bar.appendChild(select);
+
+    const button = (action, icon, title, disabled = false) => {
+      const node = document.createElement("button");
+      node.type = "button";
+      node.className = "btn icon-btn convo-btn";
+      node.dataset.convoAction = action;
+      node.title = title;
+      node.setAttribute("aria-label", title);
+      node.disabled = disabled || !hasDoc;
+      node.innerHTML = `<i class="fa-solid ${icon}"></i>`;
+      return node;
+    };
+    bar.appendChild(button("new", "fa-plus", "Start a new chat"));
+    bar.appendChild(button("rename", "fa-pen", "Rename this chat", !current));
+    bar.appendChild(button("pin", current?.pinned ? "fa-star" : "fa-star-half-stroke", current?.pinned ? "Unpin this chat" : "Pin this chat", !current));
+    bar.appendChild(button("delete", "fa-trash-can", "Delete this chat", !current));
+
+    const instructions = button("instructions", "fa-sliders", "Custom AI instructions");
+    bar.appendChild(instructions);
+    if (hasDoc && window.electronAPI.resolveInstructions) {
+      const layers = (await window.electronAPI.resolveInstructions(this.activePdfPath, this.conversationId)) || [];
+      if (layers.length > 0) {
+        const badge = document.createElement("span");
+        badge.className = "convo-badge";
+        badge.textContent = String(layers.length);
+        instructions.appendChild(badge);
+        instructions.title = `Custom AI instructions (${layers.length} active)`;
+      }
+    }
   }
 
   summarizeContext() {
@@ -406,6 +568,8 @@ export class ChatController {
     };
     this.entries.push(userEntry);
     await this.persistEntry(userEntry);
+    const sentTo = { conversationId: this.conversationId, pdfPath: this.activePdfPath };
+    const stillOpen = () => this.conversationId === sentTo.conversationId && this.activePdfPath === sentTo.pdfPath;
 
     const parts = [];
     if (this.attachedImage) {
@@ -472,6 +636,9 @@ export class ChatController {
         apiUrl: config.profile?.url || '',
         model: config.model,
         profile: config.profile || null,
+        conversationId: this.conversationId,
+        mode: this.getMode?.() || "auto",
+        instructions: (await this.getInstructions?.(this.conversationId)) || [],
         context: contextText,
         messages: this.entries.slice(-10),
         parts: parts
@@ -509,11 +676,12 @@ export class ChatController {
         evaluation: agentRes.evaluation || null
       };
 
-      if (agentRes.cache_summary) {
-        this.appendCacheSummary(agentRes.cache_summary, true);
+      if (stillOpen()) {
+        if (agentRes.cache_summary) {
+          this.appendCacheSummary(agentRes.cache_summary, true);
+        }
+        this.appendMessage("Bot", replyText, null, botMetadata);
       }
-
-      this.appendMessage("Bot", replyText, null, botMetadata);
 
       if (agentRes.usage) {
         updateTokenTracker(this.tokenTracker, agentRes.usage);
@@ -531,8 +699,8 @@ export class ChatController {
         text: replyText,
         ts: Date.now()
       };
-      this.entries.push(botEntry);
-      await this.persistEntry(botEntry);
+      if (stillOpen()) this.entries.push(botEntry);
+      await this.persistEntry(botEntry, sentTo);
 
       // Handle actions if any
       if (agentRes.actions && agentRes.actions.length > 0) {
@@ -548,11 +716,11 @@ export class ChatController {
         }
       }
 
-      this.onStatus("Ready.");
+      this.onStatus(stillOpen() ? "Ready." : "An answer arrived in another chat. Open it to read it.");
     } catch (error) {
       console.error(error);
       document.getElementById(typingId)?.remove();
-      this.appendMessage("Bot", `Agent request failed: ${error?.message || "Unknown error"}`);
+      if (stillOpen()) this.appendMessage("Bot", `Agent request failed: ${error?.message || "Unknown error"}`);
       this.onStatus("Agent request failed.");
     }
   }

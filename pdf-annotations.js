@@ -6,7 +6,7 @@
 // through the page's /Rotate and CropBox.
 const { PDFString } = require('pdf-lib');
 
-const AUTHOR = 'Thinker';
+const DEFAULT_AUTHOR = 'Thinker';
 const HIGHLIGHT_COLOR = [1, 0.92, 0.35];
 const HIGHLIGHT_OPACITY = 0.35;
 const FLAG_PRINT = 4;
@@ -71,7 +71,7 @@ function boundingRect(points, pad = 0) {
   return [Math.min(...xs) - pad, Math.min(...ys) - pad, Math.max(...xs) + pad, Math.max(...ys) + pad];
 }
 
-function baseAnnotation(subtype, rect, color, opacity, contents) {
+function baseAnnotation(author, subtype, rect, color, opacity, contents) {
   const dict = {
     Type: 'Annot',
     Subtype: subtype,
@@ -79,7 +79,7 @@ function baseAnnotation(subtype, rect, color, opacity, contents) {
     C: color,
     CA: opacity,
     F: FLAG_PRINT,
-    T: PDFString.of(AUTHOR),
+    T: PDFString.of(author),
     M: PDFString.of(pdfDate(new Date())),
     NM: PDFString.of(`thinker-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`)
   };
@@ -105,14 +105,14 @@ function inkStrokeWidth(path, displayWidth) {
   return 1.5;
 }
 
-function addInk(pdfDoc, page, mapper, path) {
+function addInk(pdfDoc, page, mapper, path, author) {
   const points = (Array.isArray(path.points) ? path.points : []).map((p) => mapper.toPdf(p.x, p.y));
   if (points.length < 2) return false;
   const { rgb, opacity } = parseColor(path.color);
   const width = inkStrokeWidth(path, mapper.displayWidth);
   const alpha = Math.max(0.1, Math.min(1, opacity < 1 ? opacity : Number(path.alpha) || 1));
   attach(pdfDoc, page, {
-    ...baseAnnotation('Ink', boundingRect(points, width / 2), rgb, alpha),
+    ...baseAnnotation(author, 'Ink', boundingRect(points, width / 2), rgb, alpha),
     InkList: [points.flatMap((p) => [p.x, p.y])],
     BS: { Type: 'Border', W: width, S: 'S' }
   });
@@ -120,7 +120,7 @@ function addInk(pdfDoc, page, mapper, path) {
 }
 
 // box: normalized { x, y, w, h } of one highlighted line of text.
-function addHighlight(pdfDoc, page, mapper, box) {
+function addHighlight(pdfDoc, page, mapper, box, author) {
   const w = clamp01(box.w);
   const h = clamp01(box.h);
   if (w <= 0 || h <= 0) return false;
@@ -129,19 +129,19 @@ function addHighlight(pdfDoc, page, mapper, box) {
   const bl = mapper.toPdf(box.x, Number(box.y) + h);
   const br = mapper.toPdf(Number(box.x) + w, Number(box.y) + h);
   attach(pdfDoc, page, {
-    ...baseAnnotation('Highlight', boundingRect([tl, tr, bl, br]), HIGHLIGHT_COLOR, HIGHLIGHT_OPACITY),
+    ...baseAnnotation(author, 'Highlight', boundingRect([tl, tr, bl, br]), HIGHLIGHT_COLOR, HIGHLIGHT_OPACITY),
     // Quad point order used by Acrobat in practice: top-left, top-right, bottom-left, bottom-right.
     QuadPoints: [tl.x, tl.y, tr.x, tr.y, bl.x, bl.y, br.x, br.y]
   });
   return true;
 }
 
-function addNote(pdfDoc, page, mapper, note) {
+function addNote(pdfDoc, page, mapper, note, author) {
   const text = String(note.text || '').replace(/\r/g, '').trim().slice(0, 2000) || 'Note';
   const p = mapper.toPdf(note.x, note.y);
   const rect = [p.x, p.y - NOTE_ICON_SIZE, p.x + NOTE_ICON_SIZE, p.y];
   attach(pdfDoc, page, {
-    ...baseAnnotation('Text', rect, [1, 0.88, 0.2], 1, text),
+    ...baseAnnotation(author, 'Text', rect, [1, 0.88, 0.2], 1, text),
     Name: 'Comment',
     Open: false
   });
@@ -149,16 +149,17 @@ function addNote(pdfDoc, page, mapper, note) {
 }
 
 // Adds every annotation to the document; returns how many were written.
-function writeRealAnnotations(pdfDoc, annotationsByPage = {}, highlightBoxesByPage = {}) {
+function writeRealAnnotations(pdfDoc, annotationsByPage = {}, highlightBoxesByPage = {}, options = {}) {
+  const author = String(options.author || '').trim().slice(0, 80) || DEFAULT_AUTHOR;
   let written = 0;
   pdfDoc.getPages().forEach((page, index) => {
     const key = String(index + 1);
     const pageData = annotationsByPage[key] || {};
     const boxes = highlightBoxesByPage[key] || [];
     const mapper = makePageMapper(page);
-    for (const path of pageData.paths || []) written += addInk(pdfDoc, page, mapper, path) ? 1 : 0;
-    for (const box of boxes) written += addHighlight(pdfDoc, page, mapper, box) ? 1 : 0;
-    for (const note of pageData.stickyNotes || []) written += addNote(pdfDoc, page, mapper, note) ? 1 : 0;
+    for (const path of pageData.paths || []) written += addInk(pdfDoc, page, mapper, path, author) ? 1 : 0;
+    for (const box of boxes) written += addHighlight(pdfDoc, page, mapper, box, author) ? 1 : 0;
+    for (const note of pageData.stickyNotes || []) written += addNote(pdfDoc, page, mapper, note, author) ? 1 : 0;
   });
   return written;
 }

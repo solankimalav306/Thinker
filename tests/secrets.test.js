@@ -47,3 +47,11 @@ test('unknown placeholders and ordinary strings pass through untouched', () => {
   assert.strictEqual(resolveSecrets('secret:missing'), 'secret:missing');
   assert.strictEqual(resolveSecrets('just text'), 'just text');
 });
+
+test('an undecryptable key is reported, but ordinary text starting with "secret:" is not', () => {
+  const { hasUnresolvedSecret } = require('../secrets');
+  assert.strictEqual(hasUnresolvedSecret({ profile: { key: 'secret:never-stored' } }), true);
+  assert.strictEqual(hasUnresolvedSecret({ apiKey: 'secret:never-stored' }), true);
+  assert.strictEqual(hasUnresolvedSecret({ messages: [{ text: 'secret: my diary entry' }] }), false);
+  assert.strictEqual(hasUnresolvedSecret({ profile: { key: 'sk-real' } }), false);
+});

@@ -19,6 +19,10 @@ import {
   getReadingState,
   saveReadingState
 } from "./state.js";
+import { loadSettings, getSetting, setSetting, onSettingChange } from "./settings-registry.js";
+import { registerAllSettings } from "./settings-definitions.js";
+import { renderPreferences } from "./preferences-panel.js";
+import { openInstructionsPanel } from "./instructions-panel.js";
 import { PdfController } from "./pdf-controller.js";
 import { AnnotationController } from "./annotation-controller.js";
 import { SnipController } from "./snip-controller.js";
@@ -179,6 +183,7 @@ const elements = {
   tokenUsageGraph: document.getElementById("token-usage-graph"),
   tokenUsageProfileFilter: document.getElementById("token-usage-profile-filter"),
   tokenTracker: document.getElementById("token-tracker"),
+  chatModeSelect: document.getElementById("chat-mode-select"),
   summarizeCacheBtn: document.getElementById("summarize-cache-btn"),
 };
 
@@ -647,12 +652,15 @@ async function boot() {
   if (customColor) applyCustomColor(customColor);
 
   elements.fitModeSelect.value = "auto";
+  registerAllSettings();
+  await loadSettings();
+
   const embeddingsStoragePath = await window.electronAPI.getUserDataPath();
 
   // Remember page, zoom and view mode per document (debounced, so scrolling doesn't hammer storage).
   let readingStateTimer = null;
   function scheduleReadingStateSave(path, viewState) {
-    if (!path) return;
+    if (!path || !getSetting("reading.rememberPosition")) return;
     clearTimeout(readingStateTimer);
     readingStateTimer = setTimeout(() => saveReadingState(path, viewState), 600);
   }
@@ -844,6 +852,14 @@ async function boot() {
     summarizeCacheBtn: elements.summarizeCacheBtn,
     onStatus: setStatus,
     onSaveNote: (text) => notes.addNote(text, 'Chat'),
+    conversationBar: document.getElementById("conversation-bar"),
+    getMode: () => elements.chatModeSelect?.value || "auto",
+    getInstructions: (conversationId) => window.electronAPI.resolveInstructions(pdf.getCurrentPath(), conversationId),
+    onOpenInstructions: (conversationId) => openInstructionsPanel({
+      pdfPath: pdf.getCurrentPath(),
+      conversationId,
+      onChange: () => chat.renderConversationBar()
+    }),
     getChatConfig: getCurrentChatConfig,
     onTokenUsage: () => refreshTokenDashboard(elements, elements.tokenUsageProfileFilter?.value || "all"),
     onAgentAction: (action) => {
@@ -1117,15 +1133,21 @@ async function boot() {
     }
 
     activeTabPath = path;
-    const savedState = tabViewState.get(path) || getReadingState(path);
+    const remembered = getSetting("reading.rememberPosition") ? getReadingState(path) : null;
+    const savedState = tabViewState.get(path) || remembered || {
+      pageNum: 1,
+      scale: getSetting("reading.defaultZoom") / 100,
+      viewMode: getSetting("reading.defaultViewMode")
+    };
     await pdf.load(path, savedState);
     await chat.loadPdfHistory(path);
     await notes.load(path);
     await mindmap.load(path);
     history.load(path);
     stickyNotes.refresh();
-    chat.setEnabled(currentView === "reader" && chatVisible);
+    // Switch to the reader first: chat is only enabled in that view.
     showReader();
+    chat.setEnabled(currentView === "reader" && chatVisible);
     renderAll();
   }
 
@@ -1336,7 +1358,8 @@ async function boot() {
       annotationsByPage,
       highlightBoxesByPage,
       includeNotes: opts.notes,
-      flatten: opts.flatten
+      flatten: opts.flatten,
+      author: getSetting("annotation.author")
     });
 
     if (result?.ok) {
@@ -1666,6 +1689,21 @@ async function boot() {
   if (pdfToOpen) {
     openTab(decodeURIComponent(pdfToOpen));
   }
+
+  // Preferences screen, generated from the settings registry.
+  renderPreferences({
+    container: document.getElementById("prefs-list"),
+    searchInput: document.getElementById("prefs-search"),
+    modifiedOnlyInput: document.getElementById("prefs-modified-only")
+  });
+  const applyAiSettings = () => {
+    if (elements.chatModeSelect) elements.chatModeSelect.value = getSetting("ai.defaultMode");
+    if (elements.tokenTracker) elements.tokenTracker.style.display = getSetting("ai.showTokenCounter") ? "" : "none";
+  };
+  applyAiSettings();
+  onSettingChange((key) => {
+    if (key.startsWith("ai.")) applyAiSettings();
+  });
 
   // Icon-only buttons need an accessible name; reuse their tooltip text.
   document.querySelectorAll("button[title]:not([aria-label])").forEach((btn) => btn.setAttribute("aria-label", btn.title));

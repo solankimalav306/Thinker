@@ -86,4 +86,18 @@ function resolveSecrets(value) {
   return value;
 }
 
-module.exports = { PROFILES_STORAGE_KEY, protectProfiles, resolveSecrets };
+// True if a key field still holds a placeholder after resolveSecrets, meaning the stored key could
+// not be decrypted (for example the OS credential data was cleared or moved to another machine).
+function hasUnresolvedSecret(value) {
+  if (Array.isArray(value)) return value.some(hasUnresolvedSecret);
+  if (value && typeof value === 'object') {
+    return Object.entries(value).some(
+      ([name, v]) => ((name === 'key' || name === 'apiKey') && isPlaceholder(v)) || hasUnresolvedSecret(v)
+    );
+  }
+  return false;
+}
+
+const KEY_UNLOCK_ERROR = 'Your saved API key could not be unlocked on this computer. Open Settings and enter it again.';
+
+module.exports = { PROFILES_STORAGE_KEY, KEY_UNLOCK_ERROR, protectProfiles, resolveSecrets, hasUnresolvedSecret };

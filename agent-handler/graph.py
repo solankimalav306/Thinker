@@ -13,6 +13,7 @@ from duckduckgo_search import DDGS
 import concurrent.futures
 import string
 from utils.llm_text import reply_text
+from prompts import build_ask_prompt, normalize_mode
 
 # ---------------------------------------------------------------------------
 # Multi-provider LLM factory
@@ -145,6 +146,9 @@ class AgentState(TypedDict):
     drafts: List[Dict]
     verified_drafts: List[Dict]
     cache_summary: str
+    conversation_id: str
+    mode: str          # "auto" | "document"
+    instructions: List[Dict]   # layered user instructions
 
 # Per-request token accumulator (reset at start of invoke_agent)
 _token_session = {"calls": [], "totals": {"input": 0, "output": 0, "context": 0, "history": 0, "selected_text": 0, "prompt": 0}}
@@ -169,6 +173,21 @@ def compute_similarity(v1, v2) -> float:
     if norm_a == 0 or norm_b == 0:
         return 0.0
     return float(np.dot(a, b) / (norm_a * norm_b))
+
+_SAFE_ID = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
+
+
+def cache_id(source) -> str:
+    """Key of the knowledge cache: one per chat, so separate conversations do not share history.
+
+    `source` is the agent state or the raw request; both carry the document id and, optionally,
+    the conversation id.
+    """
+    get = source.get
+    pdf = get("pdf_id") or get("pdfId") or ""
+    conv = str(get("conversation_id") or get("conversationId") or "")
+    return f"{pdf}_{conv}" if pdf and _SAFE_ID.match(conv) else pdf
+
 
 def load_knowledge_cache(storage_path: str, pdf_id: str) -> dict:
     if not storage_path or not pdf_id:
@@ -340,7 +359,7 @@ def estimate_input_tokens(llm, state: dict, prompt: str) -> dict:
 
     history = ""
     storage_path = state.get("storage_path")
-    pdf_id = state.get("pdf_id")
+    pdf_id = cache_id(state)
     if storage_path and pdf_id:
         cache = normalize_knowledge_cache(load_knowledge_cache(storage_path, pdf_id))
         history = build_cache_history_text(cache, max_recent=5)
@@ -429,7 +448,7 @@ def supervisor_node(state: AgentState):
     llm = create_llm(state)
 
     storage_path = state.get("storage_path")
-    pdf_id = state.get("pdf_id")
+    pdf_id = cache_id(state)
     cache = normalize_knowledge_cache(load_knowledge_cache(storage_path, pdf_id))
     append_cache_message(cache, "user", state.get("user_query", ""), state.get("user_context", ""))
 
@@ -543,7 +562,7 @@ def ask_node(state: AgentState):
 
     context = "\n".join(state["rag_chunks"])
 
-    cache = normalize_knowledge_cache(load_knowledge_cache(state.get("storage_path"), state.get("pdf_id")))
+    cache = normalize_knowledge_cache(load_knowledge_cache(state.get("storage_path"), cache_id(state)))
     history = build_cache_history_text(cache, max_recent=3)
 
     vector = cache.get("vector", {})
@@ -553,24 +572,15 @@ def ask_node(state: AgentState):
         if vector.get("abstract"):
             doc_info += f"Document Overview: {vector.get('abstract')}\n"
 
-    prompt = f"""You are an intelligent PDF assistant. Answer the user's question accurately using the provided context, document overview, and conversation history.
-    
-    {doc_info}
-    
-    Conversation History:
-    {history}
-
-    Context from PDF:
-    {context}
-    
-    User's Highlighted Text:
-    {state['user_context']}
-    
-    User's Question:
-    {state['user_query']}
-    
-    Answer concisely and include citations if possible (e.g., [Page X]).
-    """
+    prompt = build_ask_prompt(
+        doc_info=doc_info,
+        history=history,
+        context=context,
+        selected_text=state.get("user_context", ""),
+        question=state["user_query"],
+        mode=state.get("mode"),
+        instructions=state.get("instructions"),
+    )
     
     content = [{"type": "text", "text": prompt}]
     if state.get("parts"):
@@ -725,7 +735,7 @@ def run_notes_planner(state: AgentState) -> Dict:
     print("[run_notes_planner] Initiating planner node...", flush=True)
     
     # Check cache first
-    cache = normalize_knowledge_cache(load_knowledge_cache(state.get("storage_path"), state.get("pdf_id")))
+    cache = normalize_knowledge_cache(load_knowledge_cache(state.get("storage_path"), cache_id(state)))
     vector = cache.get("vector", {})
     if vector.get("category") and vector.get("sub_type") and vector.get("focus_areas"):
         print("[run_notes_planner] Cache HIT! Skipping Planner LLM call.", flush=True)
@@ -786,7 +796,7 @@ def run_notes_planner(state: AgentState) -> Dict:
         cache["vector"]["sub_type"] = sub_type
         cache["vector"]["reasoning"] = plan.get("reasoning", "")
         cache["vector"]["focus_areas"] = plan["focus_areas"]
-        save_knowledge_cache(state.get("storage_path"), state.get("pdf_id"), cache)
+        save_knowledge_cache(state.get("storage_path"), cache_id(state), cache)
         
         print(f"[run_notes_planner] Successfully parsed plan and updated cache: {plan}", flush=True)
         return {"plan": plan}
@@ -807,7 +817,7 @@ def run_document_analyzer(state: AgentState) -> Dict:
     print("[run_document_analyzer] Initiating document analyzer node...", flush=True)
     
     # Check cache first
-    cache = normalize_knowledge_cache(load_knowledge_cache(state.get("storage_path"), state.get("pdf_id")))
+    cache = normalize_knowledge_cache(load_knowledge_cache(state.get("storage_path"), cache_id(state)))
     vector = cache.get("vector", {})
     if vector.get("abstract") and vector.get("queries"):
         print("[run_document_analyzer] Cache HIT! Skipping Analyzer LLM call.", flush=True)
@@ -860,7 +870,7 @@ def run_document_analyzer(state: AgentState) -> Dict:
         cache.setdefault("vector", {})
         cache["vector"]["abstract"] = analysis.get("abstract", "")
         cache["vector"]["queries"] = analysis.get("queries", {})
-        save_knowledge_cache(state.get("storage_path"), state.get("pdf_id"), cache)
+        save_knowledge_cache(state.get("storage_path"), cache_id(state), cache)
         
         print(f"[run_document_analyzer] Successfully parsed analysis and updated cache: {analysis}", flush=True)
         return {"analysis": analysis}
@@ -1211,7 +1221,8 @@ def route_intent(state):
     if intent == "mindmap":
         return "mindmap"
     if intent == "search":
-        return "websearch"
+        # Document-only chats never leave the PDF, so web search is off.
+        return "ask" if state.get("mode") == "document" else "websearch"
     if intent == "comment":
         return "comment"
     return "ask"
@@ -1262,6 +1273,7 @@ def invoke_agent(query_data: dict):
     initial_state = {
         "user_query": query_data.get("query", ""),
         "pdf_id": query_data.get("pdfId", ""),
+        "conversation_id": query_data.get("conversationId", ""),
         "storage_path": query_data.get("storagePath", ""),
         "api_key": api_key,
         "api_format": api_format,
@@ -1278,6 +1290,8 @@ def invoke_agent(query_data: dict):
         "response_text": "",
         "evaluation": {},
         "cache_summary": "",
+        "mode": normalize_mode(query_data.get("mode")),
+        "instructions": query_data.get("instructions") or [],
     }
 
     print(f"[invoke_agent] Provider: format={api_format}, url={api_url or '(default)'}, model={model}", flush=True)
@@ -1285,7 +1299,7 @@ def invoke_agent(query_data: dict):
     final_state = app.invoke(initial_state)
 
     storage_path = query_data.get("storagePath", "")
-    pdf_id = query_data.get("pdfId", "")
+    pdf_id = cache_id(query_data)
     if final_state.get("response_text") and storage_path and pdf_id:
         cache = normalize_knowledge_cache(load_knowledge_cache(storage_path, pdf_id))
         append_cache_message(cache, "assistant", final_state["response_text"])
@@ -1324,7 +1338,7 @@ def summarize_knowledge_cache(query_data: dict):
     api_key    = str(profile.get("key")    or query_data.get("apiKey")    or "").strip()
     model      = str(profile.get("model")  or query_data.get("model")     or "gemini-3.5-flash-lite").strip()
     storage_path = query_data.get("storagePath", "")
-    pdf_id = query_data.get("pdfId", "")
+    pdf_id = cache_id(query_data)
 
     state = {
         "storage_path": storage_path,

@@ -1,4 +1,4 @@
-const { resolveSecrets } = require("./secrets");
+const { resolveSecrets, hasUnresolvedSecret, KEY_UNLOCK_ERROR } = require("./secrets");
 
 const DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite";
 const DEFAULT_OPENAI_URL = "https://api.openai.com/v1/chat/completions";
@@ -71,6 +71,9 @@ async function readResponseText(response) {
 
 async function handleLLMGenerate(_event, rawPayload) {
   const payload = resolveSecrets(rawPayload);
+  if (hasUnresolvedSecret(payload)) {
+    return { ok: false, error: KEY_UNLOCK_ERROR };
+  }
   if (typeof fetchFn !== "function") {
     return { ok: false, error: "Fetch is not available in this Electron runtime." };
   }

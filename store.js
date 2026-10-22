@@ -221,6 +221,10 @@ function createStore(db) {
     return conversationRow(q('SELECT * FROM conversations WHERE id = ?').get(id));
   }
 
+  function getConversation(id) {
+    return conversationRow(q('SELECT * FROM conversations WHERE id = ?').get(id));
+  }
+
   function updateConversation(id, patch = {}) {
     const columns = { title: 'title', mode: 'mode', profileId: 'profile_id', instructions: 'instructions', pinned: 'pinned', archived: 'archived' };
     const sets = [];
@@ -290,7 +294,7 @@ function createStore(db) {
     loadNotes, saveNotes, listMindmaps, saveMindmap, deleteMindmap,
     getGlossary, addGlossaryTerm, removeGlossaryTerm,
     appendUsage, readUsage,
-    listConversations, createConversation, updateConversation, deleteConversation, getMessages, appendMessage,
+    listConversations, getConversation, createConversation, updateConversation, deleteConversation, getMessages, appendMessage,
     listInstructions, saveInstruction, deleteInstruction
   };
 }
