@@ -20,8 +20,7 @@ const files = [
 const dirs = [
   ['fontawesome/css', nm('@fortawesome', 'fontawesome-free', 'css'), (f) => f === 'all.min.css'],
   ['fontawesome/webfonts', nm('@fortawesome', 'fontawesome-free', 'webfonts'), (f) => f.endsWith('.woff2')],
-  ['fonts', nm('@fontsource-variable', 'inter', 'files'), (f) => f === 'inter-latin-wght-normal.woff2'],
-  ['fonts', nm('@fontsource-variable', 'fraunces', 'files'), (f) => f === 'fraunces-latin-wght-normal.woff2'],
+  ['fonts', nm('@fontsource-variable', 'shantell-sans', 'files'), (f) => f === 'shantell-sans-latin-wght-normal.woff2'],
 ];
 
 function copy(src, dest) {

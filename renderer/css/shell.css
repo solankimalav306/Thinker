@@ -23,19 +23,8 @@
 }
 
 .title-mark {
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 8px;
-  background: var(--brand-highlighter);
-  color: var(--brand-ink);
-}
-
-.title-mark img {
-  width: 12px;
-  height: 14px;
-  display: block;
+  --t-size: 19px;
+  color: var(--text);
 }
 
 .title-name {

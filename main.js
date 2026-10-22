@@ -39,7 +39,7 @@ function pickFreePort() {
 
 // The renderer is not trusted to choose where the backend reads or writes: the storage
 // directory is fixed here and document ids must be content hashes.
-async function backendPost(route, data) {
+async function backendPost(route, data, signal) {
   if (hasUnresolvedSecret(data)) throw new Error(KEY_UNLOCK_ERROR);
   const body = { ...data };
   if ('pdfId' in body && !PDF_ID_PATTERN.test(String(body.pdfId))) {
@@ -47,7 +47,7 @@ async function backendPost(route, data) {
   }
   if ('storagePath' in body) body.storagePath = app.getPath('userData');
   // Slower than any normal answer, but finite: a stalled provider call must not hang the chat.
-  return axios.post(`${BACKEND_URL}${route}`, body, { headers: { 'x-thinker-token': BACKEND_TOKEN }, timeout: 150000 });
+  return axios.post(`${BACKEND_URL}${route}`, body, { headers: { 'x-thinker-token': BACKEND_TOKEN }, timeout: 150000, signal });
 }
 
 // ── Spawn the Python/compiled backend ───────────────────────────────────────
@@ -660,15 +660,31 @@ function registerIpcHandlers() {
     }
   });
 
+  // Requests in flight, so the chat's Stop button can abandon one.
+  const inflightAgentCalls = new Map();
+
   ipcMain.handle('agent:invoke', async (_event, data) => {
+    const requestId = String(data?.requestId || '');
+    const controller = new AbortController();
+    if (requestId) inflightAgentCalls.set(requestId, controller);
     try {
-      const response = await backendPost('/agent/invoke', resolveSecrets(data));
+      const response = await backendPost('/agent/invoke', resolveSecrets(data), controller.signal);
       return { ok: true, result: response.data };
     } catch (error) {
+      if (axios.isCancel(error) || error.code === 'ERR_CANCELED') {
+        return { ok: false, cancelled: true, error: 'Stopped.' };
+      }
       console.error('Agent invocation failed:', error);
       const timedOut = error.code === 'ECONNABORTED';
       return { ok: false, error: timedOut ? 'The AI took too long to answer. Please try again.' : error.message };
+    } finally {
+      if (requestId) inflightAgentCalls.delete(requestId);
     }
+  });
+
+  ipcMain.handle('agent:cancel', (_event, requestId) => {
+    inflightAgentCalls.get(String(requestId))?.abort();
+    return true;
   });
 
   ipcMain.handle('agent:summarizeCache', async (_event, data) => {

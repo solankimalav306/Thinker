@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Thinker">
-  <rect width="512" height="512" rx="116" fill="#FFD23F"/>
-  <g transform="translate(133 113) scale(0.62)">
-    <polygon fill="#1C1B2E" points="0,43 160,25 161,0 228,0 229,18 397,0 397,113 237,101 263,461 150,461 160,95 12,84"/>
-  </g>
-</svg>

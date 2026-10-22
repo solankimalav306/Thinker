@@ -123,7 +123,7 @@ export class NotesController {
         <head>
           <title>Research Notes</title>
           <style>
-            body { font-family: 'Inter', sans-serif; padding: 40px; color: #333; line-height: 1.6; }
+            body { font-family: 'Shantell Sans', 'Segoe UI', sans-serif; padding: 40px; color: #333; line-height: 1.6; }
             h2 { color: #2563eb; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-top: 30px; }
             hr { border: 0; border-top: 1px solid #eee; margin: 40px 0; }
           </style>

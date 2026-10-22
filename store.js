@@ -201,13 +201,18 @@ function createStore(db) {
   // ── Conversations and messages ────────────────────────────────────────────
   const conversationRow = (r) => r && ({
     id: r.id, docId: r.doc_id, title: r.title, mode: r.mode, profileId: r.profile_id,
+    messageCount: r.message_count || 0, preview: r.preview || '',
     instructions: r.instructions, pinned: Boolean(r.pinned), archived: Boolean(r.archived),
     createdAt: r.created_at, updatedAt: r.updated_at
   });
 
   function listConversations(pdfPath) {
     const docId = docIdForPath(pdfPath);
-    return q('SELECT * FROM conversations WHERE doc_id = ? AND archived = 0 ORDER BY pinned DESC, updated_at DESC')
+    return q(`SELECT c.*,
+        (SELECT COUNT(*) FROM messages m WHERE m.conversation_id = c.id) AS message_count,
+        (SELECT substr(m.content, 1, 90) FROM messages m
+           WHERE m.conversation_id = c.id AND m.role = 'assistant' ORDER BY m.id DESC LIMIT 1) AS preview
+      FROM conversations c WHERE c.doc_id = ? AND c.archived = 0 ORDER BY c.pinned DESC, c.updated_at DESC`)
       .all(docId).map(conversationRow);
   }
 

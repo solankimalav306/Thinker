@@ -196,7 +196,7 @@ export class PdfController {
       // Also paint an error card inside the viewer so it's impossible to miss
       if (this.pdfViewer) {
         this.pdfViewer.innerHTML = `
-          <div style="padding: 32px; color: var(--text); font-family: Manrope, sans-serif; max-width: 600px; margin: 40px auto;">
+          <div style="padding: 32px; color: var(--text); font-family: inherit; max-width: 600px; margin: 40px auto;">
             <div style="background: var(--panel); border: 1px solid #ef444488; border-radius: 12px; padding: 24px;">
               <h3 style="color: #ef4444; margin-top: 0;">⚠ PDF Could Not Be Loaded</h3>
               <table style="width:100%; border-collapse: collapse; font-size: 0.85rem;">

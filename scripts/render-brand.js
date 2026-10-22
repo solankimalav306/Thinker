@@ -1,5 +1,6 @@
-// Renders the brand SVGs to PNG and a multi-size ICO: `npx electron scripts/render-brand.js`.
-// Uses an off-screen Electron window as the rasteriser, so no image libraries are needed.
+// Renders the operating-system icon from the ORIGINAL logo: `npx electron scripts/render-brand.js`.
+// The T is the untouched renderer/assets/logo.png, tinted ink and centred on a highlighter-yellow
+// rounded square (an OS icon needs a background to stay legible). Output: PNGs and a multi-size ICO.
 const { app, BrowserWindow } = require('electron');
 const fs = require('fs');
 const path = require('path');
@@ -9,15 +10,22 @@ const root = path.join(__dirname, '..');
 const brandDir = path.join(root, 'renderer', 'assets', 'brand');
 const buildDir = path.join(root, 'build');
 const ICON_SIZES = [16, 24, 32, 48, 64, 128, 256, 512];
+const INK = '#1c1b2e';
+const HIGHLIGHTER = '#ffd23f';
 
-// One 512px off-screen window is reused for every size: Windows will not create tiny windows.
-async function rasterise(win, svg, size) {
+// One large off-screen window is reused for every size: Windows will not create tiny windows.
+async function rasterise(win, logoDataUrl, size) {
+  const glyphHeight = size * 0.56;
+  const glyphWidth = glyphHeight * (397 / 461);
   const html = `<html><body style="margin:0;background:transparent;overflow:hidden">
-    <img src="data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}" style="width:${size}px;height:${size}px;display:block"></body></html>`;
+    <div style="width:${size}px;height:${size}px;border-radius:${size * 0.226}px;background:${HIGHLIGHTER};position:relative">
+      <div style="position:absolute;left:${(size - glyphWidth) / 2}px;top:${(size - glyphHeight) / 2 + size * 0.01}px;width:${glyphWidth}px;height:${glyphHeight}px;background:${INK};
+        -webkit-mask:url(${logoDataUrl}) center/contain no-repeat"></div>
+    </div></body></html>`;
   const file = path.join(os.tmpdir(), `thinker-brand-${size}.html`);
   fs.writeFileSync(file, html);
   await win.loadFile(file);
-  await new Promise((r) => setTimeout(r, 200));
+  await new Promise((r) => setTimeout(r, 250));
   const image = await win.webContents.capturePage({ x: 0, y: 0, width: size, height: size });
   fs.unlinkSync(file);
   return image.toPNG();
@@ -46,11 +54,14 @@ function buildIco(entries) {
 }
 
 app.whenReady().then(async () => {
-  const icon = fs.readFileSync(path.join(brandDir, 'app-icon.svg'), 'utf8');
+  const logo = fs.readFileSync(path.join(root, 'renderer', 'assets', 'logo.png'));
+  const logoDataUrl = `data:image/png;base64,${logo.toString('base64')}`;
   fs.mkdirSync(buildDir, { recursive: true });
+  fs.mkdirSync(brandDir, { recursive: true });
+
   const win = new BrowserWindow({ show: false, width: 512, height: 512, transparent: true, frame: false });
   const entries = [];
-  for (const size of ICON_SIZES) entries.push({ size, png: await rasterise(win, icon, size) });
+  for (const size of ICON_SIZES) entries.push({ size, png: await rasterise(win, logoDataUrl, size) });
   win.destroy();
 
   fs.writeFileSync(path.join(brandDir, 'app-icon-512.png'), entries.find((e) => e.size === 512).png);

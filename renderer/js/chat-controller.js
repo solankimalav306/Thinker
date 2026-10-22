@@ -1,5 +1,6 @@
 import { recordTokenUsage, updateTokenTracker } from "./token-usage.js";
 import { escapeHtml, renderMarkdown } from "./safe-html.js";
+import { groupConversations, timeAgo, messageCountLabel } from "./chat-groups.js";
 
 const DEFAULT_CHAT_MODEL = "gemini-3.5-flash-lite";
 
@@ -37,6 +38,12 @@ export class ChatController {
     this.getInstructions = options.getInstructions;
     this.onOpenInstructions = options.onOpenInstructions;
     this.conversationBar = options.conversationBar;
+    this.chatList = options.chatList;
+    this.instructionsBtn = options.instructionsBtn;
+    this.instructionsCount = options.instructionsCount;
+    this.listOpen = false;
+    this.listQuery = "";
+    this.pending = null;
     this.conversationId = null;
     this.conversations = [];
     this.bindConversationControls();
@@ -289,6 +296,7 @@ export class ChatController {
 
   // Shows one conversation from the database, or an empty "new chat" when id is null.
   async showConversation(id) {
+    this.closeChatList();
     this.conversationId = id;
     const loaded = id ? await window.electronAPI.getConversationMessages(id) : [];
     this.entries = Array.isArray(loaded) ? loaded : [];
@@ -314,10 +322,7 @@ export class ChatController {
     if (target) {
       // A reply goes to the chat it was asked in, even if the user has switched chats since.
       await window.electronAPI.appendConversationMessage(target.conversationId, entry);
-      if (target.pdfPath === this.activePdfPath) {
-        this.conversations = (await window.electronAPI.listConversations(this.activePdfPath)) || [];
-        this.renderConversationBar();
-      }
+      if (target.pdfPath === this.activePdfPath) await this.refreshConversations();
       return;
     }
 
@@ -331,11 +336,11 @@ export class ChatController {
     }
 
     await window.electronAPI.appendConversationMessage(this.conversationId, entry);
-    this.conversations = (await window.electronAPI.listConversations(this.activePdfPath)) || [];
-    this.renderConversationBar();
+    await this.refreshConversations();
   }
 
   startNewConversation() {
+    this.closeChatList();
     this.conversationId = null;
     this.entries = [];
     this.resetUi();
@@ -344,122 +349,268 @@ export class ChatController {
     this.chatInput.focus();
   }
 
-  async deleteConversation() {
-    if (!this.conversationId || !confirm("Delete this chat? This cannot be undone.")) return;
-    await window.electronAPI.deleteConversation(this.conversationId);
-    this.conversations = (await window.electronAPI.listConversations(this.activePdfPath)) || [];
-    await this.showConversation(this.conversations[0]?.id || null);
-  }
-
-  async togglePinned() {
-    const current = this.conversations.find((c) => c.id === this.conversationId);
-    if (!current) return;
-    await window.electronAPI.updateConversation(current.id, { pinned: !current.pinned });
+  async refreshConversations() {
     this.conversations = (await window.electronAPI.listConversations(this.activePdfPath)) || [];
     this.renderConversationBar();
+    if (this.listOpen) this.renderChatList();
   }
 
-  // Electron has no window.prompt, so renaming happens in an inline text field.
-  startRename() {
-    const current = this.conversations.find((c) => c.id === this.conversationId);
-    const bar = this.conversationBar;
-    if (!current || !bar) return;
-    const input = document.createElement("input");
-    input.type = "text";
-    input.className = "convo-rename-input";
-    input.value = current.title;
-    input.maxLength = 80;
-    input.setAttribute("aria-label", "Chat name");
-    bar.querySelector(".convo-select").replaceWith(input);
-    input.focus();
-    input.select();
+  async deleteConversationById(id) {
+    await window.electronAPI.deleteConversation(id);
+    await this.refreshConversations();
+    if (id === this.conversationId) await this.showConversation(this.conversations[0]?.id || null);
+  }
 
-    let finished = false;
-    const finish = async (save) => {
-      if (finished) return;
-      finished = true;
-      const title = input.value.trim();
-      if (save && title && title !== current.title) {
-        await window.electronAPI.updateConversation(current.id, { title });
-        this.conversations = (await window.electronAPI.listConversations(this.activePdfPath)) || [];
-      }
-      this.renderConversationBar();
-    };
-    input.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") finish(true);
-      if (event.key === "Escape") finish(false);
-    });
-    input.addEventListener("blur", () => finish(true));
+  async togglePinned(id) {
+    const current = this.conversations.find((c) => c.id === id);
+    if (!current) return;
+    await window.electronAPI.updateConversation(id, { pinned: !current.pinned });
+    await this.refreshConversations();
+  }
+
+  async renameConversation(id, title) {
+    const clean = String(title || "").trim().slice(0, 80);
+    if (!clean) return;
+    await window.electronAPI.updateConversation(id, { title: clean });
+    await this.refreshConversations();
+  }
+
+  openChatList() {
+    if (!this.chatList || !this.activePdfPath) return;
+    this.listOpen = true;
+    this.listQuery = "";
+    this.chatList.hidden = false;
+    this.renderChatList();
+    this.renderConversationBar();
+    this.chatList.querySelector(".chat-search")?.focus();
+  }
+
+  closeChatList() {
+    if (!this.listOpen) return;
+    this.listOpen = false;
+    if (this.chatList) this.chatList.hidden = true;
+    this.renderConversationBar();
   }
 
   bindConversationControls() {
     const bar = this.conversationBar;
     if (!bar) return;
-    bar.addEventListener("change", (event) => {
-      if (event.target.classList.contains("convo-select")) this.showConversation(event.target.value || null);
-    });
     bar.addEventListener("click", (event) => {
       const action = event.target.closest("[data-convo-action]")?.dataset.convoAction;
       if (action === "new") this.startNewConversation();
-      else if (action === "rename") this.startRename();
-      else if (action === "pin") this.togglePinned();
-      else if (action === "delete") this.deleteConversation();
-      else if (action === "instructions") this.onOpenInstructions?.(this.conversationId);
+      else if (action === "list") (this.listOpen ? this.closeChatList() : this.openChatList());
+    });
+    this.instructionsBtn?.addEventListener("click", () => this.onOpenInstructions?.(this.conversationId));
+
+    // Click anywhere else, or press Escape, to dismiss the list.
+    document.addEventListener("mousedown", (event) => {
+      if (!this.listOpen) return;
+      if (this.chatList.contains(event.target) || bar.contains(event.target)) return;
+      this.closeChatList();
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && this.listOpen) this.closeChatList();
     });
   }
 
-  async renderConversationBar() {
+  // Header: the current chat (click for the list) and a New chat button.
+  renderConversationBar() {
     const bar = this.conversationBar;
     if (!bar) return;
     const hasDoc = Boolean(this.activePdfPath);
     const current = this.conversations.find((c) => c.id === this.conversationId);
 
     bar.textContent = "";
-    const select = document.createElement("select");
-    select.className = "convo-select";
-    select.setAttribute("aria-label", "Chats for this document");
-    select.disabled = !hasDoc;
-    const blank = document.createElement("option");
-    blank.value = "";
-    blank.textContent = "New chat";
-    select.appendChild(blank);
-    this.conversations.forEach((conversation) => {
-      const option = document.createElement("option");
-      option.value = conversation.id;
-      option.textContent = (conversation.pinned ? "★ " : "") + conversation.title;
-      select.appendChild(option);
-    });
-    select.value = current ? current.id : "";
-    bar.appendChild(select);
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "convo-current";
+    toggle.dataset.convoAction = "list";
+    toggle.disabled = !hasDoc;
+    toggle.setAttribute("aria-haspopup", "listbox");
+    toggle.setAttribute("aria-expanded", String(this.listOpen));
+    toggle.title = "Switch chat";
+    const icon = document.createElement("i");
+    icon.className = "fa-regular fa-comment";
+    const title = document.createElement("span");
+    title.className = "convo-current-title";
+    title.textContent = current ? current.title : "New chat";
+    const count = document.createElement("span");
+    count.className = "convo-current-count";
+    count.textContent = this.conversations.length > 0 ? String(this.conversations.length) : "";
+    const chevron = document.createElement("i");
+    chevron.className = "fa-solid fa-chevron-down convo-chevron";
+    toggle.append(icon, title, count, chevron);
 
-    const button = (action, icon, title, disabled = false) => {
-      const node = document.createElement("button");
-      node.type = "button";
-      node.className = "btn icon-btn convo-btn";
-      node.dataset.convoAction = action;
-      node.title = title;
-      node.setAttribute("aria-label", title);
-      node.disabled = disabled || !hasDoc;
-      node.innerHTML = `<i class="fa-solid ${icon}"></i>`;
-      return node;
-    };
-    bar.appendChild(button("new", "fa-plus", "Start a new chat"));
-    bar.appendChild(button("rename", "fa-pen", "Rename this chat", !current));
-    bar.appendChild(button("pin", current?.pinned ? "fa-star" : "fa-star-half-stroke", current?.pinned ? "Unpin this chat" : "Pin this chat", !current));
-    bar.appendChild(button("delete", "fa-trash-can", "Delete this chat", !current));
+    const newBtn = document.createElement("button");
+    newBtn.type = "button";
+    newBtn.className = "btn convo-new";
+    newBtn.dataset.convoAction = "new";
+    newBtn.disabled = !hasDoc;
+    newBtn.title = "Start a new chat";
+    newBtn.innerHTML = '<i class="fa-solid fa-plus"></i> New';
+    bar.append(toggle, newBtn);
 
-    const instructions = button("instructions", "fa-sliders", "Custom AI instructions");
-    bar.appendChild(instructions);
-    if (hasDoc && window.electronAPI.resolveInstructions) {
-      const layers = (await window.electronAPI.resolveInstructions(this.activePdfPath, this.conversationId)) || [];
-      if (layers.length > 0) {
-        const badge = document.createElement("span");
-        badge.className = "convo-badge";
-        badge.textContent = String(layers.length);
-        instructions.appendChild(badge);
-        instructions.title = `Custom AI instructions (${layers.length} active)`;
-      }
+    this.updateInstructionsPill();
+  }
+
+  async updateInstructionsPill() {
+    if (!this.instructionsCount || !window.electronAPI.resolveInstructions) return;
+    const layers = this.activePdfPath
+      ? (await window.electronAPI.resolveInstructions(this.activePdfPath, this.conversationId)) || []
+      : [];
+    this.instructionsCount.hidden = layers.length === 0;
+    this.instructionsCount.textContent = String(layers.length);
+    if (this.instructionsBtn) {
+      this.instructionsBtn.title = layers.length ? `Custom AI instructions (${layers.length} active)` : "Custom AI instructions";
+      this.instructionsBtn.classList.toggle("has-items", layers.length > 0);
     }
+  }
+
+  renderChatList() {
+    const list = this.chatList;
+    if (!list) return;
+    list.textContent = "";
+
+    const search = document.createElement("input");
+    search.type = "search";
+    search.className = "chat-search";
+    search.placeholder = "Search this document's chats";
+    search.setAttribute("aria-label", "Search chats");
+    search.value = this.listQuery;
+    search.addEventListener("input", () => {
+      this.listQuery = search.value;
+      this.renderChatListRows(rows);
+    });
+    list.appendChild(search);
+
+    const rows = document.createElement("div");
+    rows.className = "chat-rows";
+    rows.setAttribute("role", "listbox");
+    list.appendChild(rows);
+    this.renderChatListRows(rows);
+  }
+
+  renderChatListRows(container) {
+    container.textContent = "";
+    const groups = groupConversations(this.conversations, this.listQuery);
+
+    if (groups.length === 0) {
+      const empty = document.createElement("p");
+      empty.className = "chat-list-empty";
+      empty.textContent = this.conversations.length === 0
+        ? "No chats about this document yet. Ask a question to start one."
+        : "No chats match your search.";
+      container.appendChild(empty);
+      return;
+    }
+
+    groups.forEach((group) => {
+      const heading = document.createElement("h4");
+      heading.className = "chat-group";
+      heading.textContent = group.label;
+      container.appendChild(heading);
+      group.items.forEach((conversation) => container.appendChild(this.buildChatRow(conversation)));
+    });
+  }
+
+  buildChatRow(conversation) {
+    const row = document.createElement("div");
+    row.className = "chat-row" + (conversation.id === this.conversationId ? " active" : "");
+    row.tabIndex = 0;
+    row.setAttribute("role", "option");
+    row.setAttribute("aria-selected", String(conversation.id === this.conversationId));
+
+    const main = document.createElement("div");
+    main.className = "chat-row-main";
+    const title = document.createElement("span");
+    title.className = "chat-row-title";
+    title.textContent = (conversation.pinned ? "\u2605 " : "") + conversation.title;
+    const meta = document.createElement("span");
+    meta.className = "chat-row-meta";
+    meta.textContent = `${messageCountLabel(conversation.messageCount)} \u00b7 ${timeAgo(conversation.updatedAt)}`;
+    main.append(title, meta);
+
+    const actions = document.createElement("div");
+    actions.className = "chat-row-actions";
+    const action = (icon, label, handler, extraClass = "") => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `btn icon-btn chat-row-btn ${extraClass}`.trim();
+      button.title = label;
+      button.setAttribute("aria-label", label);
+      button.innerHTML = `<i class="${icon}"></i>`;
+      button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        handler(button);
+      });
+      return button;
+    };
+
+    const pin = action(conversation.pinned ? "fa-solid fa-star" : "fa-regular fa-star", conversation.pinned ? "Unpin" : "Pin to top", () => this.togglePinned(conversation.id));
+    const rename = action("fa-solid fa-pen", "Rename", () => this.startRowRename(row, title, conversation));
+    // Two-step delete: the first click asks, the second confirms, with no dialog in the way.
+    const remove = action("fa-regular fa-trash-can", "Delete chat", (button) => {
+      if (button.dataset.confirming) {
+        this.deleteConversationById(conversation.id);
+        return;
+      }
+      button.dataset.confirming = "1";
+      button.classList.add("confirming");
+      button.innerHTML = "<span>Delete?</span>";
+      setTimeout(() => {
+        if (!button.isConnected) return;
+        delete button.dataset.confirming;
+        button.classList.remove("confirming");
+        button.innerHTML = '<i class="fa-regular fa-trash-can"></i>';
+      }, 3000);
+    }, "chat-row-delete");
+    actions.append(pin, rename, remove);
+
+    row.append(main, actions);
+    const open = () => this.openConversationFromList(conversation.id);
+    row.addEventListener("click", open);
+    row.addEventListener("keydown", (event) => {
+      if (event.target === row && (event.key === "Enter" || event.key === " ")) {
+        event.preventDefault();
+        open();
+      }
+    });
+    return row;
+  }
+
+  async openConversationFromList(id) {
+    this.closeChatList();
+    if (id !== this.conversationId) await this.showConversation(id);
+  }
+
+  startRowRename(row, titleEl, conversation) {
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "chat-row-rename";
+    input.value = conversation.title;
+    input.maxLength = 80;
+    input.setAttribute("aria-label", "Chat name");
+    input.addEventListener("click", (event) => event.stopPropagation());
+    titleEl.replaceWith(input);
+    input.focus();
+    input.select();
+
+    let finished = false;
+    const finish = (save) => {
+      if (finished) return;
+      finished = true;
+      if (save && input.value.trim() && input.value.trim() !== conversation.title) {
+        this.renameConversation(conversation.id, input.value);
+      } else {
+        this.renderChatList();
+      }
+    };
+    input.addEventListener("keydown", (event) => {
+      event.stopPropagation();
+      if (event.key === "Enter") finish(true);
+      if (event.key === "Escape") finish(false);
+    });
+    input.addEventListener("blur", () => finish(true));
   }
 
   summarizeContext() {
@@ -539,6 +690,7 @@ export class ChatController {
   }
 
   async sendMessage() {
+    if (this.pending) return;
     if (!this.enabled) {
       this.onStatus("Open a PDF first. Chat is disabled on welcome screen.");
       return;
@@ -590,44 +742,30 @@ export class ChatController {
     this.onStatus("Agent is thinking...");
 
     const typingId = "typing-indicator-" + Date.now();
-    const typingHtml = `
+    this.chatHistory.insertAdjacentHTML("beforeend", `
       <div class="bot-msg thinking-container" id="${typingId}">
         <div class="typing-dots"><span></span><span></span><span></span></div>
-        <div class="thinking-steps" id="${typingId}-steps">
-          <div class="thinking-step active" id="${typingId}-step-1"><i class="fa-solid fa-circle-notch fa-spin"></i> Analyzing your request...</div>
-        </div>
+        <span class="thinking-label" id="${typingId}-label">Thinking...</span>
       </div>
-    `;
-    this.chatHistory.insertAdjacentHTML("beforeend", typingHtml);
+    `);
     this.chatHistory.scrollTop = this.chatHistory.scrollHeight;
 
-    const updateStep = (id, text, done = false) => {
-      const stepEl = document.getElementById(id);
-      if (stepEl) {
-        stepEl.innerHTML = `<i class="fa-solid ${done ? 'fa-check' : 'fa-circle-notch fa-spin'}"></i> ${text}`;
-        stepEl.className = `thinking-step ${done ? 'done' : 'active'}`;
-      }
-    };
+    // Real elapsed time instead of invented progress steps.
+    const startedAt = Date.now();
+    const ticker = setInterval(() => {
+      const label = document.getElementById(`${typingId}-label`);
+      if (!label) return;
+      const seconds = Math.round((Date.now() - startedAt) / 1000);
+      label.textContent = seconds < 15 ? `Thinking... ${seconds}s` : `Still working... ${seconds}s. You can press Stop.`;
+    }, 1000);
 
-    const addStep = (containerId, stepId, text) => {
-      const container = document.getElementById(containerId);
-      if (container) {
-        const step = document.createElement("div");
-        step.id = stepId;
-        step.className = "thinking-step active";
-        step.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> ${text}`;
-        container.appendChild(step);
-      }
-    };
+    const requestId = (crypto.randomUUID && crypto.randomUUID()) || String(Date.now());
+    this.pending = { id: requestId };
+    this.setBusy(true);
 
     try {
-      // Simulate step-by-step progress for better UX
-      setTimeout(() => updateStep(`${typingId}-step-1`, "Intent classified", true), 800);
-      setTimeout(() => addStep(`${typingId}-steps`, `${typingId}-step-2`, "Retrieving document context..."), 900);
-      setTimeout(() => updateStep(`${typingId}-step-2`, "Context retrieved (3 relevant pages)", true), 1800);
-      setTimeout(() => addStep(`${typingId}-steps`, `${typingId}-step-3`, "Generating response..."), 1900);
-
       const res = await window.electronAPI.invokeAgent({
+        requestId,
         query: questionText,
         pdfId,
         storagePath,
@@ -644,8 +782,13 @@ export class ChatController {
         parts: parts
       });
 
+      clearInterval(ticker);
       document.getElementById(typingId)?.remove();
 
+      if (res.cancelled) {
+        this.onStatus("Stopped.");
+        return;
+      }
       if (!res.ok) {
         throw new Error(res.error || "Agent request failed");
       }
@@ -719,10 +862,28 @@ export class ChatController {
       this.onStatus(stillOpen() ? "Ready." : "An answer arrived in another chat. Open it to read it.");
     } catch (error) {
       console.error(error);
+      clearInterval(ticker);
       document.getElementById(typingId)?.remove();
       if (stillOpen()) this.appendMessage("Bot", `Agent request failed: ${error?.message || "Unknown error"}`);
       this.onStatus("Agent request failed.");
+    } finally {
+      clearInterval(ticker);
+      this.pending = null;
+      this.setBusy(false);
     }
+  }
+
+  // While a question is being answered the send button becomes Stop.
+  setBusy(busy) {
+    this.chatSend.classList.toggle("is-busy", busy);
+    this.chatSend.title = busy ? "Stop" : "Send";
+    this.chatSend.setAttribute("aria-label", busy ? "Stop" : "Send");
+    this.chatSend.innerHTML = busy ? '<i class="fa-solid fa-stop"></i>' : '<i class="fa-solid fa-arrow-up"></i>';
+    this.chatSend.disabled = false;
+  }
+
+  cancelRequest() {
+    if (this.pending) window.electronAPI.cancelAgent(this.pending.id);
   }
 
   async summarizeKnowledgeCache() {
@@ -780,7 +941,7 @@ export class ChatController {
   }
 
   bindEvents() {
-    this.chatSend.addEventListener("click", () => this.sendMessage());
+    this.chatSend.addEventListener("click", () => (this.pending ? this.cancelRequest() : this.sendMessage()));
 
     if (this.summarizeCacheBtn) {
       this.summarizeCacheBtn.addEventListener("click", () => this.summarizeKnowledgeCache());

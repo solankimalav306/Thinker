@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   indexPDF: (data) => ipcRenderer.invoke('pdf:index', data),
   queryPDF: (data) => ipcRenderer.invoke('pdf:query', data),
   invokeAgent: (data) => ipcRenderer.invoke('agent:invoke', data),
+  cancelAgent: (requestId) => ipcRenderer.invoke('agent:cancel', requestId),
   summarizeCache: (data) => ipcRenderer.invoke('agent:summarizeCache', data),
   appendTokenUsage: (entry) => ipcRenderer.invoke('tokens:append', entry),
   getTokenUsageHistory: () => ipcRenderer.invoke('tokens:getHistory'),

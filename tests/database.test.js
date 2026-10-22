@@ -149,3 +149,15 @@ test('settings are stored per scope and can be reset', () => {
   assert.deepStrictEqual(store.getSettings().map((s) => s.scope), ['app']);
 });
 
+
+test('conversation list carries a message count and the last answer as a preview', () => {
+  const { dir, store } = freshStore();
+  const p = writePdf(dir, 'preview.pdf');
+  const conv = store.createConversation(p);
+  store.appendMessage(conv.id, { role: 'user', text: 'q1', question: 'What is it?' });
+  store.appendMessage(conv.id, { role: 'assistant', text: 'It is a scheduler.' });
+  store.appendMessage(conv.id, { role: 'user', text: 'q2', question: 'More?' });
+  const [row] = store.listConversations(p);
+  assert.strictEqual(row.messageCount, 3);
+  assert.strictEqual(row.preview, 'It is a scheduler.');
+});

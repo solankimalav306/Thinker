@@ -10,7 +10,7 @@
   <script src="vendor/marked/marked.umd.js"></script>
   <script src="vendor/dompurify/purify.min.js"></script>
   <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
-  <link rel="icon" type="image/svg+xml" href="assets/brand/app-icon.svg" />
+  <link rel="icon" type="image/png" href="assets/brand/app-icon-256.png" />
   <link rel="stylesheet" href="css/tokens.css" />
   <link rel="stylesheet" href="css/base.css" />
   <link rel="stylesheet" href="css/components.css" />
@@ -29,7 +29,7 @@
 <body>
   <header class="custom-title-bar">
     <div class="title-brand">
-      <span class="title-mark"><img src="assets/brand/t-mark.svg" alt=""></span>
+      <span class="brand-t title-mark" role="img" aria-label="Thinker"></span>
       <span class="title-name">Thinker</span>
     </div>
     <nav class="pdf-tabs" id="pdf-tabs" aria-label="Open documents"></nav>
@@ -376,7 +376,7 @@
       <div class="resizer chat-resizer" id="chat-resizer"></div>
       <div class="chat-header">
         <div class="chat-title-row">
-          <h2><span class="chat-mark"><img src="assets/brand/t-mark.svg" alt=""></span> Ask Thinker</h2>
+          <h2><span class="brand-t chat-mark" aria-hidden="true"></span> Ask Thinker</h2>
           <div class="chat-title-actions">
             <button id="ai-capabilities-btn" class="btn icon-btn" title="What can Thinker do?"><i class="fa-solid fa-circle-info"></i></button>
             <button id="chat-close-btn" class="btn icon-btn" title="Close chat"><i class="fa-solid fa-xmark"></i></button>
@@ -384,6 +384,7 @@
         </div>
         <div class="conversation-bar" id="conversation-bar"></div>
       </div>
+      <div class="chat-list" id="chat-list" hidden></div>
 
       <div class="chat-history" id="chat-history"></div>
 
@@ -400,6 +401,7 @@
             <option value="document" title="Answers only from this PDF">Document only</option>
           </select>
           <select id="chat-profile-select" class="chat-bottom-select" title="AI model" aria-label="AI model"></select>
+          <button id="instructions-btn" class="pill-btn" type="button" title="Custom AI instructions"><i class="fa-solid fa-sliders"></i><span>Instructions</span><span class="pill-count" id="instructions-count" hidden></span></button>
           <button id="summarize-cache-btn" class="btn icon-btn" title="Condense this chat's memory"><i class="fa-solid fa-brain"></i></button>
           <span id="token-tracker" class="token-tracker" title="Tokens used by the last answer">Tokens: 0</span>
         </div>

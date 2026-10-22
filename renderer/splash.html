@@ -41,19 +41,10 @@
       margin-top: 18px;
     }
 
-    .logo-tile {
-      display: grid;
-      place-items: center;
-      width: 72px;
-      height: 72px;
-      border-radius: 20px;
-      background: var(--brand-highlighter);
+    .logo-t {
+      --t-size: 56px;
+      color: var(--text);
       animation: float 2.4s var(--ease) infinite;
-    }
-
-    .logo-tile img {
-      width: 30px;
-      height: 35px;
     }
 
     .brand h1 {
@@ -98,7 +89,7 @@
 <body>
   <div class="splash-card">
     <div class="brand">
-      <div class="logo-tile"><img src="assets/brand/t-mark.svg" alt=""></div>
+      <div class="brand-t logo-t" role="img" aria-label="Thinker"></div>
       <div>
         <h1>Thinker</h1>
         <p>Read. Ask. Mark it up.</p>

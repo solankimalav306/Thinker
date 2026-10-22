@@ -1,19 +1,12 @@
 /* Reset, typography, scrollbars, focus and selection. */
 
+/* Shantell Sans: a marker-pen, notebook-margin hand that matches the blunt cut of the T. */
 @font-face {
-  font-family: "Inter Variable";
+  font-family: "Shantell Sans Variable";
   font-style: normal;
   font-display: swap;
-  font-weight: 100 900;
-  src: url("../vendor/fonts/inter-latin-wght-normal.woff2") format("woff2");
-}
-
-@font-face {
-  font-family: "Fraunces Variable";
-  font-style: normal;
-  font-display: swap;
-  font-weight: 100 900;
-  src: url("../vendor/fonts/fraunces-latin-wght-normal.woff2") format("woff2");
+  font-weight: 300 800;
+  src: url("../vendor/fonts/shantell-sans-latin-wght-normal.woff2") format("woff2");
 }
 
 *,
@@ -50,9 +43,9 @@ h1,
 h2,
 h3 {
   font-family: var(--font-display);
-  font-weight: 650;
+  font-weight: 750;
   line-height: var(--leading-tight);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.005em;
 }
 
 h4 {
@@ -88,6 +81,17 @@ button {
 
 a {
   color: var(--accent-text);
+}
+
+/* The Thinker T: the original artwork (assets/logo.png), used as a mask so it takes any colour. */
+.brand-t {
+  display: inline-block;
+  flex: none;
+  width: var(--t-size, 18px);
+  aspect-ratio: 397 / 461;
+  background: currentColor;
+  -webkit-mask: url("../assets/logo.png") center / contain no-repeat;
+  mask: url("../assets/logo.png") center / contain no-repeat;
 }
 
 /* Focus: one clear ring everywhere, only for keyboard users. */

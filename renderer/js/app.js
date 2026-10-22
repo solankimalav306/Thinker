@@ -903,6 +903,9 @@ async function boot() {
     onStatus: setStatus,
     onSaveNote: (text) => notes.addNote(text, 'Chat'),
     conversationBar: document.getElementById("conversation-bar"),
+    chatList: document.getElementById("chat-list"),
+    instructionsBtn: document.getElementById("instructions-btn"),
+    instructionsCount: document.getElementById("instructions-count"),
     getMode: () => elements.chatModeSelect?.value || "auto",
     getInstructions: (conversationId) => window.electronAPI.resolveInstructions(pdf.getCurrentPath(), conversationId),
     onOpenInstructions: (conversationId) => openInstructionsPanel({
