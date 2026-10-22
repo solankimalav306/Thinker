@@ -8,13 +8,17 @@ const { spawn } = require('child_process');
 const net = require('net');
 const axios = require('axios');
 
-const { migrateProfileSecrets, getItemSync, setItemSync, removeItemSync, getItemDirect, readJsonlAll, appendJsonlEntry } = require('./app-storage');
+const { initStorage, migrateProfileSecrets, getItemSync, setItemSync, removeItemSync, getItemDirect } = require('./app-storage');
+const { openDatabase } = require('./database');
+const { createStore } = require('./store');
+const { importLegacyData } = require('./legacy-import');
 const { handleLLMGenerate } = require('./llm-handler');
 const { resolveSecrets } = require('./secrets');
 const { writeRealAnnotations } = require('./pdf-annotations');
 
 // ── Backend process handle (so we can kill it cleanly on exit) ──────────────
 let backendProcess = null;
+let store = null;
 
 // ── Backend address: random free port + per-launch token, chosen at startup ──
 let BACKEND_PORT = 0;
@@ -120,27 +124,6 @@ function createSplash() {
   splashWindow.loadFile('renderer/splash.html', {
     query: { theme, palette, customAccent }
   });
-}
-
-function getPdfId(filePath) {
-  try {
-    // Convert file:// URL to local path if needed
-    let localPath = filePath;
-    if (filePath.startsWith('file:///')) {
-      localPath = filePath.replace('file:///', '').replace(/\//g, '\\');
-    } else if (filePath.startsWith('file://')) {
-      localPath = filePath.replace('file://', '');
-    }
-
-    console.log('Computing PDF ID for:', localPath);
-    const buffer = fs.readFileSync(localPath);
-    const hash = crypto.createHash('sha256').update(buffer).digest('hex');
-    console.log('PDF ID computed:', hash);
-    return hash;
-  } catch (error) {
-    console.error('Failed to compute PDF ID for', filePath, ':', error.message);
-    return null;
-  }
 }
 
 function toLocalPath(filePath) {
@@ -291,7 +274,6 @@ function flattenAnnotations(pdfDoc, annotationsByPage, highlightBoxesByPage) {
   }
 }
 
-const TOKEN_USAGE_KEY = 'smartpdf.tokenUsage';
 
 ipcMain.on('storage:getItem', getItemSync);
 ipcMain.on('storage:setItem', setItemSync);
@@ -308,35 +290,6 @@ const windows = new Set();
 let snipWindow = null;
 let snippingRequestorWindow = null;
 
-
-function getChatHistoryDir() {
-  return path.join(app.getPath('userData'), 'chat-history');
-}
-
-function getPdfChatPath(pdfPath) {
-  const hash = crypto.createHash('sha256').update(pdfPath).digest('hex');
-  return path.join(getChatHistoryDir(), `${hash}.jsonl`);
-}
-
-async function readJsonl(filePath) {
-  try {
-    const content = await fsPromises.readFile(filePath, 'utf8');
-    return content
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .map((line) => {
-        try {
-          return JSON.parse(line);
-        } catch {
-          return null;
-        }
-      })
-      .filter(Boolean);
-  } catch {
-    return [];
-  }
-}
 
 function createMainWindow(filePath = null) {
   const win = new BrowserWindow({
@@ -414,25 +367,22 @@ function registerIpcHandlers() {
 
   ipcMain.handle('chat:loadHistory', async (_event, pdfPath) => {
     if (!pdfPath) return [];
-    const filePath = getPdfChatPath(pdfPath);
-    return readJsonl(filePath);
+    const [latest] = store.listConversations(pdfPath);
+    return latest ? store.getMessages(latest.id) : [];
   });
 
   ipcMain.handle('chat:appendEntry', async (_event, payload) => {
     if (!payload || !payload.pdfPath || !payload.entry) {
       return false;
     }
-
-    const dir = getChatHistoryDir();
-    await fsPromises.mkdir(dir, { recursive: true });
-    const filePath = getPdfChatPath(payload.pdfPath);
-    const line = `${JSON.stringify(payload.entry)}\n`;
-    await fsPromises.appendFile(filePath, line, 'utf8');
+    const conversation = store.listConversations(payload.pdfPath)[0] || store.createConversation(payload.pdfPath);
+    store.appendMessage(conversation.id, payload.entry);
     return true;
   });
 
   ipcMain.handle('pdf:getPdfId', (_event, filePath) => {
-    return getPdfId(filePath);
+    const id = store.docIdForPath(filePath);
+    return id && !id.startsWith('missing-') ? id : null;
   });
 
   ipcMain.handle('app:getUserDataPath', async () => {
@@ -463,12 +413,8 @@ function registerIpcHandlers() {
       // Append detailed notes (if any) as extra pages at the end of the PDF
       try {
         if (payload?.includeNotes !== false) {
-          const pdfId = path.basename(sourcePath, path.extname(sourcePath));
-          const notesFile = path.join(app.getPath('userData'), `notes-${pdfId}.json`);
-          if (fs.existsSync(notesFile)) {
-            const raw = await fsPromises.readFile(notesFile, 'utf8');
-            let notesArr = [];
-            try { notesArr = JSON.parse(raw); } catch { notesArr = []; }
+          {
+            const notesArr = store.loadNotes(sourcePath);
 
             if (Array.isArray(notesArr) && notesArr.length > 0) {
               // Use first page size as reference, or A4 fallback
@@ -547,28 +493,20 @@ function registerIpcHandlers() {
   });
 
   // Notes persistence handlers
-  ipcMain.handle('notes:load', async (event, pdfPath) => {
+  ipcMain.handle('notes:load', async (_event, pdfPath) => {
     try {
-      const userData = app.getPath('userData');
-      const pdfId = path.basename(pdfPath, path.extname(pdfPath));
-      const notesFile = path.join(userData, `notes-${pdfId}.json`);
-      if (fs.existsSync(notesFile)) {
-        const data = fs.readFileSync(notesFile, 'utf-8');
-        return JSON.parse(data);
-      }
-      return [];
+      return store.loadNotes(pdfPath);
     } catch (e) {
+      console.error('Failed to load notes:', e);
       return [];
     }
   });
-  ipcMain.handle('notes:save', async (event, pdfPath, notes) => {
+  ipcMain.handle('notes:save', async (_event, pdfPath, notes) => {
     try {
-      const userData = app.getPath('userData');
-      const pdfId = path.basename(pdfPath, path.extname(pdfPath));
-      const notesFile = path.join(userData, `notes-${pdfId}.json`);
-      fs.writeFileSync(notesFile, JSON.stringify(notes, null, 2), 'utf-8');
+      store.saveNotes(pdfPath, notes);
       return true;
     } catch (e) {
+      console.error('Failed to save notes:', e);
       return false;
     }
   });
@@ -576,14 +514,7 @@ function registerIpcHandlers() {
   // Mindmaps persistence per-PDF
   ipcMain.handle('mindmaps:list', async (_event, pdfPath) => {
     try {
-      const userData = app.getPath('userData');
-      const pdfId = crypto.createHash('sha256').update(String(pdfPath)).digest('hex');
-      const file = path.join(userData, `mindmaps-${pdfId}.json`);
-      if (fs.existsSync(file)) {
-        const data = await fsPromises.readFile(file, 'utf8');
-        return JSON.parse(data);
-      }
-      return [];
+      return store.listMindmaps(pdfPath);
     } catch (e) {
       console.error('Failed to list mindmaps:', e);
       return [];
@@ -592,19 +523,7 @@ function registerIpcHandlers() {
 
   ipcMain.handle('mindmaps:save', async (_event, pdfPath, mindmap) => {
     try {
-      const userData = app.getPath('userData');
-      const pdfId = crypto.createHash('sha256').update(String(pdfPath)).digest('hex');
-      const file = path.join(userData, `mindmaps-${pdfId}.json`);
-      let arr = [];
-      if (fs.existsSync(file)) {
-        arr = JSON.parse(await fsPromises.readFile(file, 'utf8')) || [];
-      }
-      mindmap.id = mindmap.id || String(Date.now());
-      mindmap.createdAt = mindmap.createdAt || new Date().toISOString();
-      const idx = arr.findIndex(m => m.id === mindmap.id);
-      if (idx > -1) arr[idx] = mindmap; else arr.push(mindmap);
-      await fsPromises.writeFile(file, JSON.stringify(arr, null, 2), 'utf8');
-      return { ok: true, result: mindmap };
+      return { ok: true, result: store.saveMindmap(pdfPath, mindmap) };
     } catch (e) {
       console.error('Failed to save mindmap:', e);
       return { ok: false };
@@ -613,15 +532,7 @@ function registerIpcHandlers() {
 
   ipcMain.handle('mindmaps:delete', async (_event, pdfPath, id) => {
     try {
-      const userData = app.getPath('userData');
-      const pdfId = crypto.createHash('sha256').update(String(pdfPath)).digest('hex');
-      const file = path.join(userData, `mindmaps-${pdfId}.json`);
-      let arr = [];
-      if (fs.existsSync(file)) {
-        arr = JSON.parse(await fsPromises.readFile(file, 'utf8')) || [];
-      }
-      arr = arr.filter(m => m.id !== id);
-      await fsPromises.writeFile(file, JSON.stringify(arr, null, 2), 'utf8');
+      store.deleteMindmap(pdfPath, id);
       return { ok: true };
     } catch (e) {
       console.error('Failed to delete mindmap:', e);
@@ -706,7 +617,7 @@ function registerIpcHandlers() {
 
   ipcMain.handle('tokens:append', async (_event, entry) => {
     try {
-      appendJsonlEntry(TOKEN_USAGE_KEY, entry);
+      store.appendUsage(entry);
       return { ok: true };
     } catch (error) {
       console.error('Failed to append token usage:', error);
@@ -716,11 +627,7 @@ function registerIpcHandlers() {
 
   ipcMain.handle('tokens:getHistory', async () => {
     try {
-      const rows = readJsonlAll(TOKEN_USAGE_KEY);
-      return rows.map((row) => {
-        const { timestamp, ...rest } = row;
-        return { timestamp, ...rest };
-      });
+      return store.readUsage();
     } catch (error) {
       console.error('Failed to read token usage:', error);
       return [];
@@ -729,12 +636,7 @@ function registerIpcHandlers() {
 
   ipcMain.handle('glossary:get', async () => {
     try {
-      const glossaryFile = path.join(app.getPath('userData'), 'glossary.json');
-      if (fs.existsSync(glossaryFile)) {
-        const data = await fsPromises.readFile(glossaryFile, 'utf8');
-        return JSON.parse(data);
-      }
-      return { terms: [], pdfGlossaries: {} };
+      return store.getGlossary();
     } catch (error) {
       console.error('Failed to get glossary:', error);
       return { terms: [], pdfGlossaries: {} };
@@ -743,23 +645,7 @@ function registerIpcHandlers() {
 
   ipcMain.handle('glossary:add', async (_event, payload) => {
     try {
-      const glossaryFile = path.join(app.getPath('userData'), 'glossary.json');
-      let glossary = { terms: [], pdfGlossaries: {} };
-      
-      if (fs.existsSync(glossaryFile)) {
-        const data = await fsPromises.readFile(glossaryFile, 'utf8');
-        glossary = JSON.parse(data);
-      }
-
-      // Handle global vs PDF-specific glossary if needed, for now just global terms
-      const existingIndex = glossary.terms.findIndex(t => t.term.toLowerCase() === payload.term.toLowerCase());
-      if (existingIndex > -1) {
-        glossary.terms[existingIndex] = { ...glossary.terms[existingIndex], ...payload, frequency: (glossary.terms[existingIndex].frequency || 1) + 1 };
-      } else {
-        glossary.terms.push({ ...payload, dateAdded: new Date().toISOString(), frequency: 1 });
-      }
-
-      await fsPromises.writeFile(glossaryFile, JSON.stringify(glossary, null, 2), 'utf8');
+      store.addGlossaryTerm(payload);
       return true;
     } catch (error) {
       console.error('Failed to add to glossary:', error);
@@ -769,13 +655,7 @@ function registerIpcHandlers() {
 
   ipcMain.handle('glossary:remove', async (_event, term) => {
     try {
-      const glossaryFile = path.join(app.getPath('userData'), 'glossary.json');
-      if (fs.existsSync(glossaryFile)) {
-        const data = await fsPromises.readFile(glossaryFile, 'utf8');
-        const glossary = JSON.parse(data);
-        glossary.terms = glossary.terms.filter(t => t.term !== term);
-        await fsPromises.writeFile(glossaryFile, JSON.stringify(glossary, null, 2), 'utf8');
-      }
+      store.removeGlossaryTerm(term);
       return true;
     } catch (error) {
       console.error('Failed to remove from glossary:', error);
@@ -850,6 +730,15 @@ if (!gotTheLock) {
       Menu.setApplicationMenu(null);
     }
 
+    // Open the database first: everything else (splash theme, profiles, IPC handlers) reads from it.
+    store = createStore(openDatabase(app.getPath('userData')));
+    initStorage(store);
+    try {
+      const imported = importLegacyData(store, app.getPath('userData'));
+      if (!imported.skipped) console.log('[storage] imported legacy data:', JSON.stringify(imported.report));
+    } catch (error) {
+      console.error('[storage] legacy import failed; old files are untouched:', error);
+    }
     migrateProfileSecrets();
 
     // Register all IPC handlers once
