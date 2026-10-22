@@ -15,7 +15,9 @@ import {
   setTheme,
   getGlossary,
   addToGlossary,
-  removeFromGlossary
+  removeFromGlossary,
+  getReadingState,
+  saveReadingState
 } from "./state.js";
 import { PdfController } from "./pdf-controller.js";
 import { AnnotationController } from "./annotation-controller.js";
@@ -647,6 +649,14 @@ async function boot() {
   elements.fitModeSelect.value = "auto";
   const embeddingsStoragePath = await window.electronAPI.getUserDataPath();
 
+  // Remember page, zoom and view mode per document (debounced, so scrolling doesn't hammer storage).
+  let readingStateTimer = null;
+  function scheduleReadingStateSave(path, viewState) {
+    if (!path) return;
+    clearTimeout(readingStateTimer);
+    readingStateTimer = setTimeout(() => saveReadingState(path, viewState), 600);
+  }
+
   const pdf = new PdfController({
     canvas: elements.canvas,
     textLayerDiv: elements.textLayer,
@@ -663,6 +673,7 @@ async function boot() {
     thumbnailList: elements.thumbnailList,
     storagePath: embeddingsStoragePath,
     onStatus: setStatus,
+    onViewChange: scheduleReadingStateSave,
     onPathChange: (name) => {
       if (elements.activeFileLabel) {
         elements.activeFileLabel.textContent = name;
@@ -832,6 +843,7 @@ async function boot() {
     tokenTracker: elements.tokenTracker,
     summarizeCacheBtn: elements.summarizeCacheBtn,
     onStatus: setStatus,
+    onSaveNote: (text) => notes.addNote(text, 'Chat'),
     getChatConfig: getCurrentChatConfig,
     onTokenUsage: () => refreshTokenDashboard(elements, elements.tokenUsageProfileFilter?.value || "all"),
     onAgentAction: (action) => {
@@ -1105,7 +1117,7 @@ async function boot() {
     }
 
     activeTabPath = path;
-    const savedState = tabViewState.get(path) || null;
+    const savedState = tabViewState.get(path) || getReadingState(path);
     await pdf.load(path, savedState);
     await chat.loadPdfHistory(path);
     await notes.load(path);
@@ -1654,6 +1666,9 @@ async function boot() {
   if (pdfToOpen) {
     openTab(decodeURIComponent(pdfToOpen));
   }
+
+  // Icon-only buttons need an accessible name; reuse their tooltip text.
+  document.querySelectorAll("button[title]:not([aria-label])").forEach((btn) => btn.setAttribute("aria-label", btn.title));
 
   renderRecents(loadRecent);
   renderSettings();

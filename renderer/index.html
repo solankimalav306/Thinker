@@ -69,11 +69,11 @@
           </div>
 
           <div class="tool-group">
-            <button class="btn icon-btn tool-btn" id="pen-1" title="Pen"><i class="fa-solid fa-pen"></i></button>
-            <button class="btn icon-btn tool-btn" id="pen-2" title="Pen"><i class="fa-solid fa-pen"></i></button>
-            <button class="btn icon-btn tool-btn" id="pen-3" title="Pen"><i class="fa-solid fa-pen"></i></button>
-            <button class="btn icon-btn tool-btn" id="highlighter-1" title="Highlighter"><i class="fa-solid fa-highlighter"></i></button>
-            <button class="btn icon-btn tool-btn" id="highlighter-2" title="Highlighter"><i class="fa-solid fa-highlighter"></i></button>
+            <button class="btn icon-btn tool-btn" id="pen-1" title="Black pen"><i class="fa-solid fa-pen"></i></button>
+            <button class="btn icon-btn tool-btn" id="pen-2" title="Red pen"><i class="fa-solid fa-pen"></i></button>
+            <button class="btn icon-btn tool-btn" id="pen-3" title="Blue pen"><i class="fa-solid fa-pen"></i></button>
+            <button class="btn icon-btn tool-btn" id="highlighter-1" title="Yellow highlighter"><i class="fa-solid fa-highlighter"></i></button>
+            <button class="btn icon-btn tool-btn" id="highlighter-2" title="Green highlighter"><i class="fa-solid fa-highlighter"></i></button>
             <button class="btn icon-btn tool-btn" id="eraser-btn" title="Eraser"><i class="fa-solid fa-eraser"></i></button>
             <button class="btn icon-btn tool-btn" id="sticky-note-btn" title="Add Sticky Note (click on page)"><i class="fa-solid fa-note-sticky"></i></button>
             <button class="btn icon-btn" id="screenshot-btn" title="Take screenshot"><i class="fa-solid fa-camera"></i></button>
@@ -364,14 +364,14 @@
         </div>
         <div class="chat-controls-row" style="display: flex; justify-content: space-between; align-items: center;">
           <div style="display: flex; gap: 8px;">
-            <select id="chat-mode-select" class="chat-bottom-select">
-              <option value="auto" selected>Auto</option>
-              <option value="document">Document Only</option>
+            <select id="chat-mode-select" class="chat-bottom-select" title="Answer source" aria-label="Answer source">
+              <option value="auto" selected title="Uses the document first and adds general AI knowledge when needed">Auto: document + AI knowledge</option>
+              <option value="document" title="Answers only from this PDF">Document only</option>
             </select>
-            <select id="chat-profile-select" class="chat-bottom-select"></select>
+            <select id="chat-profile-select" class="chat-bottom-select" title="AI model profile" aria-label="AI model profile"></select>
             <button id="summarize-cache-btn" class="btn icon-btn" title="Summarize knowledge cache" style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-size: 0.75rem;"><i class="fa-solid fa-brain"></i></button>
           </div>
-          <div id="token-tracker" style="font-size: 0.65rem; color: var(--text-soft); font-family: monospace;" title="Last Request Tokens (Prompt + Response)">Tokens: 0</div>
+          <div id="token-tracker" style="font-size: 0.75rem; color: var(--text-soft); font-family: monospace;" title="Last Request Tokens (Prompt + Response)">Tokens: 0</div>
         </div>
       </div>
     </aside>

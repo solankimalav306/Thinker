@@ -3929,3 +3929,48 @@ body.sticky-placement-mode #annotation-canvas { cursor: crosshair !important; }
   transform: scale(1.02);
   transition: transform 0.15s ease, background 0.15s ease;
 }
+
+/* Selected text pasted into the chat: collapsed to a few lines until clicked. */
+.selected-text-box.collapsible { cursor: pointer; position: relative; }
+.selected-text-box.collapsed {
+  max-height: 4.6em;
+  overflow: hidden;
+}
+.selected-text-box.collapsed::after {
+  content: "Click to expand";
+  position: absolute;
+  right: 8px;
+  bottom: 4px;
+  padding-left: 24px;
+  font-size: 0.7rem;
+  color: var(--accent);
+  background: linear-gradient(to right, transparent, var(--panel-soft) 40%);
+}
+
+/* Copy / save actions under each answer. */
+.message-actions { display: flex; gap: 6px; margin-top: 8px; }
+.message-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-soft);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+.message-action-btn:hover:not(:disabled) { color: var(--text); border-color: var(--accent); }
+.message-action-btn:disabled { opacity: 0.7; cursor: default; }
+.message-action-btn:focus-visible,
+.btn:focus-visible,
+.activity-btn:focus-visible,
+.chat-bottom-select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.chat-bottom-select { font-size: 0.78rem; }
+
+/* Pen colours are shown by the icon colour; a halo keeps the black pen visible on dark themes. */
+.tool-btn i { filter: drop-shadow(0 0 1.5px rgba(255, 255, 255, 0.85)); }

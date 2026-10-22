@@ -48,6 +48,7 @@ export class PdfController {
     this.onStatus = options.onStatus;
     this.onPathChange = options.onPathChange;
     this.onRendered = options.onRendered;
+    this.onViewChange = options.onViewChange;
     this.onPageRendered = options.onPageRendered;
     this.storagePath = options.storagePath;
     this.persistentHighlights = new Map(); // pageNum -> string[]
@@ -288,6 +289,7 @@ export class PdfController {
     const step = this.viewMode === "two" ? 2 : 1;
     this.prevBtn.disabled = this.pageNum <= 1;
     this.nextBtn.disabled = this.pageNum + step > this.pdfDoc.numPages;
+    this.onViewChange?.(this.currentPath, this.getViewState());
   }
 
   nextPage() {

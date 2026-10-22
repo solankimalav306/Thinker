@@ -142,3 +142,36 @@ export async function addToGlossary(term, definition, source) {
 export async function removeFromGlossary(term) {
   return await window.electronAPI.removeFromGlossary(term);
 }
+
+// Per-document reading position (page, zoom, view mode), so reopening a file resumes it.
+// Keyed by a short hash of the path to keep storage file names well under Windows limits.
+function readingStateKey(path) {
+  let hash = 2166136261;
+  for (let i = 0; i < path.length; i += 1) {
+    hash = Math.imul(hash ^ path.charCodeAt(i), 16777619) >>> 0;
+  }
+  return `smartpdf.reading.${hash.toString(16)}`;
+}
+
+export function getReadingState(path) {
+  if (!path) return null;
+  const parsed = safeParse(window.electronAPI.getItem(readingStateKey(path)), null);
+  if (!parsed || typeof parsed !== "object") return null;
+  const pageNum = Number(parsed.pageNum);
+  const scale = Number(parsed.scale);
+  return {
+    pageNum: Number.isFinite(pageNum) && pageNum >= 1 ? Math.floor(pageNum) : 1,
+    scale: Number.isFinite(scale) && scale > 0 ? scale : null,
+    viewMode: parsed.viewMode
+  };
+}
+
+export function saveReadingState(path, state) {
+  if (!path || !state) return;
+  window.electronAPI.setItem(readingStateKey(path), JSON.stringify({
+    pageNum: state.pageNum,
+    scale: state.scale,
+    viewMode: state.viewMode
+  }));
+}
+
