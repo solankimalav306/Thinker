@@ -172,3 +172,91 @@ body.snipping-active #text-layer {
 body.sticky-placement-mode .pdf-viewer {
   cursor: crosshair;
 }
+
+/* ---------- Files that cannot be shown: damaged, empty, missing or locked ---------- */
+.doc-state {
+  display: grid;
+  place-items: center;
+  min-height: 100%;
+}
+
+.doc-state[hidden] {
+  display: none;
+}
+
+.doc-state-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  width: min(460px, 100%);
+  padding: var(--space-8) var(--space-6);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
+  text-align: center;
+}
+
+.doc-state-icon {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-lg);
+  background: var(--primary);
+  color: var(--on-primary);
+  font-size: 1.6rem;
+}
+
+.doc-state-card h2 {
+  font-size: var(--text-xl);
+}
+
+.doc-state-card p {
+  max-width: 36ch;
+  color: var(--text-2);
+}
+
+.doc-state-form {
+  display: flex;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.doc-state-error {
+  color: var(--danger) !important;
+  font-weight: 600;
+}
+
+.doc-state-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.doc-state-details {
+  width: 100%;
+  margin-top: var(--space-2);
+  color: var(--text-3);
+  font-size: var(--text-sm);
+  text-align: left;
+}
+
+.doc-state-details summary {
+  cursor: pointer;
+}
+
+.doc-state-details pre {
+  margin: var(--space-2) 0 0;
+  padding: var(--space-3);
+  overflow-x: auto;
+  border-radius: var(--radius-md);
+  background: var(--sunken);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

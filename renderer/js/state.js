@@ -71,6 +71,11 @@ export function getRecents() {
   }
 }
 
+export function removeRecent(path) {
+  const remaining = getRecents().filter((item) => item !== path);
+  window.electronAPI.setItem(STORAGE_KEYS.recents, JSON.stringify(remaining));
+}
+
 export function pushRecent(path) {
   const trimmed = path.trim();
   if (!trimmed) {

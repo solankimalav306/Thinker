@@ -144,6 +144,8 @@
 
 .notes-tabs {
   display: flex;
+  flex: 1;
+  min-width: 0;
   padding: 3px;
   gap: 2px;
   border-radius: var(--radius-md);
@@ -152,7 +154,10 @@
 
 .notes-tab {
   display: inline-flex;
+  flex: 1;
   align-items: center;
+  justify-content: center;
+  min-width: 0;
   gap: 6px;
   padding: 5px 10px;
   border: 0;
@@ -202,13 +207,18 @@
 .note-header {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
   margin-bottom: var(--space-2);
   color: var(--text-3);
   font-size: var(--text-xs);
 }
 
 .note-source-badge {
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   padding: 1px 8px;
   border-radius: var(--radius-full);
   background: var(--accent-soft);
@@ -231,6 +241,7 @@
 .note-content {
   font-size: var(--text-sm);
   line-height: 1.55;
+  overflow-wrap: anywhere;
 }
 
 .note-content p {
@@ -439,4 +450,26 @@
 .mindmap-item .delete-btn {
   width: 28px;
   height: 28px;
+}
+
+/* Anything that comes from documents, models or users can contain very long unbroken text. */
+.glossary-def,
+.glossary-term span,
+.sticky-sidebar-text,
+.history-entry-title,
+.mindmap-item-title,
+.recent-item-name,
+.chat-row-title,
+.settings-api-label,
+.dict-def,
+.dict-term {
+  overflow-wrap: anywhere;
+}
+
+.glossary-term {
+  align-items: flex-start;
+}
+
+.glossary-remove {
+  flex: none;
 }

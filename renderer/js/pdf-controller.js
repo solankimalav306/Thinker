@@ -27,6 +27,22 @@ function escapeHtml(value) {
 }
 
 
+// Turns whatever PDF.js threw into something the interface can explain in plain words.
+export function classifyLoadError(error) {
+  const name = error?.name || "";
+  const message = String(error?.message || error || "");
+  if (name === "PasswordException") {
+    return { kind: error.code === 2 ? "wrong-password" : "password" };
+  }
+  if (name === "MissingPDFException" || /not found|ENOENT|404|ERR_FILE_NOT_FOUND|Missing PDF/i.test(message)) {
+    return { kind: "missing" };
+  }
+  if (name === "InvalidPDFException") {
+    return { kind: /zero bytes|\bempty\b/i.test(message) ? "empty" : "invalid" };
+  }
+  return { kind: "unknown" };
+}
+
 const VIEW_MODES = new Set(["single", "two", "scroll"]);
 
 export class PdfController {
@@ -49,6 +65,7 @@ export class PdfController {
     this.onPathChange = options.onPathChange;
     this.onRendered = options.onRendered;
     this.onViewChange = options.onViewChange;
+    this.onLoadError = options.onLoadError;
     this.onPageRendered = options.onPageRendered;
     this.storagePath = options.storagePath;
     this.persistentHighlights = new Map(); // pageNum -> string[]
@@ -146,11 +163,13 @@ export class PdfController {
     }
   }
 
-  async load(path, viewState = null) {
+  // Resolves true when the document opened. On failure it reports a classified error through
+  // onLoadError (the interface shows it) and resolves false.
+  async load(path, viewState = null, options = {}) {
     this.onStatus("Loading PDF...");
 
     try {
-      const task = pdfjsLib.getDocument(toPdfSource(path));
+      const task = pdfjsLib.getDocument({ url: toPdfSource(path), password: options.password });
       this.pdfDoc = await task.promise;
       this.currentPath = path;
 
@@ -173,49 +192,18 @@ export class PdfController {
       this.buildOutline();
       this.buildThumbnails();
       this.startIndexing();
+      this.observeStage();
       this.onStatus("PDF loaded.");
+      return true;
     } catch (error) {
-      // Full diagnostic trace — shows in both DevTools console and app status bar
-      const errName    = error?.name    || 'UnknownError';
-      const errMsg     = error?.message || String(error);
-      const errCode    = error?.code    !== undefined ? ` (code: ${error.code})` : '';
-      const errStatus  = error?.status  !== undefined ? ` (HTTP ${error.status})` : '';
-      const source     = toPdfSource(path);
-
-      console.error('═══ PDF LOAD FAILED ═══');
-      console.error('Path supplied :', path);
-      console.error('URL generated :', source);
-      console.error('Error name    :', errName);
-      console.error('Error message :', errMsg + errCode + errStatus);
-      console.error('Full error obj:', error);
-      if (error?.stack) console.error('Stack trace   :\n', error.stack);
-
-      // Show readable message in the status bar
-      this.onStatus(`PDF error: ${errName} — ${errMsg}${errCode}${errStatus}`);
-
-      // Also paint an error card inside the viewer so it's impossible to miss
-      if (this.pdfViewer) {
-        this.pdfViewer.innerHTML = `
-          <div style="padding: 32px; color: var(--text); font-family: inherit; max-width: 600px; margin: 40px auto;">
-            <div style="background: var(--panel); border: 1px solid #ef444488; border-radius: 12px; padding: 24px;">
-              <h3 style="color: #ef4444; margin-top: 0;">⚠ PDF Could Not Be Loaded</h3>
-              <table style="width:100%; border-collapse: collapse; font-size: 0.85rem;">
-                <tr><td style="padding: 6px 12px 6px 0; color: var(--text-soft); white-space:nowrap">Error type</td>
-                    <td style="padding: 6px 0; font-weight: 600; color: var(--text);">${errName}${errCode}${errStatus}</td></tr>
-                <tr><td style="padding: 6px 12px 6px 0; color: var(--text-soft)">Message</td>
-                    <td style="padding: 6px 0; color: var(--text);">${errMsg}</td></tr>
-                <tr><td style="padding: 6px 12px 6px 0; color: var(--text-soft)">File path</td>
-                    <td style="padding: 6px 0; color: var(--text); word-break:break-all;">${path}</td></tr>
-                <tr><td style="padding: 6px 12px 6px 0; color: var(--text-soft)">URL used</td>
-                    <td style="padding: 6px 0; color: var(--text); word-break:break-all; font-size:0.78rem;">${source}</td></tr>
-              </table>
-              <p style="margin-bottom:0; margin-top: 16px; font-size:0.8rem; color: var(--text-soft);">
-                Check the DevTools console (Ctrl+Shift+I) for the full stack trace.
-              </p>
-            </div>
-          </div>`;
-        this.pdfViewer.style.display = 'block';
-      }
+      console.warn("PDF load failed:", path, error);
+      this.pdfDoc = null;
+      this.currentPath = path;
+      this.updateControls();
+      const { kind } = classifyLoadError(error);
+      this.onStatus(kind === "password" || kind === "wrong-password" ? "This PDF is locked." : "This file could not be opened.");
+      this.onLoadError?.({ kind, path, error });
+      return false;
     }
   }
 
@@ -247,6 +235,21 @@ export class PdfController {
     });
   }
   
+  // Re-fits the page when the available space changes (window resized, panels opened, or the
+  // reader becoming visible after the document loaded).
+  observeStage() {
+    if (this.stageObserver || !this.stageElement || typeof ResizeObserver === "undefined") return;
+    let timer = null;
+    this.stageObserver = new ResizeObserver(() => {
+      const width = this.stageElement.clientWidth;
+      if (!this.pdfDoc || width === 0 || this.fitMode === "actual") return;
+      if (Math.abs(width - (this.renderedStageWidth || 0)) < 8) return;
+      clearTimeout(timer);
+      timer = setTimeout(() => this.queueRender(this.pageNum), 120);
+    });
+    this.stageObserver.observe(this.stageElement);
+  }
+
   setViewMode(mode) {
     if (!VIEW_MODES.has(mode) || mode === this.viewMode) {
       return;
@@ -278,7 +281,9 @@ export class PdfController {
   updateControls() {
     this.pageNumEl.textContent = String(this.pdfDoc ? this.pageNum : 0);
     this.pageCountEl.textContent = String(this.pdfDoc ? this.pdfDoc.numPages : 0);
-    this.zoomInput.value = `${Math.round(this.scale * 100)}%`;
+    // In the fit modes the page is sized to the window, so show the zoom that is really in use.
+    const shownScale = this.fitMode !== "actual" && this.lastFit ? this.lastFit : this.scale;
+    this.zoomInput.value = `${Math.round(shownScale * 100)}%`;
 
     if (!this.pdfDoc) {
       this.prevBtn.disabled = true;
@@ -511,6 +516,7 @@ export class PdfController {
       return this.scale;
     }
 
+    this.renderedStageWidth = this.stageElement.clientWidth;
     const stageWidth = Math.max(320, this.stageElement.clientWidth - 36);
     const baseViewport = page.getViewport({ scale: 1 });
 
@@ -522,7 +528,8 @@ export class PdfController {
 
     const fit = stageWidth / baseViewport.width;
     if (mode === "width" || mode === "auto") {
-      return Math.max(0.2, Math.min(fit, 3));
+      this.lastFit = Math.max(0.2, Math.min(fit, 3));
+      return this.lastFit;
     }
 
     return this.scale;

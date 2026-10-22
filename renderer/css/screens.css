@@ -33,15 +33,16 @@
   text-transform: uppercase;
 }
 
-/* The greeting is "marked" with the brand highlighter. */
+/* The greeting is underlined with the brand highlighter, like a marker stroke under a heading.
+   The stroke sits below the letters so the text keeps full contrast in both themes. */
 .home-title {
   display: inline;
-  padding: 0 0.15em;
-  margin-left: -0.15em;
+  padding: 0 0.1em 0.14em;
+  margin-left: -0.1em;
   font-size: clamp(2rem, 5vw, var(--text-3xl));
-  font-weight: 700;
-  line-height: 1.25;
-  background: linear-gradient(transparent 62%, var(--primary) 62%, var(--primary) 90%, transparent 90%);
+  font-weight: 750;
+  line-height: 1.35;
+  background: linear-gradient(transparent 88%, var(--primary) 88%);
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
 }

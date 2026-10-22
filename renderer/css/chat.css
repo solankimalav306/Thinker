@@ -400,9 +400,9 @@
 /* Citations: page chips are tappable, AI-knowledge chips say "this is not from your document". */
 .citation-tag {
   margin: 0 2px;
-  padding: 1px 8px;
+  padding: 3px 10px;
   vertical-align: baseline;
-  font-size: 0.7rem;
+  font-size: var(--text-xs);
 }
 
 .page-citation {
@@ -786,7 +786,7 @@
   margin-left: auto;
   color: var(--text-3);
   font-family: var(--font-mono);
-  font-size: 0.6875rem;
+  font-size: var(--text-xs);
   white-space: nowrap;
 }
 
@@ -831,4 +831,39 @@
 .image-preview img {
   max-height: 90px;
   border-radius: var(--radius-md);
+}
+
+/* ---------- "Connect a model" card ---------- */
+.setup-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px dashed var(--primary-press);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--primary) 8%, var(--surface));
+}
+
+.setup-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+.setup-text {
+  display: flex;
+  flex: 1 1 200px;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.setup-text span {
+  color: var(--text-2);
+  font-size: var(--text-sm);
 }

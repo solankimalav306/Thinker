@@ -34,6 +34,7 @@ export class ChatController {
     this.imagePreviewContainer = options.imagePreviewContainer;
     this.onStatus = options.onStatus;
     this.onSaveNote = options.onSaveNote;
+    this.onNeedSetup = options.onNeedSetup;
     this.getMode = options.getMode;
     this.getInstructions = options.getInstructions;
     this.onOpenInstructions = options.onOpenInstructions;
@@ -214,6 +215,7 @@ export class ChatController {
 
     welcome.append(heading, intro, list, note);
     this.chatHistory.appendChild(welcome);
+    if (!this.hasModel()) this.appendSetupCard();
   }
 
   appendCacheSummary(summaryText, auto = false) {
@@ -645,33 +647,44 @@ export class ChatController {
     return summary.length > 600 ? summary.slice(summary.length - 600) : summary;
   }
 
+  // The saved model profile (or key), if any. Electron has no window.prompt, so a missing model
+  // is handled with an in-chat card that leads to Settings.
   getChatConfigOrPrompt() {
     const config = this.getChatConfig ? this.getChatConfig() : null;
-
-    if (config?.profile) {
+    if (config?.profile || config?.apiKey) {
       return config;
     }
-
-    if (config?.apiKey) {
-      return config;
-    }
-
-    const entered = window.prompt("Enter API key (optional for local or profile-based providers):");
-    if (entered && entered.trim()) {
-      return {
-        apiKey: entered.trim(),
-        profile: { format: "gemini", model: config?.model || DEFAULT_CHAT_MODEL, key: entered.trim() },
-        model: config?.model || DEFAULT_CHAT_MODEL,
-        apiKeyLabel: "Manual key"
-      };
-    }
-
     return {
       apiKey: "",
       profile: null,
       model: config?.model || DEFAULT_CHAT_MODEL,
       apiKeyLabel: "No profile selected"
     };
+  }
+
+  hasModel() {
+    const config = this.getChatConfig ? this.getChatConfig() : null;
+    return Boolean(config?.profile || config?.apiKey);
+  }
+
+  appendSetupCard() {
+    this.chatHistory.querySelector(".setup-card")?.remove();
+    const card = document.createElement("div");
+    card.className = "setup-card";
+    card.innerHTML = `
+      <div class="setup-icon"><i class="fa-solid fa-plug"></i></div>
+      <div class="setup-text">
+        <strong>Connect an AI model first</strong>
+        <span>Thinker needs a model to answer. Paste a free Gemini key, or point it at a model running on your computer.</span>
+      </div>`;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "btn primary";
+    button.textContent = "Add a model";
+    button.addEventListener("click", () => this.onNeedSetup?.());
+    card.appendChild(button);
+    this.chatHistory.appendChild(card);
+    this.chatHistory.scrollTop = this.chatHistory.scrollHeight;
   }
 
   
@@ -707,6 +720,11 @@ export class ChatController {
 
   async sendMessage() {
     if (this.pending) return;
+    if (this.enabled && !this.hasModel()) {
+      this.appendSetupCard();
+      this.onStatus("Add an AI model in Settings to start chatting.");
+      return;
+    }
     if (!this.enabled) {
       this.onStatus("Open a PDF first. Chat is disabled on welcome screen.");
       return;

@@ -18,8 +18,10 @@ import {
   addToGlossary,
   removeFromGlossary,
   getReadingState,
-  saveReadingState
+  saveReadingState,
+  removeRecent
 } from "./state.js";
+import { renderDocState, clearDocState } from "./doc-state.js";
 import { loadSettings, getSetting, setSetting, onSettingChange } from "./settings-registry.js";
 import { registerAllSettings } from "./settings-definitions.js";
 import { renderPreferences } from "./preferences-panel.js";
@@ -173,6 +175,8 @@ const elements = {
   homeEyebrow: document.getElementById("home-eyebrow"),
   usageSummary: document.getElementById("usage-summary"),
   tokenUsagePanel: document.getElementById("token-usage-panel"),
+  docState: document.getElementById("doc-state"),
+  pdfContainer: document.querySelector(".pdf-container"),
   accentSwatches: document.getElementById("accent-swatches"),
   titleTyping: document.getElementById("title-typing"),
   tokenUsageEmpty: document.getElementById("token-usage-empty"),
@@ -670,20 +674,40 @@ function renderSettings() {
   }
 }
 
+function clearFieldErrors(form) {
+  form.querySelectorAll(".field-error").forEach((node) => node.remove());
+  form.querySelectorAll("[aria-invalid]").forEach((input) => input.removeAttribute("aria-invalid"));
+}
+
+function showFieldError(input, message) {
+  input.setAttribute("aria-invalid", "true");
+  const note = document.createElement("span");
+  note.className = "field-error";
+  note.textContent = message;
+  input.closest(".field")?.appendChild(note);
+}
+
 function addApiKeyFromSettings() {
+  const form = elements.settingsApiAdd.closest(".settings-inline-form");
+  clearFieldErrors(form);
+
   const format = elements.settingsApiFormat ? elements.settingsApiFormat.value : "gemini";
-  const label = elements.settingsApiLabel.value.trim() || `${format.toUpperCase()} Profile ${apiProfiles.length + 1}`;
   const url = elements.settingsApiUrl ? elements.settingsApiUrl.value.trim() : "";
   const model = elements.settingsChatModel.value.trim();
   const key = elements.settingsApiKey.value.trim();
+  const label = elements.settingsApiLabel.value.trim() || `${format === "openai" ? "OpenAI-compatible" : "Gemini"} ${apiProfiles.length + 1}`;
+  const isLocal = /^(https?:\/\/)?(localhost|127\.0\.0\.1|\[::1\])/i.test(url);
 
-  if (!label) {
-    setStatus("Add a profile label first.");
+  const problems = [];
+  if (!model) problems.push([elements.settingsChatModel, "Enter a model name, for example gemini-3.5-flash-lite."]);
+  if (!key && !isLocal) problems.push([elements.settingsApiKey, "Paste your API key. It can stay empty only for a model running on this computer."]);
+  if (problems.length > 0) {
+    problems.forEach(([input, message]) => showFieldError(input, message));
+    problems[0][0].focus();
+    setStatus("Fill in the highlighted fields to add this model.");
+    const clear = () => clearFieldErrors(form);
+    form.addEventListener("input", clear, { once: true });
     return;
-  }
-
-  if (format === "openai" && !url) {
-    setStatus("OpenAI-compatible profiles work best with a base URL, especially for localhost providers.");
   }
 
   const id = `api-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -695,7 +719,7 @@ function addApiKeyFromSettings() {
   elements.settingsApiKey.value = "";
 
   renderSettings();
-  setStatus("AI Profile saved.");
+  setStatus(`${label} saved and ready to use.`);
 }
 
 async function boot() {
@@ -732,6 +756,7 @@ async function boot() {
     storagePath: embeddingsStoragePath,
     onStatus: setStatus,
     onViewChange: scheduleReadingStateSave,
+    onLoadError: (info) => showDocState(info),
     onPathChange: (name) => {
       if (elements.activeFileLabel) {
         elements.activeFileLabel.textContent = name;
@@ -904,6 +929,11 @@ async function boot() {
     onSaveNote: (text) => notes.addNote(text, 'Chat'),
     conversationBar: document.getElementById("conversation-bar"),
     chatList: document.getElementById("chat-list"),
+    onNeedSetup: () => {
+      showSettings();
+      document.getElementById("settings-models")?.scrollIntoView({ block: "start" });
+      setTimeout(() => elements.settingsApiLabel?.focus(), 0);
+    },
     instructionsBtn: document.getElementById("instructions-btn"),
     instructionsCount: document.getElementById("instructions-count"),
     getMode: () => elements.chatModeSelect?.value || "auto",
@@ -1180,9 +1210,37 @@ async function boot() {
     }
   });
 
+  // Passwords for locked PDFs live only in memory, for as long as the tab is open.
+  const tabPasswords = new Map();
+
+  function showDocState(info) {
+    elements.appShell.classList.add("no-doc");
+    elements.pdfContainer.hidden = true;
+    renderDocState(elements.docState, info, {
+      onUnlock: (password) => {
+        tabPasswords.set(info.path, password);
+        activateTab(info.path);
+      },
+      onChoose: () => openPdfDialog(),
+      onClose: () => closeTab(info.path),
+      onForget: () => {
+        removeRecent(info.path);
+        renderRecents(loadRecent);
+        closeTab(info.path);
+      }
+    });
+  }
+
+  function hideDocState() {
+    elements.appShell.classList.remove("no-doc");
+    clearDocState(elements.docState);
+    elements.pdfContainer.hidden = false;
+  }
+
+  // Resolves true when the document is on screen.
   async function activateTab(path) {
     if (!path) {
-      return;
+      return false;
     }
 
     if (activeTabPath && activeTabPath !== path && pdf.hasDocument()) {
@@ -1196,16 +1254,32 @@ async function boot() {
       scale: getSetting("reading.defaultZoom") / 100,
       viewMode: getSetting("reading.defaultViewMode")
     };
-    await pdf.load(path, savedState);
+
+    // Show the reader before loading: the page is fitted to the space it will occupy.
+    hideDocState();
+    showReader();
+    chat.setEnabled(false);
+    const opened = await pdf.load(path, savedState, { password: tabPasswords.get(path) });
+
+    // Startup code may have switched to Home while the file loaded; this tab is what was asked for.
+    showReader();
+
+    if (!opened) {
+      // The doc-state view explains why. The chat has nothing to talk about yet.
+      await chat.loadPdfHistory(null);
+      notes.load(null);
+      renderAll();
+      return false;
+    }
+
     await chat.loadPdfHistory(path);
     await notes.load(path);
     await mindmap.load(path);
     history.load(path);
     stickyNotes.refresh();
-    // Switch to the reader first: chat is only enabled in that view.
-    showReader();
     chat.setEnabled(currentView === "reader" && chatVisible);
     renderAll();
+    return true;
   }
 
   async function openTab(path) {
@@ -1213,9 +1287,11 @@ async function boot() {
       openTabs.push(path);
     }
 
-    await activateTab(path);
-    pushRecent(path);
-    renderRecents(loadRecent);
+    const opened = await activateTab(path);
+    if (opened) {
+      pushRecent(path);
+      renderRecents(loadRecent);
+    }
   }
 
   function closeTab(path) {
@@ -1287,6 +1363,24 @@ async function boot() {
   elements.resetColorBtn.addEventListener("click", () => {
     resetAccent();
     renderThemeSettings();
+  });
+
+  // Escape closes the topmost dialog; clicking the dimmed backdrop does too.
+  const DIALOG_IDS = ["user-sticky-dialog", "save-modal", "ai-capabilities-modal", "mindmap-modal"];
+  const openDialog = () => DIALOG_IDS.map((id) => document.getElementById(id)).find((d) => d && getComputedStyle(d).display !== "none");
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    const dialog = openDialog();
+    if (!dialog) return;
+    dialog.style.display = "none";
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }, true);
+  DIALOG_IDS.forEach((id) => {
+    const dialog = document.getElementById(id);
+    dialog?.addEventListener("mousedown", (event) => {
+      if (event.target === dialog) dialog.style.display = "none";
+    });
   });
 
   elements.prevBtn.addEventListener("click", () => pdf.prevPage());
@@ -1740,7 +1834,8 @@ async function boot() {
   const params = new URLSearchParams(window.location.search);
   const pdfToOpen = params.get("open");
   if (pdfToOpen) {
-    openTab(decodeURIComponent(pdfToOpen));
+    // URLSearchParams has already decoded the path; decoding again breaks names containing "%".
+    openTab(pdfToOpen);
   }
 
   // Preferences screen, generated from the settings registry.
