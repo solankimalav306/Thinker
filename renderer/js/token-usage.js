@@ -1,13 +1,22 @@
 const MAX_GRAPH_POINTS = 20;
 
-const COLORS = {
-  context: '#4f46e5',   // Indigo
-  history: '#0ea5e9',   // Sky
-  selected: '#f59e0b',  // Amber
-  prompt: '#8b5cf6',    // Violet
-  response: '#10b981',  // Emerald
-  bg: 'rgba(255, 255, 255, 0.03)'
-};
+// Chart colours come from the active theme so they stay readable in light and dark.
+function cssVar(name, fallback) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+}
+
+function palette() {
+  return {
+    context: cssVar("--accent", "#4f46e5"),
+    history: "#38bdf8",
+    selected: cssVar("--primary-press", "#e8b400"),
+    prompt: cssVar("--accent", "#4f46e5"),
+    response: cssVar("--primary", "#ffd23f"),
+    bg: cssVar("--sunken", "rgba(128,128,128,0.15)"),
+    label: cssVar("--text-2", "#888"),
+    value: cssVar("--text", "#222")
+  };
+}
 
 function formatNum(n) {
   const val = Number(n) || 0;
@@ -91,6 +100,12 @@ export function renderTokenDashboard(elements, history, profileId = "all") {
   const statsEl = elements.tokenUsageStats;
   if (!emptyEl || !statsEl) return;
 
+  if (elements.usageSummary) {
+    elements.usageSummary.textContent = filtered.length === 0
+      ? "Nothing yet"
+      : `${formatNum(stats.total)} tokens \u00b7 ${stats.requests} ${stats.requests === 1 ? "question" : "questions"}`;
+  }
+
   if (filtered.length === 0) {
     emptyEl.style.display = "";
     statsEl.style.display = "none";
@@ -121,15 +136,16 @@ export function renderTokenDashboard(elements, history, profileId = "all") {
 
 function renderBreakdownChart(canvas, breakdown) {
   if (!canvas) return;
+  const colors = palette();
   const ctx = setupCanvas(canvas);
   const w = canvas.offsetWidth;
   const h = canvas.offsetHeight;
 
   const items = [
-    { label: "Context", value: breakdown.context, color: COLORS.context },
-    { label: "History", value: breakdown.history, color: COLORS.history },
-    { label: "Selected", value: breakdown.selected_text, color: COLORS.selected },
-    { label: "Prompt", value: breakdown.prompt, color: COLORS.prompt },
+    { label: "Context", value: breakdown.context, color: colors.context },
+    { label: "History", value: breakdown.history, color: colors.history },
+    { label: "Selected", value: breakdown.selected_text, color: colors.selected },
+    { label: "Prompt", value: breakdown.prompt, color: colors.prompt },
   ];
 
   const total = items.reduce((s, i) => s + i.value, 0) || 1;
@@ -139,20 +155,20 @@ function renderBreakdownChart(canvas, breakdown) {
 
   items.forEach((item) => {
     // 1. Draw Label
-    ctx.font = "500 11px 'Inter', sans-serif";
-    ctx.fillStyle = "#94a3b8"; // Slate 400
+    ctx.font = "500 11px 'Inter Variable', sans-serif";
+    ctx.fillStyle = colors.label;
     ctx.textAlign = "left";
     ctx.fillText(item.label, 0, y + 8);
 
     // 2. Draw Value
     ctx.textAlign = "right";
-    ctx.fillStyle = "#f8fafc"; // Slate 50
+    ctx.fillStyle = colors.value;
     ctx.fillText(formatNum(item.value), w, y + 8);
 
     // 3. Draw Progress Track
     const barY = y + 14;
     const barWidth = w;
-    ctx.fillStyle = COLORS.bg;
+    ctx.fillStyle = colors.bg;
     roundRect(ctx, 0, barY, barWidth, barHeight, 4, true);
 
     // 4. Draw Progress Fill
@@ -166,6 +182,7 @@ function renderBreakdownChart(canvas, breakdown) {
 
 function renderUsageGraph(canvas, points) {
   if (!canvas) return;
+  const colors = palette();
   const ctx = setupCanvas(canvas);
   const w = canvas.offsetWidth;
   const h = canvas.offsetHeight;
@@ -188,15 +205,15 @@ function renderUsageGraph(canvas, points) {
     const rHeight = respRatio * availableH;
 
     // Background track (optional, for "hollow" look)
-    ctx.fillStyle = COLORS.bg;
+    ctx.fillStyle = colors.bg;
     roundRect(ctx, x, 0, barW, h, 3, true);
 
     // Response (Bottom part)
-    ctx.fillStyle = COLORS.response;
+    ctx.fillStyle = colors.response;
     roundRect(ctx, x, h - rHeight, barW, rHeight, 3, true);
 
     // Prompt (Top part)
-    ctx.fillStyle = COLORS.prompt;
+    ctx.fillStyle = colors.prompt;
     roundRect(ctx, x, h - rHeight - pHeight - 2, barW, pHeight, 3, true);
   });
 }

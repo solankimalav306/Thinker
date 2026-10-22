@@ -1,3 +1,5 @@
+import { escapeHtml } from "./safe-html.js";
+
 export class HistoryController {
   constructor(options) {
     this.list = options.list;
@@ -64,7 +66,7 @@ export class HistoryController {
       this.list.innerHTML = `
         <div class="history-empty">
           <i class="fa-solid fa-clock-rotate-left"></i>
-          <p>No history yet.<br>Snapshots are saved each time you export a PDF.</p>
+          <p>No history yet.<br>A snapshot is kept each time you save your marks.</p>
         </div>`;
       return;
     }
@@ -100,7 +102,7 @@ export class HistoryController {
           <i class="fa-solid ${isLatest ? 'fa-circle-dot' : 'fa-circle'}"></i>
         </div>
         <div class="history-entry-body">
-          <div class="history-entry-title">${entry.label || 'Annotated Save'}</div>
+          <div class="history-entry-title">${escapeHtml(entry.label || 'Saved marks')}</div>
           <div class="history-entry-meta">
             <span class="history-entry-time">${dateStr} · ${timeStr}</span>
             <div class="history-entry-badges">

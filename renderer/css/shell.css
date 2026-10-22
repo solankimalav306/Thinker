@@ -1,0 +1,499 @@
+/* App shell: title bar with tabs, navigation rail, toolbar, and the reader layout. */
+
+/* ---------- Title bar ---------- */
+.custom-title-bar {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+  height: var(--titlebar-height);
+  /* Leave room for the native window controls drawn by Electron's title bar overlay. */
+  padding: 0 calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, calc(100vw - 140px))) 0 var(--space-3);
+  background: var(--bg);
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.title-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  align-self: center;
+  flex: none;
+  padding-right: var(--space-2);
+}
+
+.title-mark {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--brand-highlighter);
+  color: var(--brand-ink);
+}
+
+.title-mark img {
+  width: 12px;
+  height: 14px;
+  display: block;
+}
+
+.title-name {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* Tabs live in the title bar. */
+.pdf-tabs {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  flex: 0 1 auto;
+  min-width: 0;
+  height: 100%;
+  padding-top: var(--space-2);
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-app-region: no-drag;
+  scrollbar-width: none;
+}
+
+.pdf-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.pdf-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 0 1 auto;
+  min-width: 64px;
+  max-width: 220px;
+  height: 100%;
+  padding: 0 var(--space-3);
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  background: transparent;
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  font-weight: 550;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+
+.pdf-tab:hover {
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
+  color: var(--text);
+}
+
+.pdf-tab.active {
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.pdf-tab .tab-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pdf-tab .tab-title i {
+  margin-right: var(--space-1);
+}
+
+.pdf-tab.tab-add {
+  flex: none;
+  justify-content: center;
+  width: 36px;
+  min-width: 36px;
+  padding: 0;
+}
+
+.tab-close {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-3);
+  font-size: 0.7rem;
+}
+
+.tab-close:hover {
+  background: var(--sunken);
+  color: var(--text);
+}
+
+.pdf-tab.dragging {
+  opacity: 0.5;
+}
+
+.pdf-tab.drag-over {
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+/* ---------- App shell grid ---------- */
+.app-shell {
+  display: grid;
+  grid-template-columns: var(--rail-width) minmax(0, 1fr);
+  height: calc(100vh - var(--titlebar-height));
+  overflow: hidden;
+}
+
+@media (min-width: 1360px) {
+  .app-shell:not(.chat-hidden) {
+    grid-template-columns: var(--rail-width) minmax(0, 1fr) var(--chat-width);
+  }
+}
+
+/* ---------- Navigation rail ---------- */
+.activity-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: var(--space-2) var(--space-2) var(--space-4);
+  overflow-y: auto;
+  background: var(--bg);
+}
+
+.activity-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  width: 100%;
+  min-height: 52px;
+  padding: 6px 2px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-2);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.activity-btn i {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 26px;
+  border-radius: var(--radius-full);
+  font-size: 0.95rem;
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+
+.activity-btn:hover {
+  color: var(--text);
+}
+
+.activity-btn:hover i {
+  background: var(--sunken);
+}
+
+/* The active destination is "highlighted", like text marked with the brand highlighter. */
+.activity-btn.active {
+  color: var(--text);
+}
+
+.activity-btn.active i {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+/* Panels and chat are toggles (soft); the highlighted pill marks where you are (Home, Reader, Settings). */
+.activity-btn[data-needs-doc].active i {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.rail-divider {
+  width: 32px;
+  height: 1px;
+  margin: var(--space-2) 0;
+  background: var(--border);
+}
+
+.rail-spacer {
+  flex: 1;
+}
+
+/* Panel buttons only make sense with a document open. */
+.app-shell.home-mode .activity-btn[data-needs-doc],
+.app-shell.home-mode .rail-divider {
+  display: none;
+}
+
+/* ---------- Workspace ---------- */
+.workspace {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border-top: 1px solid var(--border);
+  border-left: 1px solid var(--border);
+  border-top-left-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+/* ---------- Toolbar ---------- */
+.top-bar {
+  container-type: inline-size;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: none;
+  height: var(--toolbar-height);
+  padding: 0 var(--space-4);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.app-shell.home-mode .top-bar {
+  display: none;
+}
+
+.window-meta {
+  display: none;
+}
+
+.toolbar-center {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: 1;
+  min-width: 0;
+}
+
+.tool-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+}
+
+.tool-group + .tool-group {
+  padding-left: var(--space-3);
+  border-left: 1px solid var(--border);
+}
+
+.tool-group:last-child {
+  margin-left: auto;
+  border-left: 0;
+  padding-left: 0;
+}
+
+.page-info {
+  min-width: 78px;
+  padding: 0 var(--space-2);
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+#zoom-percent {
+  width: 64px;
+  min-height: 30px;
+  padding: 0 var(--space-2);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.fit-select {
+  width: 120px;
+  min-height: 30px;
+  margin-left: var(--space-1);
+  font-size: var(--text-sm);
+}
+
+/* Tools show their ink colour; a light halo keeps the black pen visible on dark surfaces. */
+:root[data-theme="light"] .tool-btn i {
+  filter: drop-shadow(0 0 0.5px rgba(28, 27, 46, 0.7));
+}
+
+:root[data-theme="dark"] .tool-btn i {
+  filter: drop-shadow(0 0 1.5px rgba(255, 255, 255, 0.9));
+}
+
+.tool-btn.active {
+  background: var(--primary);
+  color: var(--on-primary) !important;
+}
+
+#save-annotations-btn {
+  margin-left: var(--space-2);
+}
+
+/* Toolbar adapts to the space it actually has (not the window). */
+@container (max-width: 1060px) {
+  .fit-select {
+    display: none;
+  }
+}
+
+@container (max-width: 960px) {
+  #screenshot-btn {
+    display: none;
+  }
+}
+
+@container (max-width: 860px) {
+  .view-mode-group {
+    display: none;
+  }
+}
+
+@container (max-width: 760px) {
+  #save-annotations-btn {
+    width: var(--control-height);
+    padding: 0;
+    font-size: 0;
+  }
+
+  #save-annotations-btn i {
+    font-size: var(--text-base);
+  }
+
+  .page-info {
+    min-width: 0;
+  }
+}
+
+/* Pen / highlighter options appear in a slim strip under the toolbar while a tool is active. */
+.control-strip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  flex: none;
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.tool-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+}
+
+.tool-controls label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-2);
+  font-size: var(--text-sm);
+}
+
+.tool-controls input[type="color"] {
+  width: 30px;
+  height: 28px;
+  padding: 2px;
+}
+
+/* ---------- Reader layout ---------- */
+.reader-layout {
+  display: none;
+  flex: 1;
+  min-height: 0;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+}
+
+.reader-layout.visible {
+  display: grid;
+}
+
+.reader-layout.sidebar-hidden {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.reader-sidebar {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.sidebar-block {
+  display: none;
+  padding: var(--space-4);
+}
+
+.sidebar-block.visible {
+  display: block;
+}
+
+.sidebar-block > h4,
+.sidebar-block .panel-title {
+  margin-bottom: var(--space-3);
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.panel-head h4 {
+  margin: 0;
+}
+
+/* ---------- Resizers ---------- */
+.resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  z-index: 50;
+  background: transparent;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.resizer:hover,
+.resizer.dragging {
+  background: var(--accent-soft);
+}
+
+.sidebar-resizer {
+  right: -4px;
+  cursor: ew-resize;
+}
+
+.chat-resizer {
+  left: -4px;
+  cursor: ew-resize;
+}
+
+/* ---------- Top-level screens ---------- */
+.welcome-screen,
+.settings-screen {
+  display: none;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.welcome-screen.visible,
+.settings-screen.visible {
+  display: block;
+}

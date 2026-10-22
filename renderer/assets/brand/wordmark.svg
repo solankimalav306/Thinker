@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 128" role="img" aria-label="Thinker">
+  <rect width="128" height="128" rx="29" fill="#FFD23F"/>
+  <g transform="translate(33 25) scale(0.155)"><polygon fill="#1C1B2E" points="0,43 160,25 161,0 228,0 229,18 397,0 397,113 237,101 263,461 150,461 160,95 12,84"/></g>
+  <text x="152" y="92" font-family="Fraunces, Georgia, serif" font-weight="700" font-size="88" fill="currentColor">Thinker</text>
+</svg>

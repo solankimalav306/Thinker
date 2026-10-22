@@ -21,6 +21,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   removeFromGlossary: (term) => ipcRenderer.invoke('glossary:remove', term),
   getGlossaryTerms: () => ipcRenderer.invoke('glossary:get'),
 
+  setTitleBarTheme: (theme) => ipcRenderer.invoke('theme:set', theme),
+
   // Settings registry
   getSettings: () => ipcRenderer.invoke('settings:getAll'),
   setSetting: (key, scope, scopeId, value) => ipcRenderer.invoke('settings:set', key, scope, scopeId, value),

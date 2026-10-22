@@ -20,7 +20,8 @@ Thumbs.db
 plan.md
 
 # Distribution
-build/
+build/*
+!build/icon.ico
 dist/
 backend.exe
 backend.spec

@@ -1,3 +1,5 @@
+import { escapeHtml } from "./safe-html.js";
+
 export class MindMapController {
   constructor(options) {
     this.modal = options.modal;
@@ -64,7 +66,7 @@ export class MindMapController {
     this.listContainer.innerHTML = "";
 
     if (this.mindmaps.length === 0) {
-      this.listContainer.innerHTML = `<div style="padding: 16px; text-align: center; color: var(--text-soft); font-size: 0.8rem;">No mind maps yet. Ask the AI to create one!</div>`;
+      this.listContainer.innerHTML = '<div class="empty-state"><i class="fa-solid fa-diagram-project"></i><span>No mind maps yet. Ask Thinker to draw one of this document.</span></div>';
       return;
     }
 
@@ -74,25 +76,13 @@ export class MindMapController {
     sorted.forEach(map => {
       const el = document.createElement("div");
       el.className = "mindmap-item";
-      el.style.cssText = `
-        background: var(--panel-soft);
-        border: 1px solid var(--line);
-        border-radius: 10px;
-        padding: 12px;
-        margin-bottom: 8px;
-        cursor: pointer;
-        transition: all 0.2s ease;
-      `;
-      
       const date = new Date(map.createdAt).toLocaleDateString();
       el.innerHTML = `
-        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
-          <div style="flex: 1;">
-            <div style="font-weight: 700; font-size: 0.9rem; color: var(--accent); margin-bottom: 4px;">${map.title || "Untitled Map"}</div>
-            <div style="font-size: 0.7rem; color: var(--text-soft);">${date}</div>
-          </div>
-          <button class="btn icon-btn delete-btn" style="padding: 4px; color: var(--text-soft);"><i class="fa-solid fa-trash-can"></i></button>
+        <div class="mindmap-item-text">
+          <div class="mindmap-item-title">${escapeHtml(map.title || "Untitled map")}</div>
+          <div class="mindmap-item-date">${escapeHtml(date)}</div>
         </div>
+        <button class="btn icon-btn delete-btn" title="Delete mind map" aria-label="Delete mind map"><i class="fa-solid fa-trash-can"></i></button>
       `;
 
       el.addEventListener('click', (e) => {
@@ -104,9 +94,6 @@ export class MindMapController {
         this.show(map.code, false); // Don't save again when viewing
       });
 
-      // Hover effect
-      el.onmouseenter = () => { el.style.borderColor = "var(--accent)"; el.style.transform = "translateY(-2px)"; el.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)"; };
-      el.onmouseleave = () => { el.style.borderColor = "var(--line)"; el.style.transform = "translateY(0)"; el.style.boxShadow = "none"; };
 
       this.listContainer.appendChild(el);
     });

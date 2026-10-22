@@ -20,8 +20,8 @@ const files = [
 const dirs = [
   ['fontawesome/css', nm('@fortawesome', 'fontawesome-free', 'css'), (f) => f === 'all.min.css'],
   ['fontawesome/webfonts', nm('@fortawesome', 'fontawesome-free', 'webfonts'), (f) => f.endsWith('.woff2')],
-  ['fonts', nm('@fontsource', 'manrope', 'files'), (f) => /latin-(400|500|600|700|800)-normal\.woff2$/.test(f)],
-  ['fonts', nm('@fontsource', 'space-grotesk', 'files'), (f) => /latin-(500|700)-normal\.woff2$/.test(f)],
+  ['fonts', nm('@fontsource-variable', 'inter', 'files'), (f) => f === 'inter-latin-wght-normal.woff2'],
+  ['fonts', nm('@fontsource-variable', 'fraunces', 'files'), (f) => f === 'fraunces-latin-wght-normal.woff2'],
 ];
 
 function copy(src, dest) {
@@ -35,11 +35,4 @@ for (const [destDir, srcDir, keep] of dirs) {
   for (const f of fs.readdirSync(srcDir).filter(keep)) copy(path.join(srcDir, f), path.join(out, destDir, f));
 }
 
-const face = (family, weight, file) =>
-  `@font-face{font-family:'${family}';font-style:normal;font-display:swap;font-weight:${weight};src:url('${file}') format('woff2');}`;
-const css = [
-  ...[400, 500, 600, 700, 800].map((w) => face('Manrope', w, `manrope-latin-${w}-normal.woff2`)),
-  ...[500, 700].map((w) => face('Space Grotesk', w, `space-grotesk-latin-${w}-normal.woff2`)),
-].join('\n');
-fs.writeFileSync(path.join(out, 'fonts', 'fonts.css'), css + '\n');
 console.log('vendor: copied to', path.relative(root, out));

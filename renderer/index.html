@@ -10,8 +10,16 @@
   <script src="vendor/marked/marked.umd.js"></script>
   <script src="vendor/dompurify/purify.min.js"></script>
   <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
-  <link rel="stylesheet" href="vendor/fonts/fonts.css" />
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" type="image/svg+xml" href="assets/brand/app-icon.svg" />
+  <link rel="stylesheet" href="css/tokens.css" />
+  <link rel="stylesheet" href="css/base.css" />
+  <link rel="stylesheet" href="css/components.css" />
+  <link rel="stylesheet" href="css/shell.css" />
+  <link rel="stylesheet" href="css/screens.css" />
+  <link rel="stylesheet" href="css/panels.css" />
+  <link rel="stylesheet" href="css/chat.css" />
+  <link rel="stylesheet" href="css/overlays.css" />
+  <link rel="stylesheet" href="css/pdf.css" />
   <link rel="stylesheet" href="vendor/pdfjs/pdf_viewer.min.css" />
   <script src="vendor/d3/d3.min.js"></script>
   <!-- markmap-view exposes: Markmap, defaultColorFn, etc. on window.markmap -->
@@ -19,49 +27,43 @@
   <script src="js/markmap-transformer.js"></script>
 </head>
 <body>
-  <div class="custom-title-bar">
+  <header class="custom-title-bar">
     <div class="title-brand">
-      <span class="title-mark"></span>
-      <div>
-        <div class="title-name">Thinker</div>
-        <!-- <div class="title-subtitle">Hey there, how are you doing?</div> -->
-      </div>
+      <span class="title-mark"><img src="assets/brand/t-mark.svg" alt=""></span>
+      <span class="title-name">Thinker</span>
     </div>
-    <!-- <div class="title-typing" id="title-typing">Typing a better way to read PDFs.</div> -->
-  </div>
+    <nav class="pdf-tabs" id="pdf-tabs" aria-label="Open documents"></nav>
+  </header>
   <div class="app-shell">
     <nav class="activity-bar" aria-label="Primary navigation">
-      <button class="activity-btn active" id="nav-home" title="Home"><i class="fa-solid fa-house"></i></button>
-      <button class="activity-btn" id="nav-reader" title="Reader"><i class="fa-solid fa-file-pdf"></i></button>
-      <button class="activity-btn" id="nav-settings" title="Settings"><i class="fa-solid fa-gear"></i></button>
-      <button class="activity-btn" id="nav-outline" title="Toggle table of contents"><i class="fa-solid fa-list"></i></button>
-      <button class="activity-btn" id="nav-thumbs" title="Toggle thumbnails"><i class="fa-regular fa-images"></i></button>
-      <button class="activity-btn" id="nav-glossary" title="Toggle glossary"><i class="fa-solid fa-spell-check"></i></button>
-      <button class="activity-btn" id="nav-notes" title="Toggle notes"><i class="fa-solid fa-note-sticky"></i></button>
-      <button class="activity-btn" id="nav-history" title="Toggle history"><i class="fa-solid fa-clock-rotate-left"></i></button>
-      <button class="activity-btn" id="nav-mindmaps" title="Toggle mind maps"><i class="fa-solid fa-diagram-project"></i></button>
-      <button class="activity-btn" id="nav-chat" title="Toggle chat"><i class="fa-solid fa-comments"></i></button>
+      <button class="activity-btn active" id="nav-home" title="Home" aria-label="Home"><i class="fa-solid fa-house"></i><span>Home</span></button>
+      <button class="activity-btn" id="nav-reader" title="Back to your document" aria-label="Reader"><i class="fa-solid fa-book-open"></i><span>Reader</span></button>
+      <div class="rail-divider"></div>
+      <button class="activity-btn" id="nav-outline" data-needs-doc title="Contents" aria-label="Contents"><i class="fa-solid fa-list"></i><span>Contents</span></button>
+      <button class="activity-btn" id="nav-thumbs" data-needs-doc title="Pages" aria-label="Pages"><i class="fa-regular fa-images"></i><span>Pages</span></button>
+      <button class="activity-btn" id="nav-notes" data-needs-doc title="Notes" aria-label="Notes"><i class="fa-solid fa-note-sticky"></i><span>Notes</span></button>
+      <button class="activity-btn" id="nav-glossary" data-needs-doc title="Glossary" aria-label="Glossary"><i class="fa-solid fa-spell-check"></i><span>Glossary</span></button>
+      <button class="activity-btn" id="nav-mindmaps" data-needs-doc title="Mind maps" aria-label="Mind maps"><i class="fa-solid fa-diagram-project"></i><span>Mind maps</span></button>
+      <button class="activity-btn" id="nav-history" data-needs-doc title="History" aria-label="History"><i class="fa-solid fa-clock-rotate-left"></i><span>History</span></button>
+      <div class="rail-spacer"></div>
+      <button class="activity-btn" id="nav-chat" data-needs-doc title="Ask Thinker" aria-label="Chat"><i class="fa-solid fa-comments"></i><span>Chat</span></button>
+      <button class="activity-btn" id="nav-settings" title="Settings" aria-label="Settings"><i class="fa-solid fa-gear"></i><span>Settings</span></button>
     </nav>
 
     <main class="workspace">
       <header class="top-bar">
-        <div class="window-meta">
-          <!-- <h1>Reader</h1>
-          <p id="active-file-label">No file open</p> -->
-        </div>
-
         <div class="toolbar-center">
           <div class="tool-group">
             <button class="btn icon-btn" id="prev-page" title="Previous page"><i class="fas fa-arrow-left"></i></button>
             <button class="btn icon-btn" id="next-page" title="Next page"><i class="fas fa-arrow-right"></i></button>
-            <span class="page-info">Page <span id="page-num">0</span>/<span id="page-count">0</span></span>
+            <span class="page-info">Page <span id="page-num">0</span> of <span id="page-count">0</span></span>
           </div>
 
           <div class="tool-group">
             <button class="btn icon-btn" id="zoom-out" title="Zoom out"><i class="fa-solid fa-magnifying-glass-minus"></i></button>
             <input type="text" id="zoom-percent" value="150%" aria-label="Zoom level" />
             <button class="btn icon-btn" id="zoom-in" title="Zoom in"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
-            <select id="fit-mode" class="fit-select" title="Fit mode">
+            <select id="fit-mode" class="fit-select" title="Fit mode" aria-label="Fit mode">
               <option value="auto" selected>Fit: Auto</option>
               <option value="width">Fit: Width</option>
               <option value="actual">Fit: Actual</option>
@@ -75,168 +77,189 @@
             <button class="btn icon-btn tool-btn" id="highlighter-1" title="Yellow highlighter"><i class="fa-solid fa-highlighter"></i></button>
             <button class="btn icon-btn tool-btn" id="highlighter-2" title="Green highlighter"><i class="fa-solid fa-highlighter"></i></button>
             <button class="btn icon-btn tool-btn" id="eraser-btn" title="Eraser"><i class="fa-solid fa-eraser"></i></button>
-            <button class="btn icon-btn tool-btn" id="sticky-note-btn" title="Add Sticky Note (click on page)"><i class="fa-solid fa-note-sticky"></i></button>
-            <button class="btn icon-btn" id="screenshot-btn" title="Take screenshot"><i class="fa-solid fa-camera"></i></button>
-            <button class="btn" id="save-annotations-btn" title="Save annotations to a new PDF"><i class="fa-solid fa-floppy-disk"></i> Save</button>
+            <button class="btn icon-btn tool-btn" id="sticky-note-btn" title="Add sticky note (click on the page)"><i class="fa-solid fa-note-sticky"></i></button>
+            <button class="btn icon-btn" id="screenshot-btn" title="Capture part of the page"><i class="fa-solid fa-camera"></i></button>
           </div>
-        </div>
 
-        <div class="view-mode-group">
-          <button class="btn mode-btn active" id="mode-single" title="Single page"><i class="fa-regular fa-file"></i></button>
-          <button class="btn mode-btn" id="mode-two" title="Two pages"><i class="fa-solid fa-book-open"></i></button>
-          <button class="btn mode-btn" id="mode-scroll" title="Scroll view"><i class="fa-solid fa-scroll"></i></button>
+          <div class="tool-group">
+            <div class="view-mode-group" role="group" aria-label="Page layout">
+              <button class="btn mode-btn active" id="mode-single" title="Single page"><i class="fa-regular fa-file"></i></button>
+              <button class="btn mode-btn" id="mode-two" title="Two pages"><i class="fa-solid fa-book-open"></i></button>
+              <button class="btn mode-btn" id="mode-scroll" title="Continuous scroll"><i class="fa-solid fa-scroll"></i></button>
+            </div>
+            <button class="btn primary" id="save-annotations-btn" title="Save your marks into a new PDF"><i class="fa-solid fa-floppy-disk"></i> Save</button>
+          </div>
         </div>
       </header>
 
       <section class="control-strip" id="control-strip" style="display: none;">
         <div id="pen-controls" class="tool-controls">
-          <label>Pen color <input type="color" id="pen-color" value="#222222"></label>
+          <label>Pen colour <input type="color" id="pen-color" value="#222222"></label>
           <label>Pen width <input type="range" id="pen-width" min="1" max="12" value="2"></label>
         </div>
 
         <div id="highlighter-controls" class="tool-controls">
-          <label>Highlight color <input type="color" id="highlighter-color" value="#ffff00"></label>
+          <label>Highlight colour <input type="color" id="highlighter-color" value="#ffff00"></label>
           <label>Width <input type="range" id="highlighter-width" min="8" max="32" value="12"></label>
         </div>
       </section>
 
-      <section class="pdf-tabs" id="pdf-tabs"></section>
-
       <section class="welcome-screen" id="welcome-screen">
-        <div class="welcome-grid">
-          <div class="welcome-card welcome-hero">
-            <div class="hero-badge">AI PDF Companion</div>
-            <h2 id="home-greeting" class="typing-text">Hey there, how are you doing?</h2>
-            <p class="welcome-hero-copy">Open a PDF and talk to it like a conversation. Compare, annotate, and pick up where you left off.</p>
-            <div class="welcome-actions">
-              <button class="btn primary" id="welcome-open-btn"><i class="fa-solid fa-folder-open"></i> Open New PDF</button>
-              <button class="btn" id="welcome-settings-btn"><i class="fa-solid fa-gear"></i> Settings</button>
+        <div class="home">
+          <header class="home-hero">
+            <p class="home-eyebrow" id="home-eyebrow">Your reading desk</p>
+            <h1 id="home-greeting" class="home-title">Hello there.</h1>
+            <p class="home-sub">Open a PDF, ask it questions, and mark up what matters. Everything stays on this computer.</p>
+            <div class="home-actions">
+              <button class="btn primary lg" id="welcome-open-btn"><i class="fa-solid fa-folder-open"></i> Open a PDF</button>
+              <button class="btn lg" id="welcome-settings-btn"><i class="fa-solid fa-wand-magic-sparkles"></i> Set up AI</button>
             </div>
-          </div>
+          </header>
 
-          <div class="welcome-card recent-card">
+          <section class="home-section recent-card">
             <div class="card-head">
-              <h3>Recently Opened</h3>
-              <span>Top 5</span>
+              <h3>Pick up where you left off</h3>
             </div>
-            <ul id="recent-list"></ul>
-          </div>
+            <ul id="recent-list" class="recent-grid"></ul>
+          </section>
 
-          <div class="welcome-card tips-card" id="token-usage-panel">
-            <div class="card-head">
-              <h3><i class="fa-solid fa-microchip" style="color: var(--accent);"></i> API Token Usage</h3>
-              <select id="token-usage-profile-filter" class="token-profile-filter" title="Filter by profile">
-                <option value="all">All Profiles</option>
-              </select>
-            </div>
-            <div id="token-usage-body" style="display: flex; flex-direction: column; gap: 10px; margin-top: 4px;">
-              <div class="token-usage-empty" id="token-usage-empty" style="color: var(--text-soft); font-size: 0.8rem; opacity: 0.7;">
-                <i class="fa-solid fa-circle-info"></i> No messages sent yet. Token usage will appear here after you start chatting.
-              </div>
-              <div id="token-usage-stats" style="display: none; flex-direction: column; gap: 8px;">
-                <div class="token-stat-row">
-                  <span class="token-stat-label"><i class="fa-solid fa-arrow-right-to-bracket"></i> Prompt Tokens</span>
-                  <span class="token-stat-value" id="stat-prompt-tokens">0</span>
+          <details class="home-section usage-details" id="token-usage-panel">
+            <summary>
+              <span class="usage-title"><i class="fa-solid fa-gauge-simple-high"></i> AI usage</span>
+              <span class="usage-summary" id="usage-summary">Nothing yet</span>
+            </summary>
+            <div class="usage-body">
+              <label class="usage-filter">Profile
+                <select id="token-usage-profile-filter" class="token-profile-filter" title="Filter by profile">
+                  <option value="all">All profiles</option>
+                </select>
+              </label>
+              <div id="token-usage-body">
+                <div class="token-usage-empty empty-state" id="token-usage-empty">
+                  <i class="fa-solid fa-seedling"></i>
+                  <span>No questions asked yet. Usage appears here once you start chatting.</span>
                 </div>
-                <div class="token-stat-row">
-                  <span class="token-stat-label"><i class="fa-solid fa-arrow-right-from-bracket"></i> Response Tokens</span>
-                  <span class="token-stat-value" id="stat-response-tokens">0</span>
-                </div>
-                <div class="token-stat-row token-stat-total">
-                  <span class="token-stat-label"><i class="fa-solid fa-sigma"></i> Total Tokens Used</span>
-                  <span class="token-stat-value" id="stat-total-tokens">0</span>
-                </div>
-                <div class="token-stat-row">
-                  <span class="token-stat-label"><i class="fa-solid fa-comments"></i> Total Requests</span>
-                  <span class="token-stat-value" id="stat-total-requests">0</span>
-                </div>
-                <div class="token-stat-row">
-                  <span class="token-stat-label"><i class="fa-solid fa-bolt"></i> Last Request</span>
-                  <span class="token-stat-value" id="stat-last-tokens">-</span>
-                </div>
-                <div class="token-usage-bar-wrap" title="Prompt vs Response token split">
-                  <div class="token-usage-bar">
-                    <div class="token-bar-prompt" id="bar-prompt" style="width: 50%;"></div>
-                    <div class="token-bar-response" id="bar-response" style="width: 50%;"></div>
+                <div id="token-usage-stats" class="token-usage-stats">
+                  <div class="token-stat-row">
+                    <span class="token-stat-label">Sent to the model</span>
+                    <span class="token-stat-value" id="stat-prompt-tokens">0</span>
                   </div>
-                  <div style="display: flex; justify-content: space-between; font-size: 0.6rem; color: var(--text-soft); margin-top: 3px;">
-                    <span>Prompt</span><span>Response</span>
+                  <div class="token-stat-row">
+                    <span class="token-stat-label">Received back</span>
+                    <span class="token-stat-value" id="stat-response-tokens">0</span>
                   </div>
-                </div>
-                <div class="token-chart-section">
-                  <div class="token-chart-label">Input Breakdown (print_llm_tokens)</div>
-                  <canvas id="token-breakdown-chart" class="token-chart-canvas" width="280" height="80"></canvas>
-                </div>
-                <div class="token-chart-section">
-                  <div class="token-chart-label">Recent Requests</div>
-                  <canvas id="token-usage-graph" class="token-chart-canvas" width="280" height="60"></canvas>
+                  <div class="token-stat-row token-stat-total">
+                    <span class="token-stat-label">Total tokens</span>
+                    <span class="token-stat-value" id="stat-total-tokens">0</span>
+                  </div>
+                  <div class="token-stat-row">
+                    <span class="token-stat-label">Questions asked</span>
+                    <span class="token-stat-value" id="stat-total-requests">0</span>
+                  </div>
+                  <div class="token-stat-row">
+                    <span class="token-stat-label">Last question</span>
+                    <span class="token-stat-value" id="stat-last-tokens">-</span>
+                  </div>
+                  <div class="token-usage-bar-wrap" title="Sent vs received tokens">
+                    <div class="token-usage-bar">
+                      <div class="token-bar-prompt" id="bar-prompt"></div>
+                      <div class="token-bar-response" id="bar-response"></div>
+                    </div>
+                    <div class="token-bar-legend"><span>Sent</span><span>Received</span></div>
+                  </div>
+                  <div class="token-chart-section">
+                    <div class="token-chart-label">Where the input went</div>
+                    <canvas id="token-breakdown-chart" class="token-chart-canvas" width="280" height="80"></canvas>
+                  </div>
+                  <div class="token-chart-section">
+                    <div class="token-chart-label">Recent questions</div>
+                    <canvas id="token-usage-graph" class="token-chart-canvas" width="280" height="60"></canvas>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          </details>
         </div>
       </section>
 
       <section class="settings-screen" id="settings-screen">
-        <div class="settings-grid">
-          <div class="settings-card settings-hero">
-            <div class="hero-badge">Settings Tab</div>
-            <h2>Make the app yours</h2>
-            <p>Manage multiple API keys, choose the chat model, and try different palettes without leaving the workspace.</p>
-          </div>
+        <div class="settings">
+          <header class="settings-head">
+            <h1>Settings</h1>
+            <p>Connect an AI model, tune how reading feels, and make Thinker yours.</p>
+            <nav class="settings-jump" aria-label="Jump to a section">
+              <a href="#settings-models">AI models</a>
+              <a href="#preferences-card">Preferences</a>
+              <a href="#settings-appearance">Appearance</a>
+            </nav>
+          </header>
 
-          <div class="settings-card settings-prefs-card" id="preferences-card">
+          <section class="settings-card settings-api-card" id="settings-models">
+            <div class="card-head">
+              <h3>AI models</h3>
+              <span>Bring your own key, or point at a local model</span>
+            </div>
+            <p class="settings-note"><i class="fa-solid fa-lock"></i> Keys are encrypted by your operating system and never leave this computer, except to the provider you choose.</p>
+            <ul id="settings-api-list" class="settings-api-list"></ul>
+            <div class="settings-inline-form">
+              <h4>Add a model</h4>
+              <label class="field"><span>Name</span>
+                <input type="text" id="settings-api-label" placeholder="e.g. Work Gemini, Local Ollama" />
+              </label>
+              <label class="field"><span>Provider</span>
+                <select id="settings-api-format">
+                  <option value="gemini">Google Gemini</option>
+                  <option value="openai">OpenAI-compatible (OpenAI, OpenRouter, Ollama...)</option>
+                </select>
+              </label>
+              <label class="field"><span>Model</span>
+                <input type="text" id="settings-chat-model" placeholder="e.g. gemini-3.5-flash-lite, gpt-4o, llama3" />
+              </label>
+              <label class="field"><span>API key</span>
+                <input type="password" id="settings-api-key" placeholder="Leave empty for local models" autocomplete="off" />
+              </label>
+              <label class="field"><span>Custom address <em>(optional)</em></span>
+                <input type="text" id="settings-api-url" placeholder="e.g. http://localhost:11434/v1/chat/completions" />
+              </label>
+              <button class="btn primary" id="settings-api-add">Add model</button>
+            </div>
+            <label class="field settings-select-row"><span>Use for chat</span>
+              <select id="settings-active-api"></select>
+            </label>
+          </section>
+
+          <section class="settings-card settings-prefs-card" id="preferences-card">
             <div class="card-head">
               <h3>Preferences</h3>
               <span>Reading, annotations and AI</span>
             </div>
             <div class="prefs-toolbar">
               <input type="search" id="prefs-search" class="prefs-input" placeholder="Search settings" aria-label="Search settings">
-              <label class="prefs-modified"><input type="checkbox" id="prefs-modified-only"> Modified only</label>
+              <label class="prefs-modified"><input type="checkbox" id="prefs-modified-only"> Changed only</label>
             </div>
             <div id="prefs-list"></div>
-          </div>
+          </section>
 
-          <div class="settings-card settings-api-card">
-            <div class="card-head">
-              <h3>AI Profiles</h3>
-              <span>Chat source</span>
-            </div>
-            <div class="settings-inline-form" style="display: flex; flex-direction: column; gap: 8px;">
-              <input type="text" id="settings-api-label" placeholder="Profile Label (e.g. Local Ollama, Work Gemini)" />
-              <select id="settings-api-format" style="padding: 8px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-base);">
-                <option value="gemini">Google Gemini API</option>
-                <option value="openai">OpenAI Compatible API (e.g. Local)</option>
-              </select>
-              <input type="text" id="settings-api-url" placeholder="Custom Base URL (optional)" />
-              <input type="text" id="settings-chat-model" placeholder="Model ID (e.g. gpt-4o, llama-3)" />
-              <input type="password" id="settings-api-key" placeholder="API Key (optional for local)" />
-              <button class="btn primary" id="settings-api-add" style="align-self: flex-start;">Add AI Profile</button>
-            </div>
-            <label class="settings-select-row" style="margin-top: 16px;">Active Profile
-              <select id="settings-active-api"></select>
-            </label>
-            <ul id="settings-api-list" class="settings-api-list"></ul>
-          </div>
-
-          <div class="settings-card">
+          <section class="settings-card" id="settings-appearance">
             <div class="card-head">
               <h3>Appearance</h3>
-              <span>Look and feel</span>
+              <span>Light, dark and your accent</span>
             </div>
-            <label class="settings-select-row">Theme Mode
+            <label class="field settings-select-row"><span>Theme</span>
               <select id="settings-theme-mode">
-                <option value="light">Light</option>
-                <option value="dark">Dark</option>
+                <option value="light">Light: paper</option>
+                <option value="dark">Dark: ink</option>
               </select>
             </label>
-            <label class="settings-select-row" style="margin-top: 10px;">Theme Accent Color
-              <div style="display: flex; gap: 10px; align-items: center;">
-                <input type="color" id="settings-custom-color" value="#37c2b5" style="width: 100%; height: 38px; padding: 2px;">
-                <button class="btn" id="reset-color-btn" title="Reset to default" style="flex: 0 0 auto;"><i class="fa-solid fa-rotate-left"></i></button>
+            <div class="field">
+              <span>Accent colour</span>
+              <div class="accent-row">
+                <div class="accent-swatches" id="accent-swatches" role="group" aria-label="Accent presets"></div>
+                <input type="color" id="settings-custom-color" value="#ffd23f" aria-label="Custom accent colour">
+                <button class="btn" id="reset-color-btn" title="Back to the Thinker yellow"><i class="fa-solid fa-rotate-left"></i> Reset</button>
               </div>
-            </label>
-          </div>
+            </div>
+          </section>
         </div>
       </section>
 
@@ -244,22 +267,22 @@
         <aside class="reader-sidebar" id="reader-sidebar">
           <div class="resizer sidebar-resizer" id="sidebar-resizer"></div>
           <div class="sidebar-block" id="outline-block">
-            <h4>Table of Contents</h4>
+            <h4>Contents</h4>
             <ul id="outline-list" class="jump-list"></ul>
           </div>
 
           <div class="sidebar-block" id="thumbs-block">
-            <h4>Page Thumbnails</h4>
+            <h4>Pages</h4>
             <div id="thumbnail-list" class="thumb-list"></div>
           </div>
           
           <div class="sidebar-block" id="glossary-block">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-              <h4 style="margin: 0;">Glossary</h4>
-              <button class="btn icon-btn" id="glossary-export-btn" title="Export Glossary"><i class="fa-solid fa-file-export"></i></button>
+            <div class="panel-head">
+              <h4>Glossary</h4>
+              <button class="btn icon-btn" id="glossary-export-btn" title="Export glossary"><i class="fa-solid fa-file-export"></i></button>
             </div>
-            <div class="search-box" style="margin-bottom: 10px;">
-              <input type="text" id="glossary-search" placeholder="Search terms..." style="width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel-soft); color: var(--text); font-size: 0.8rem;" />
+            <div class="search-box">
+              <input type="text" id="glossary-search" placeholder="Search terms..." aria-label="Search glossary terms" />
             </div>
             <div id="glossary-list" class="glossary-list">
               <!-- Terms will be injected here -->
@@ -276,7 +299,7 @@
               <div class="notes-header-actions">
                 <button class="btn icon-btn" id="add-user-sticky-btn" title="Place a sticky note on the page"><i class="fa-solid fa-plus"></i></button>
                 <div class="dropdown">
-                  <button class="btn icon-btn dropdown-toggle" id="notes-export-btn" title="Export Options"><i class="fa-solid fa-file-export"></i></button>
+                  <button class="btn icon-btn dropdown-toggle" id="notes-export-btn" title="Export notes"><i class="fa-solid fa-file-export"></i></button>
                   <div class="dropdown-content">
                     <a href="#" id="export-md">Markdown (.md)</a>
                     <a href="#" id="export-pdf">PDF Document</a>
@@ -302,12 +325,9 @@
           </div>
 
           <div class="sidebar-block" id="history-block">
-            <div class="history-panel-header">
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <i class="fa-solid fa-timeline" style="color: var(--accent);"></i>
-                <h4 style="margin: 0;">Timeline</h4>
-              </div>
-              <button class="btn icon-btn" id="history-refresh-btn" title="Refresh History"><i class="fa-solid fa-rotate"></i></button>
+            <div class="panel-head">
+              <h4>History</h4>
+              <button class="btn icon-btn" id="history-refresh-btn" title="Refresh"><i class="fa-solid fa-rotate"></i></button>
             </div>
             <div class="history-timeline" id="history-list">
               <!-- History entries injected here -->
@@ -315,9 +335,9 @@
           </div>
 
           <div class="sidebar-block" id="mindmaps-block">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-              <h4 style="margin: 0;">Mind Maps</h4>
-              <button class="btn icon-btn" id="mindmap-new-btn" title="New Mind Map (Ask AI)"><i class="fa-solid fa-plus"></i></button>
+            <div class="panel-head">
+              <h4>Mind maps</h4>
+              <button class="btn icon-btn" id="mindmap-new-btn" title="Make a mind map with AI"><i class="fa-solid fa-plus"></i></button>
             </div>
             <div id="mindmaps-list" class="mindmaps-list">
               <!-- Mind maps will be injected here -->
@@ -352,39 +372,36 @@
       </section>
     </main>
 
-    <aside class="chat-container" id="chat-panel">
+    <aside class="chat-container" id="chat-panel" aria-label="Chat with Thinker">
       <div class="resizer chat-resizer" id="chat-resizer"></div>
       <div class="chat-header">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-          <div style="display:flex; align-items:center; gap:8px;">
-            <h2 style="margin:0;">PDF Chat</h2>
-            <button id="ai-capabilities-btn" class="btn icon-btn" title="AI Capabilities" style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem;"><i class="fa-solid fa-circle-info"></i></button>
+        <div class="chat-title-row">
+          <h2><span class="chat-mark"><img src="assets/brand/t-mark.svg" alt=""></span> Ask Thinker</h2>
+          <div class="chat-title-actions">
+            <button id="ai-capabilities-btn" class="btn icon-btn" title="What can Thinker do?"><i class="fa-solid fa-circle-info"></i></button>
+            <button id="chat-close-btn" class="btn icon-btn" title="Close chat"><i class="fa-solid fa-xmark"></i></button>
           </div>
-          <button id="chat-close-btn" class="btn icon-btn" title="Close Chat" style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem;"><i class="fa-solid fa-xmark"></i></button>
         </div>
-        <p>Ask questions using selected text or snippets.</p>
         <div class="conversation-bar" id="conversation-bar"></div>
       </div>
 
       <div class="chat-history" id="chat-history"></div>
 
       <div class="chat-input-row">
-        <div id="image-preview-container" style="display:none;"></div>
+        <div id="image-preview-container" class="image-preview" style="display:none;"></div>
         <div id="selected-text-box" class="selected-text-box" style="display:none;"></div>
         <div class="input-send-row">
-          <input type="text" id="chat-input" placeholder="Ask something about this PDF..." />
-          <button id="chat-send" title="Send message"><i class="fa-solid fa-paper-plane"></i></button>
+          <input type="text" id="chat-input" placeholder="Ask about this PDF..." aria-label="Your question" />
+          <button id="chat-send" title="Send" aria-label="Send"><i class="fa-solid fa-arrow-up"></i></button>
         </div>
-        <div class="chat-controls-row" style="display: flex; justify-content: space-between; align-items: center;">
-          <div style="display: flex; gap: 8px;">
-            <select id="chat-mode-select" class="chat-bottom-select" title="Answer source" aria-label="Answer source">
-              <option value="auto" selected title="Uses the document first and adds general AI knowledge when needed">Auto: document + AI knowledge</option>
-              <option value="document" title="Answers only from this PDF">Document only</option>
-            </select>
-            <select id="chat-profile-select" class="chat-bottom-select" title="AI model profile" aria-label="AI model profile"></select>
-            <button id="summarize-cache-btn" class="btn icon-btn" title="Summarize knowledge cache" style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-size: 0.75rem;"><i class="fa-solid fa-brain"></i></button>
-          </div>
-          <div id="token-tracker" style="font-size: 0.75rem; color: var(--text-soft); font-family: monospace;" title="Last Request Tokens (Prompt + Response)">Tokens: 0</div>
+        <div class="chat-controls-row">
+          <select id="chat-mode-select" class="chat-bottom-select" title="Where answers come from" aria-label="Where answers come from">
+            <option value="auto" selected title="Uses the document first and adds general AI knowledge when needed">Document + AI</option>
+            <option value="document" title="Answers only from this PDF">Document only</option>
+          </select>
+          <select id="chat-profile-select" class="chat-bottom-select" title="AI model" aria-label="AI model"></select>
+          <button id="summarize-cache-btn" class="btn icon-btn" title="Condense this chat's memory"><i class="fa-solid fa-brain"></i></button>
+          <span id="token-tracker" class="token-tracker" title="Tokens used by the last answer">Tokens: 0</span>
         </div>
       </div>
     </aside>
@@ -399,10 +416,10 @@
     <div class="save-modal-card">
       <div class="save-modal-header">
         <div class="save-modal-title">
-          <i class="fa-solid fa-file-pdf" style="color: var(--accent); font-size: 1.5rem;"></i>
+          <i class="fa-solid fa-file-pdf"></i>
           <div>
-            <div style="font-size: 1rem; font-weight: 700;">Export Annotated PDF</div>
-            <div style="font-size: 0.75rem; color: var(--text-soft);">Choose what to include in your exported document</div>
+            <div class="save-modal-title-text">Save your marks</div>
+            <div class="save-modal-title-sub">Choose what goes into the new PDF</div>
           </div>
         </div>
         <button class="btn icon-btn" id="save-modal-close"><i class="fa-solid fa-xmark"></i></button>
@@ -523,23 +540,23 @@
   <div id="ai-capabilities-modal" class="modal">
     <div class="modal-content">
       <div class="modal-header">
-        <h3><i class="fa-solid fa-circle-info"></i> About the AI Assistant</h3>
+        <h3><i class="fa-solid fa-circle-info"></i> About Thinker</h3>
         <button class="close-modal" id="close-ai-capabilities">&times;</button>
       </div>
-      <div style="padding: 12px; color: var(--text-base);">
-        <p><strong>What I can do:</strong></p>
+      <div class="about-body">
+        <h4>What Thinker can do</h4>
         <ul>
-          <li>Answer questions about the open PDF using document content.</li>
-          <li>Highlight text, create structured notes, and generate mind maps.</li>
-          <li>Define terms (context-aware) and build a glossary you can export.</li>
+          <li>Answer questions about the open PDF, with the pages it used.</li>
+          <li>Highlight passages, write structured notes and draw mind maps.</li>
+          <li>Define words in context and build a glossary you can export.</li>
         </ul>
-        <p><strong>How to understand my answers:</strong></p>
+        <h4>Reading the answers</h4>
         <ul>
-          <li>Responses labeled <em>Document Only</em> come strictly from the PDF.</li>
-          <li>Responses labeled <em>AI Knowledge</em> may use background knowledge beyond the PDF.</li>
-          <li>If I'm uncertain, I'll say so. Use the chat buttons to ask for sources or evidence.</li>
+          <li><strong>Document only</strong> means the answer comes strictly from your PDF.</li>
+          <li><strong>AI knowledge</strong> marks parts that go beyond the document.</li>
+          <li>If Thinker is unsure, it says so. Ask for the source and it will show the page.</li>
         </ul>
-        <p style="font-size:0.9rem; color:var(--text-soft)">Tip: Use the capability chips on the chat welcome card to try common actions.</p>
+        <p class="about-tip">Tip: the four cards on a new chat are quick ways to start.</p>
       </div>
     </div>
   </div>

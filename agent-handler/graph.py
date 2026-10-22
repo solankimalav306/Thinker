@@ -39,7 +39,8 @@ def create_llm(state: dict):
         return ChatOpenAI(**kwargs)
 
     # Default: Gemini
-    return ChatGoogleGenerativeAI(model=model, google_api_key=api_key)
+    # A stalled request must fail instead of leaving the chat on "thinking" forever.
+    return ChatGoogleGenerativeAI(model=model, google_api_key=api_key, timeout=90, max_retries=1)
 
 
 FOCUS_GROUPS = {

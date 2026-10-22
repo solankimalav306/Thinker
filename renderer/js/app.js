@@ -1,4 +1,5 @@
-import { initTheme, applyTheme, THEME_PALETTES } from "./theme.js";
+import { applyTheme, applyAccent, getAccent, setAccent, resetAccent, ACCENT_PRESETS, DEFAULT_ACCENT } from "./theme.js";
+import { escapeHtml } from "./safe-html.js";
 import {
   getRecents,
   pushRecent,
@@ -169,6 +170,10 @@ const elements = {
   settingsCustomColor: document.getElementById("settings-custom-color"),
   resetColorBtn: document.getElementById("reset-color-btn"),
   homeGreeting: document.getElementById("home-greeting"),
+  homeEyebrow: document.getElementById("home-eyebrow"),
+  usageSummary: document.getElementById("usage-summary"),
+  tokenUsagePanel: document.getElementById("token-usage-panel"),
+  accentSwatches: document.getElementById("accent-swatches"),
   titleTyping: document.getElementById("title-typing"),
   tokenUsageEmpty: document.getElementById("token-usage-empty"),
   tokenUsageStats: document.getElementById("token-usage-stats"),
@@ -195,7 +200,8 @@ let sidebarPanel = "outline";
 let notesPanelTab = "research"; // "research" or "sticky"
 let isPlacingSticky = false;
 let stickyPlacementPoint = null;
-let chatVisible = true;
+// Docked beside the document on wide windows; on narrow ones it is a drawer, closed until asked for.
+let chatVisible = window.innerWidth >= 1360;
 let apiProfiles = [];
 const tabViewState = new Map();
 const tabActionHandlers = {
@@ -265,8 +271,23 @@ function syncLayoutToggles() {
   }
 }
 
+const HOME_LINES = [
+  "What are we reading today?",
+  "Your reading desk",
+  "Pick up a good PDF",
+  "Curious about something?"
+];
+
+function setHomeGreeting() {
+  const hour = new Date().getHours();
+  const part = hour < 5 ? "Still up" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  if (elements.homeGreeting) elements.homeGreeting.textContent = `${part}.`;
+  if (elements.homeEyebrow) elements.homeEyebrow.textContent = HOME_LINES[new Date().getDate() % HOME_LINES.length];
+}
+
 function showWelcome() {
   currentView = "home";
+  setHomeGreeting();
   syncLayoutToggles();
   renderTabs();
   refreshTokenDashboard(elements, elements.tokenUsageProfileFilter?.value || "all");
@@ -315,17 +336,10 @@ function renderTabs(
 
   const homeTab = document.createElement("button");
   homeTab.type = "button";
-  homeTab.className = `pdf-tab ${currentView === "home" ? "active" : ""}`;
-  homeTab.innerHTML = `<span class="tab-title"><i class="fa-solid fa-house"></i> Home</span>`;
+  homeTab.className = `pdf-tab pdf-tab-home ${currentView === "home" ? "active" : ""}`;
+  homeTab.innerHTML = '<span class="tab-title"><i class="fa-solid fa-house"></i> Home</span>';
   homeTab.addEventListener("click", onHome);
   elements.pdfTabs.appendChild(homeTab);
-
-  const settingsTab = document.createElement("button");
-  settingsTab.type = "button";
-  settingsTab.className = `pdf-tab ${currentView === "settings" ? "active" : ""}`;
-  settingsTab.innerHTML = `<span class="tab-title"><i class="fa-solid fa-gear"></i> Settings</span>`;
-  settingsTab.addEventListener("click", onSettings);
-  elements.pdfTabs.appendChild(settingsTab);
 
   openTabs.forEach((path) => {
     const tab = document.createElement("button");
@@ -409,33 +423,61 @@ function renderTabs(
   const addTab = document.createElement("button");
   addTab.type = "button";
   addTab.className = "pdf-tab tab-add";
-  addTab.title = "Open PDF in new tab";
+  addTab.title = "Open a PDF in a new tab";
+  addTab.setAttribute("aria-label", "Open a PDF in a new tab");
   addTab.innerHTML = '<i class="fa-solid fa-plus"></i>';
   addTab.addEventListener("click", onAdd);
   elements.pdfTabs.appendChild(addTab);
 }
 
+function parentFolder(path) {
+  const parts = path.split(/[/\\]/);
+  parts.pop();
+  return parts.slice(-2).join(" / ") || path;
+}
+
 function renderRecents(onPick) {
-  const recents = getRecents().slice(0, 5);
-  elements.recentList.innerHTML = "";
+  const recents = getRecents().slice(0, 6);
+  elements.recentList.textContent = "";
 
   if (recents.length === 0) {
-    const item = document.createElement("li");
-    item.textContent = "No recent PDFs yet.";
-    item.style.color = "var(--text-soft)";
-    elements.recentList.appendChild(item);
+    const empty = document.createElement("li");
+    empty.className = "recent-empty";
+    empty.textContent = "Nothing here yet. Open a PDF and it will wait for you here.";
+    elements.recentList.appendChild(empty);
     return;
   }
 
   recents.forEach((path) => {
     const li = document.createElement("li");
     const btn = document.createElement("button");
+    btn.type = "button";
     btn.className = "recent-item-btn";
-    btn.innerHTML = `
-      <span class="recent-item-name">${tabFileName(path)}</span>
-      <span class="recent-item-path">${path}</span>
-    `;
     btn.title = path;
+
+    const icon = document.createElement("span");
+    icon.className = "recent-item-icon";
+    icon.innerHTML = '<i class="fa-solid fa-file-lines"></i>';
+
+    const text = document.createElement("span");
+    text.className = "recent-item-text";
+    const name = document.createElement("span");
+    name.className = "recent-item-name";
+    name.textContent = tabFileName(path);
+    const folder = document.createElement("span");
+    folder.className = "recent-item-path";
+    folder.textContent = parentFolder(path);
+    text.append(name, folder);
+
+    const resume = getReadingState(path);
+    if (resume && resume.pageNum > 1) {
+      const meta = document.createElement("span");
+      meta.className = "recent-item-meta";
+      meta.textContent = `Continue on page ${resume.pageNum}`;
+      text.appendChild(meta);
+    }
+
+    btn.append(icon, text);
     btn.addEventListener("click", () => onPick(path));
     li.appendChild(btn);
     elements.recentList.appendChild(li);
@@ -486,38 +528,30 @@ function getCurrentChatConfig() {
 }
 
 function renderThemeSettings() {
-  const currentMode = getTheme() || "dark";
-  elements.settingsThemeMode.value = currentMode;
+  elements.settingsThemeMode.value = getTheme() === "light" ? "light" : "dark";
 
-  const customColor = window.electronAPI.getItem("custom-accent-color") || "#37c2b5";
-  elements.settingsCustomColor.value = customColor;
-}
-
-function applyCustomColor(color) {
-  document.documentElement.style.setProperty("--accent", color);
-
-  const adjust = (c, amount) => {
-    return '#' + c.replace(/^#/, '').replace(/../g, c =>
-      ('0' + Math.min(255, Math.max(0, parseInt(c, 16) + amount)).toString(16)).substr(-2)
-    );
-  };
-  document.documentElement.style.setProperty("--accent-strong", adjust(color, -20));
-
-  const mode = document.documentElement.getAttribute("data-theme") || "dark";
-  if (mode === "dark") {
-    document.documentElement.style.setProperty("--chip", `color-mix(in srgb, ${color} 20%, transparent)`);
-    document.documentElement.style.setProperty("--bg", `color-mix(in srgb, ${color} 3%, #0a0e14)`);
-    document.documentElement.style.setProperty("--panel", `color-mix(in srgb, ${color} 5%, #131820)`);
-    document.documentElement.style.setProperty("--panel-soft", `color-mix(in srgb, ${color} 7%, #1a202a)`);
-    document.documentElement.style.setProperty("--line", `color-mix(in srgb, ${color} 15%, #252d3a)`);
-    document.documentElement.style.setProperty("--activity", `color-mix(in srgb, ${color} 4%, #080b10)`);
-  } else {
-    document.documentElement.style.setProperty("--chip", `color-mix(in srgb, ${color} 15%, transparent)`);
-    document.documentElement.style.setProperty("--bg", `color-mix(in srgb, ${color} 3%, #f2f5f9)`);
-    document.documentElement.style.setProperty("--panel", `color-mix(in srgb, ${color} 2%, #ffffff)`);
-    document.documentElement.style.setProperty("--panel-soft", `color-mix(in srgb, ${color} 5%, #f6f8fb)`);
-    document.documentElement.style.setProperty("--line", `color-mix(in srgb, ${color} 12%, #dce2eb)`);
-    document.documentElement.style.setProperty("--activity", `color-mix(in srgb, ${color} 4%, #f8fafd)`);
+  const accent = getAccent();
+  elements.settingsCustomColor.value = accent;
+  if (elements.accentSwatches) {
+    if (!elements.accentSwatches.childElementCount) {
+      ACCENT_PRESETS.forEach((preset) => {
+        const swatch = document.createElement("button");
+        swatch.type = "button";
+        swatch.className = "accent-swatch";
+        swatch.style.background = preset.value;
+        swatch.title = preset.name;
+        swatch.setAttribute("aria-label", `${preset.name} accent`);
+        swatch.dataset.color = preset.value;
+        swatch.addEventListener("click", () => {
+          setAccent(preset.value);
+          renderThemeSettings();
+        });
+        elements.accentSwatches.appendChild(swatch);
+      });
+    }
+    elements.accentSwatches.querySelectorAll(".accent-swatch").forEach((swatch) => {
+      swatch.setAttribute("aria-pressed", String(swatch.dataset.color.toLowerCase() === accent.toLowerCase()));
+    });
   }
 }
 
@@ -576,19 +610,36 @@ function renderSettings() {
   if (apiProfiles.length === 0) {
     const empty = document.createElement("li");
     empty.className = "settings-api-item";
-    empty.textContent = "No AI profiles added yet. Use the form above or rely on the environment key.";
+    empty.textContent = "No AI model yet. Add one below to start chatting.";
     elements.settingsApiList.appendChild(empty);
   } else {
     apiProfiles.forEach((profile) => {
       const item = document.createElement("li");
       item.className = "settings-api-item";
 
+      const isActive = profile.id === (getActiveApiProfileId() || apiProfiles[0]?.id);
+      item.classList.toggle("is-active", isActive);
+
       const meta = document.createElement("div");
       meta.className = "settings-api-meta";
-      meta.innerHTML = `
-        <div class="settings-api-label">${profile.label}</div>
-        <div class="settings-api-key">${profile.format}${profile.url ? ` · ${profile.url}` : ""}${profile.model ? ` · ${profile.model}` : ""}${profile.key ? ` · ${getMaskedKey(profile.key)}` : " · no key"}</div>
-      `;
+      const label = document.createElement("div");
+      label.className = "settings-api-label";
+      label.textContent = profile.label;
+      if (isActive) {
+        const badge = document.createElement("span");
+        badge.className = "chip";
+        badge.textContent = "In use";
+        label.appendChild(badge);
+      }
+      const detail = document.createElement("div");
+      detail.className = "settings-api-key";
+      detail.textContent = [
+        profile.format === "openai" ? "OpenAI-compatible" : "Gemini",
+        profile.model,
+        profile.url,
+        profile.key ? "key saved securely" : "no key"
+      ].filter(Boolean).join(" \u00b7 ");
+      meta.append(label, detail);
 
       const actions = document.createElement("div");
       actions.className = "settings-api-actions";
@@ -596,13 +647,14 @@ function renderSettings() {
       const useBtn = document.createElement("button");
       useBtn.className = "btn";
       useBtn.textContent = "Use";
+      useBtn.disabled = isActive;
       useBtn.addEventListener("click", () => {
         setActiveApiProfileId(profile.id);
         renderSettings();
       });
 
       const deleteBtn = document.createElement("button");
-      deleteBtn.className = "btn";
+      deleteBtn.className = "btn danger";
       deleteBtn.textContent = "Remove";
       deleteBtn.addEventListener("click", () => {
         removeApiProfile(profile.id);
@@ -648,8 +700,6 @@ function addApiKeyFromSettings() {
 
 async function boot() {
   applyTheme();
-  const customColor = window.electronAPI.getItem("custom-accent-color");
-  if (customColor) applyCustomColor(customColor);
 
   elements.fitModeSelect.value = "auto";
   registerAllSettings();
@@ -1009,7 +1059,7 @@ async function boot() {
     );
 
     if (filtered.length === 0) {
-      elements.glossaryList.innerHTML = `<div style="padding: 20px; text-align: center; color: var(--text-soft); font-size: 0.85rem;">No terms found.</div>`;
+      elements.glossaryList.innerHTML = '<div class="empty-state"><i class="fa-solid fa-spell-check"></i><span>No terms yet. Select a word in the document and choose Define.</span></div>';
       return;
     }
 
@@ -1018,10 +1068,10 @@ async function boot() {
       el.className = "glossary-item";
       el.innerHTML = `
         <div class="glossary-term">
-          ${item.term}
+          <span>${escapeHtml(item.term)}</span>
           <button class="glossary-remove" title="Remove term"><i class="fa-solid fa-trash-can"></i></button>
         </div>
-        <div class="glossary-def">${item.definition}</div>
+        <div class="glossary-def">${escapeHtml(item.definition)}</div>
         <div class="glossary-meta">
           <span>${item.source === 'llm' ? 'AI' : 'Dict'}</span>
           <span>${item.frequency || 1} uses</span>
@@ -1038,6 +1088,10 @@ async function boot() {
       elements.glossaryList.appendChild(el);
     });
   }
+
+  elements.tokenUsagePanel?.addEventListener("toggle", () => {
+    if (elements.tokenUsagePanel.open) refreshTokenDashboard(elements, elements.tokenUsageProfileFilter?.value || "all");
+  });
 
   elements.glossarySearch.addEventListener("input", updateGlossaryUI);
   updateGlossaryUI();
@@ -1219,21 +1273,17 @@ async function boot() {
   elements.settingsThemeMode.addEventListener("change", () => {
     setTheme(elements.settingsThemeMode.value);
     applyTheme();
-    const custom = window.electronAPI.getItem("custom-accent-color");
-    if (custom) applyCustomColor(custom);
     renderSettings();
   });
 
   elements.settingsCustomColor.addEventListener("input", (e) => {
-    const color = e.target.value;
-    window.electronAPI.setItem("custom-accent-color", color);
-    applyCustomColor(color);
+    setAccent(e.target.value);
+    renderThemeSettings();
   });
 
   elements.resetColorBtn.addEventListener("click", () => {
-    window.electronAPI.removeItem("custom-accent-color");
-    applyTheme();
-    renderSettings();
+    resetAccent();
+    renderThemeSettings();
   });
 
   elements.prevBtn.addEventListener("click", () => pdf.prevPage());

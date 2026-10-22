@@ -1,43 +1,32 @@
-    const fill = document.getElementById('progressFill');
-    const statusEl = document.getElementById('statusText');
+const fill = document.getElementById('progressFill');
+const statusEl = document.getElementById('statusText');
 
-    const statusMessages = [
-      'Initializing backend environment...',
-      'Starting RAG server...',
-      'Verifying vector database layers...',
-      'Setting up semantic indexes...',
-      'Loading AI agent configs...',
-      'Ready'
-    ];
+// Honest, friendly messages: the real work (starting the local AI engine) has no measurable steps.
+const messages = [
+  'Sharpening pencils...',
+  'Warming up the highlighter...',
+  'Dusting off the bookshelf...',
+  'Almost ready...'
+];
 
-    function setProgress(pct, msg) {
-      fill.style.width = pct + '%';
-      if (msg !== undefined) statusEl.innerHTML = msg;
-    }
+function setProgress(pct, message) {
+  fill.style.width = pct + '%';
+  if (message) statusEl.textContent = message;
+}
 
-    // Fake loading progress
-    let fake = 0;
-    let msgIndex = 0;
-    
-    const interval = setInterval(() => {
-      if (fake < 92) {
-        let increment = fake > 72 ? Math.random() * 1.5 : Math.random() * 7;
-        fake += increment;
-        
-        // Progressively update status messages based on percentage
-        const progressChunk = 92 / (statusMessages.length - 1);
-        const currentMsgIdx = Math.min(
-          Math.floor(fake / progressChunk),
-          statusMessages.length - 2
-        );
-        
-        setProgress(Math.min(fake, 92), statusMessages[currentMsgIdx]);
-      }
-    }, 150);
+let progress = 6;
+let messageIndex = 0;
+setProgress(progress, messages[0]);
 
-    // Called by main process when backend is ready
-    window.onBackendReady = () => {
-      clearInterval(interval);
-      setProgress(100, 'Ready');
-    };
-  
+const timer = setInterval(() => {
+  progress = Math.min(progress + (progress > 70 ? Math.random() * 1.5 : Math.random() * 6), 92);
+  const index = Math.min(Math.floor((progress / 92) * messages.length), messages.length - 1);
+  if (index !== messageIndex) messageIndex = index;
+  setProgress(progress, messages[messageIndex]);
+}, 450);
+
+// Called by the main process when the backend is ready.
+window.onBackendReady = () => {
+  clearInterval(timer);
+  setProgress(100, 'Ready.');
+};

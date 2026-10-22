@@ -1,0 +1,174 @@
+/* The document itself. These rules are functional (layer stacking, text selection, highlights),
+   so change them with care. */
+
+.pdf-stage {
+  position: relative;
+  min-width: 0;
+  overflow: auto;
+  padding: var(--space-6);
+  background: var(--desk);
+}
+
+.pdf-container {
+  width: fit-content;
+  min-width: 100%;
+  margin: 0 auto;
+}
+
+.pdf-viewer {
+  position: relative;
+  width: fit-content;
+  height: fit-content;
+  margin: 0 auto;
+  border-radius: 3px;
+  background: #fff;
+  box-shadow: var(--shadow-3);
+}
+
+#pdf-render {
+  display: block;
+}
+
+#annotation-canvas {
+  z-index: 40;
+}
+
+#text-layer,
+#snip-selection {
+  position: absolute;
+  inset: 0;
+}
+
+#text-layer {
+  z-index: 20;
+}
+
+#snip-selection {
+  z-index: 30;
+  border: 1px dashed var(--accent);
+  background: var(--accent-soft);
+  pointer-events: none;
+}
+
+.pdf-multi-view {
+  display: none;
+}
+
+.multi-view-scroll {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.multi-view-two {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+  justify-items: center;
+}
+
+.pdf-page-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 3px;
+  background: #fff;
+  box-shadow: var(--shadow-3);
+}
+
+.pdf-page-card canvas {
+  display: block;
+}
+
+.pdf-page-text-layer {
+  position: absolute;
+  inset: 0;
+}
+
+body.drawing-active #text-layer,
+body.snipping-active #text-layer {
+  pointer-events: none;
+}
+
+/* Text layer: transparent text that stays locked to the canvas at any zoom. */
+.textLayer {
+  opacity: 1;
+}
+
+.textLayer span {
+  color: transparent !important;
+  line-height: 1.3 !important; /* expands the selection box to cover ascenders and descenders */
+  margin-top: -0.15em !important; /* cancels the baseline shift that the line-height above causes */
+}
+
+.textLayer span::selection,
+.pdf-page-text-layer span::selection {
+  background: var(--highlight-soft) !important;
+  color: transparent !important;
+}
+
+/* Marks made by the AI, and find results. */
+.ai-highlight {
+  padding: 1px 0;
+  border-bottom: 2px solid var(--primary-press);
+  border-radius: 2px;
+  background-color: rgba(255, 210, 63, 0.4);
+  transition: background-color var(--dur) var(--ease);
+}
+
+.ai-highlight.active {
+  background-color: rgba(255, 210, 63, 0.7);
+  box-shadow: 0 0 0 3px rgba(255, 210, 63, 0.35);
+}
+
+.find-highlight {
+  border-radius: 2px;
+  outline: 1px solid rgba(255, 180, 0, 0.6);
+  background: rgba(255, 220, 0, 0.45);
+}
+
+.find-highlight.find-current {
+  outline: 2px solid rgba(255, 100, 0, 0.9);
+  background: rgba(255, 120, 0, 0.5);
+}
+
+/* Sticky notes placed on the page. */
+.sticky-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+.sticky-marker {
+  position: absolute;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1.5px solid #d9ae12;
+  border-radius: 6px;
+  background: var(--brand-highlighter);
+  box-shadow: var(--shadow-2);
+  cursor: pointer;
+  transition: transform var(--dur) var(--ease);
+}
+
+.sticky-marker:hover {
+  transform: scale(1.15) rotate(4deg);
+}
+
+.sticky-marker::after {
+  content: "";
+  width: 10px;
+  height: 2px;
+  border-radius: 1px;
+  background: rgba(28, 27, 46, 0.35);
+  box-shadow: 0 3px 0 rgba(28, 27, 46, 0.35), 0 6px 0 rgba(28, 27, 46, 0.35);
+}
+
+body.sticky-placement-mode .pdf-viewer {
+  cursor: crosshair;
+}

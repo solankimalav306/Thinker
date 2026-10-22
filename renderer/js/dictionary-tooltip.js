@@ -1,3 +1,5 @@
+import { escapeHtml } from "./safe-html.js";
+
 export class DictionaryTooltip {
   constructor(options) {
     this.onAddGlossary = options.onAddGlossary;
@@ -11,11 +13,11 @@ export class DictionaryTooltip {
     this.tooltipEl.className = 'dict-tooltip';
     this.tooltipEl.innerHTML = `
       <div class="dict-header">
-        <div class="dict-term">${data.term}</div>
-        <button class="dict-close"><i class="fa-solid fa-xmark"></i></button>
+        <div class="dict-term">${escapeHtml(data.term)}</div>
+        <button class="dict-close" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="dict-source">Source: ${data.source === 'llm' ? 'Context-aware AI' : 'Dictionary API'}</div>
-      <div class="dict-def">${data.definition}</div>
+      <div class="dict-def">${escapeHtml(data.definition)}</div>
       <div class="dict-actions">
         <button class="dict-btn primary add-to-glossary-btn"><i class="fa-solid fa-plus"></i> Add to Glossary</button>
       </div>

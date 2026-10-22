@@ -46,7 +46,8 @@ async function backendPost(route, data) {
     throw new Error('Invalid document id');
   }
   if ('storagePath' in body) body.storagePath = app.getPath('userData');
-  return axios.post(`${BACKEND_URL}${route}`, body, { headers: { 'x-thinker-token': BACKEND_TOKEN } });
+  // Slower than any normal answer, but finite: a stalled provider call must not hang the chat.
+  return axios.post(`${BACKEND_URL}${route}`, body, { headers: { 'x-thinker-token': BACKEND_TOKEN }, timeout: 150000 });
 }
 
 // ── Spawn the Python/compiled backend ───────────────────────────────────────
@@ -292,18 +293,27 @@ let snipWindow = null;
 let snippingRequestorWindow = null;
 
 
+// Title bar colours follow the app theme (they match --bg in renderer/css/tokens.css).
+const TITLEBAR_THEMES = {
+  light: { color: '#f4f1e9', symbolColor: '#1c1b2e', height: 44 },
+  dark: { color: '#121120', symbolColor: '#f3f0e6', height: 44 }
+};
+
+function currentThemeName() {
+  return getItemDirect('smartpdf.theme') === 'light' ? 'light' : 'dark';
+}
+
 function createMainWindow(filePath = null) {
+  const theme = currentThemeName();
   const win = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    icon: path.join(__dirname, 'renderer/assets/logoWhite.png'),
-    backgroundColor: '#0f141c',
+    width: 1280,
+    height: 820,
+    minWidth: 960,
+    minHeight: 620,
+    icon: path.join(__dirname, 'renderer/assets/brand/app-icon-256.png'),
+    backgroundColor: TITLEBAR_THEMES[theme].color,
     titleBarStyle: 'hidden',
-    titleBarOverlay: {
-      color: '#0f141c',
-      symbolColor: '#e8eff9',
-      height: 34
-    },
+    titleBarOverlay: TITLEBAR_THEMES[theme],
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -493,6 +503,14 @@ function registerIpcHandlers() {
     }
   });
 
+  // Keeps the native window controls in step with the app theme.
+  ipcMain.handle('theme:set', (event, theme) => {
+    const colors = TITLEBAR_THEMES[theme === 'light' ? 'light' : 'dark'];
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (win && !win.isDestroyed() && typeof win.setTitleBarOverlay === 'function') win.setTitleBarOverlay(colors);
+    return true;
+  });
+
   // Settings registry values
   const SETTING_KEY = /^[a-z][a-zA-Z0-9]*(\.[a-zA-Z0-9]+)+$/;
   const SETTING_SCOPES = new Set(['app', 'workspace', 'document']);
@@ -648,7 +666,8 @@ function registerIpcHandlers() {
       return { ok: true, result: response.data };
     } catch (error) {
       console.error('Agent invocation failed:', error);
-      return { ok: false, error: error.message };
+      const timedOut = error.code === 'ECONNABORTED';
+      return { ok: false, error: timedOut ? 'The AI took too long to answer. Please try again.' : error.message };
     }
   });
 
