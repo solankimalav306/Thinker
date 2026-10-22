@@ -165,38 +165,54 @@ export class ChatController {
   }
 
   appendWelcomeMessage() {
+    const fileName = (this.activePdfPath || "").split(/[/\\]/).pop() || "this document";
     const welcome = document.createElement("div");
     welcome.className = "agent-welcome";
-    welcome.innerHTML = `
-      <h3><i class="fa-solid fa-wand-magic-sparkles"></i> Thinker Agent</h3>
-      <p>I'm your AI research assistant. I can help you analyze this document, define complex terms, and generate study materials.</p>
-      <div class="capabilities-grid">
-        <div class="capability-chip" data-query="Summarize the main points of this document">
-          <i class="fa-solid fa-file-invoice"></i>
-          <span>Summarize PDF</span>
-        </div>
-        <div class="capability-chip" data-query="Identify and define the key technical terms">
-          <i class="fa-solid fa-spell-check"></i>
-          <span>Define Terms</span>
-        </div>
-        <div class="capability-chip" data-query="Generate structured notes from the current page">
-          <i class="fa-solid fa-note-sticky"></i>
-          <span>Create Notes</span>
-        </div>
-        <div class="capability-chip" data-query="Identify the core concepts and their relationships">
-          <i class="fa-solid fa-diagram-project"></i>
-          <span>Map Concepts</span>
-        </div>
-      </div>
-    `;
-    
-    welcome.querySelectorAll(".capability-chip").forEach(chip => {
-      chip.addEventListener("click", () => {
-        this.chatInput.value = chip.dataset.query;
+
+    const heading = document.createElement("h3");
+    heading.textContent = "What would you like to know?";
+    const intro = document.createElement("p");
+    intro.className = "welcome-intro";
+    intro.append("Ask anything about ");
+    const doc = document.createElement("strong");
+    doc.textContent = fileName;
+    intro.append(doc, ". Answers point to the pages they came from.");
+
+    const suggestions = [
+      ["fa-list-check", "Summarize it", "The main points, with page numbers", "Summarize the main points of this document"],
+      ["fa-spell-check", "Explain the key terms", "What matters, defined in context", "Identify and define the key technical terms"],
+      ["fa-note-sticky", "Take notes", "Structured notes from this page", "Generate structured notes from the current page"],
+      ["fa-diagram-project", "Draw a mind map", "How the ideas connect", "Identify the core concepts and their relationships"]
+    ];
+    const list = document.createElement("div");
+    list.className = "capabilities-grid";
+    suggestions.forEach(([icon, title, hint, query]) => {
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "capability-chip";
+      row.dataset.query = query;
+      row.innerHTML = `
+        <span class="capability-icon"><i class="fa-solid ${icon}"></i></span>
+        <span class="capability-text"><strong>${title}</strong><span>${hint}</span></span>
+        <i class="fa-solid fa-arrow-right capability-go"></i>`;
+      row.addEventListener("click", () => {
+        this.chatInput.value = row.dataset.query;
         this.sendMessage();
       });
+      list.appendChild(row);
     });
 
+    const note = document.createElement("p");
+    note.className = "welcome-note";
+    note.append("Want answers strictly from your PDF? Switch to Document only below. ");
+    const how = document.createElement("button");
+    how.type = "button";
+    how.className = "welcome-link";
+    how.textContent = "How answers work";
+    how.addEventListener("click", () => document.getElementById("ai-capabilities-btn")?.click());
+    note.appendChild(how);
+
+    welcome.append(heading, intro, list, note);
     this.chatHistory.appendChild(welcome);
   }
 

@@ -498,59 +498,113 @@
   font-size: var(--text-xs);
 }
 
-/* ---------- Welcome card ---------- */
+/* ---------- Empty state (a new chat) ---------- */
 .agent-welcome {
-  padding: var(--space-5);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--surface-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-1) 0;
 }
 
 .agent-welcome h3 {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-size: var(--text-lg);
+  font-size: var(--text-xl);
+  line-height: 1.2;
 }
 
-.agent-welcome h3 i {
-  color: var(--accent);
-}
-
-.agent-welcome p {
-  margin: var(--space-2) 0 var(--space-4);
+.welcome-intro {
   color: var(--text-2);
+  font-size: var(--text-base);
+}
+
+.welcome-intro strong {
+  color: var(--text);
+  font-weight: 650;
+  overflow-wrap: anywhere;
 }
 
 .capabilities-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: var(--space-2);
+  margin-top: var(--space-2);
 }
 
 .capability-chip {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-2);
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
   padding: var(--space-3);
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   background: var(--surface);
   color: var(--text);
+  text-align: left;
+  transition: border-color var(--dur-fast) var(--ease), transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+
+.capability-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.capability-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.capability-text strong {
+  font-weight: 650;
+}
+
+.capability-text span {
+  color: var(--text-3);
   font-size: var(--text-sm);
+}
+
+.capability-go {
+  color: var(--text-3);
+  font-size: 0.8rem;
+  opacity: 0;
+  transform: translateX(-4px);
+  transition: opacity var(--dur-fast) var(--ease), transform var(--dur) var(--ease);
+}
+
+.capability-chip:hover,
+.capability-chip:focus-visible {
+  border-color: var(--primary);
+  box-shadow: var(--shadow-1);
+}
+
+.capability-chip:hover .capability-go,
+.capability-chip:focus-visible .capability-go {
+  opacity: 1;
+  transform: none;
+}
+
+.welcome-note {
+  margin-top: var(--space-2);
+  color: var(--text-3);
+  font-size: var(--text-sm);
+}
+
+.welcome-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-text);
+  font-size: inherit;
   font-weight: 600;
-  cursor: pointer;
-  transition: border-color var(--dur-fast) var(--ease), transform var(--dur) var(--ease);
-}
-
-.capability-chip i {
-  color: var(--accent);
-}
-
-.capability-chip:hover {
-  border-color: var(--primary-press);
-  transform: translateY(-1px);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 /* ---------- Thinking indicator ---------- */
