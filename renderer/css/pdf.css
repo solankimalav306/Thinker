@@ -102,9 +102,11 @@ body.snipping-active #text-layer {
   margin-top: -0.15em !important; /* cancels the baseline shift that the line-height above causes */
 }
 
+/* Pages are always white, so the selection uses a fixed pen-indigo that stays clearly visible in
+   both themes (the pale highlighter yellow was almost invisible on white paper). */
 .textLayer span::selection,
 .pdf-page-text-layer span::selection {
-  background: var(--highlight-soft) !important;
+  background: rgba(79, 70, 229, 0.5) !important;
   color: transparent !important;
 }
 
