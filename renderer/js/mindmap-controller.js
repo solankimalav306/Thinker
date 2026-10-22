@@ -240,7 +240,7 @@ export class MindMapController {
           stroke: none;
         }
         .markmap-node text {
-          font-family: 'Shantell Sans Variable', 'Shantell Sans', sans-serif !important;
+          font-family: 'Figtree Variable', 'Figtree', sans-serif !important;
           font-size: 13px !important;
           font-weight: 500;
           fill: var(--text) !important;

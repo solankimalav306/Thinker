@@ -1,12 +1,21 @@
 /* Reset, typography, scrollbars, focus and selection. */
 
-/* Shantell Sans: a marker-pen, notebook-margin hand that matches the blunt cut of the T. */
+/* Bricolage Grotesque: chunky, slightly irregular headlines that sit next to the blunt cut of the T. */
 @font-face {
-  font-family: "Shantell Sans Variable";
+  font-family: "Bricolage Grotesque Variable";
   font-style: normal;
   font-display: swap;
-  font-weight: 300 800;
-  src: url("../vendor/fonts/shantell-sans-latin-wght-normal.woff2") format("woff2");
+  font-weight: 200 800;
+  src: url("../vendor/fonts/bricolage-grotesque-latin-wght-normal.woff2") format("woff2");
+}
+
+/* Figtree: a clean, friendly sans that stays readable at small sizes. */
+@font-face {
+  font-family: "Figtree Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 300 900;
+  src: url("../vendor/fonts/figtree-latin-wght-normal.woff2") format("woff2");
 }
 
 *,
@@ -45,7 +54,7 @@ h3 {
   font-family: var(--font-display);
   font-weight: 750;
   line-height: var(--leading-tight);
-  letter-spacing: -0.005em;
+  letter-spacing: -0.015em;
 }
 
 h4 {

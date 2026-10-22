@@ -155,7 +155,7 @@ function renderBreakdownChart(canvas, breakdown) {
 
   items.forEach((item) => {
     // 1. Draw Label
-    ctx.font = "500 11px 'Shantell Sans Variable', sans-serif";
+    ctx.font = "500 11px 'Figtree Variable', sans-serif";
     ctx.fillStyle = colors.label;
     ctx.textAlign = "left";
     ctx.fillText(item.label, 0, y + 8);

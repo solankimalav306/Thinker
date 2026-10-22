@@ -10,8 +10,8 @@
   --brand-pen: #4f46e5;
 
   /* Type */
-  --font-ui: "Shantell Sans Variable", "Shantell Sans", "Segoe UI", system-ui, sans-serif;
-  --font-display: var(--font-ui);
+  --font-ui: "Figtree Variable", "Figtree", "Segoe UI", system-ui, sans-serif;
+  --font-display: "Bricolage Grotesque Variable", "Bricolage Grotesque", var(--font-ui);
   --font-mono: ui-monospace, "Cascadia Code", Consolas, monospace;
   --text-xs: 0.75rem;
   --text-sm: 0.8125rem;

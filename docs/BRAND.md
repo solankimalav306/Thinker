@@ -39,8 +39,9 @@ greeting's highlighter swipe, your own chat messages). Indigo marks **navigation
 
 ## Type
 
-- **Shantell Sans** (variable, weights 300-800) for everything. It has the marker-pen, notebook-margin
-  feel of brainstorming on paper, and its blunt, chunky strokes sit comfortably next to the T.
+- **Bricolage Grotesque** (700-800) for the wordmark, greetings and titles. Its chunky, slightly
+  irregular letters are the closest relative of the T's blunt, hand-cut shape.
+- **Figtree** for everything you read or click: friendly, open and very legible at 12-14px.
 - Headings use weight 750, body 400-500, labels 600.
 - Scale: 12 / 13 / 14 / 16 / 18 / 22 / 30 / 44 px (`--text-xs` ... `--text-3xl`). Body is 14px.
 - Never put body text below 12px.
