@@ -94,7 +94,7 @@ if ($SkipBackend) {
         Write-OK "PyInstaller installed"
     }
 
-    $buildDir = Join-Path $RootDir "build"
+    $buildDir = Join-Path $RootDir "build-pyi"   # never "build\": that folder holds the app icon
     $distDir  = Join-Path $RootDir "dist"
     $rootExe  = Join-Path $RootDir "backend.exe"
 
@@ -108,7 +108,7 @@ if ($SkipBackend) {
 
     Write-Host "      Running PyInstaller..." -ForegroundColor Gray
     Set-Location $RootDir
-    & $venvPyInstaller backend.spec --noconfirm
+    & $venvPyInstaller backend.spec --noconfirm --workpath $buildDir
     if ($LASTEXITCODE -ne 0) { Write-Fail "PyInstaller failed. Check errors above." }
 
     # One-file mode -> dist\backend.exe
