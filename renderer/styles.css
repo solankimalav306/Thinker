@@ -1,4 +1,4 @@
-﻿:root {
+:root {
   --font-ui: "Manrope", "Segoe UI", sans-serif;
   --font-display: "Space Grotesk", "Segoe UI", sans-serif;
 }
@@ -1423,6 +1423,48 @@ body.snipping-active #text-layer {
 .token-bar-response {
   background: #b062d1;
   transition: width 0.4s ease;
+}
+
+/* Container for the charts */
+.token-chart-section {
+  margin-top: 16px;
+  background: var(--panel-soft, #1e1e1e);
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.token-chart-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-soft, #aaa);
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.token-chart-canvas {
+  width: 100%; /* Scaling handled by JS */
+  display: block;
+}
+
+.cache-summary-msg {
+  border-left: 3px solid var(--accent);
+  padding: 8px 12px;
+  margin: 8px 0;
+  background: var(--panel-soft);
+  border-radius: 0 6px 6px 0;
+  font-size: 0.85rem;
+}
+
+.cache-summary-msg .cache-summary-header {
+  font-size: 0.7rem;
+  color: var(--accent);
+  font-weight: 700;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 /* Resizers */
@@ -3872,4 +3914,18 @@ body.sticky-placement-mode #annotation-canvas { cursor: crosshair !important; }
   height: 1px;
   background: var(--line);
   margin: 3px 6px;
+}
+
+/* Drag and Drop Tab States */
+.pdf-tab.dragging {
+  opacity: 0.4;
+  border-style: dashed;
+  border-color: var(--accent);
+}
+
+.pdf-tab.drag-over {
+  border-color: var(--accent);
+  background: rgba(55, 194, 181, 0.12) !important;
+  transform: scale(1.02);
+  transition: transform 0.15s ease, background 0.15s ease;
 }

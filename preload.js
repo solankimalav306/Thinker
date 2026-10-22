@@ -12,6 +12,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   indexPDF: (data) => ipcRenderer.invoke('pdf:index', data),
   queryPDF: (data) => ipcRenderer.invoke('pdf:query', data),
   invokeAgent: (data) => ipcRenderer.invoke('agent:invoke', data),
+  summarizeCache: (data) => ipcRenderer.invoke('agent:summarizeCache', data),
+  appendTokenUsage: (entry) => ipcRenderer.invoke('tokens:append', entry),
+  getTokenUsageHistory: () => ipcRenderer.invoke('tokens:getHistory'),
   
   getDefinition: (payload) => ipcRenderer.invoke('dict:define', payload),
   addToGlossary: (payload) => ipcRenderer.invoke('glossary:add', payload),
@@ -30,7 +33,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Expose synchronous local storage replacement
   getItem: (key) => ipcRenderer.sendSync('storage:getItem', key),
   setItem: (key, value) => ipcRenderer.sendSync('storage:setItem', key, value),
-  removeItem: (key) => ipcRenderer.sendSync('storage:removeItem', key)
+  removeItem: (key) => ipcRenderer.sendSync('storage:removeItem', key),
+
+  // Multi-window and drag-out PDF handlers
+  createWindow: (filePath) => ipcRenderer.invoke('window:create', filePath),
+  onOpenPdf: (callback) => {
+    const subscription = (event, path) => callback(path);
+    ipcRenderer.on('open-pdf', subscription);
+    return () => ipcRenderer.removeListener('open-pdf', subscription);
+  }
 });
 
 

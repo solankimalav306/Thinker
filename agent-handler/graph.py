@@ -2,6 +2,7 @@ import os
 import json
 import re
 import datetime
+import threading
 from typing import Annotated, Dict, List, TypedDict, Union, Literal
 from langgraph.graph import StateGraph, END
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -11,6 +12,7 @@ from services.dictionary import dictionary_service
 from duckduckgo_search import DDGS
 import concurrent.futures
 import string
+from utils.llm_text import reply_text
 
 # ---------------------------------------------------------------------------
 # Multi-provider LLM factory
@@ -22,7 +24,7 @@ def create_llm(state: dict):
       - "openai"  -> ChatOpenAI (works for OpenAI, OpenRouter, local Ollama, etc.)
     """
     api_format = str(state.get("api_format", "") or "gemini").strip().lower()
-    model = str(state.get("model", "") or "gemini-2.5-flash-lite").strip()
+    model = str(state.get("model", "") or "gemini-3.5-flash-lite").strip()
     api_key = str(state.get("api_key", "") or "").strip()
     api_url  = str(state.get("api_url",  "") or "").strip()
 
@@ -142,6 +144,31 @@ class AgentState(TypedDict):
     analysis: Dict
     drafts: List[Dict]
     verified_drafts: List[Dict]
+    cache_summary: str
+
+# Per-request token accumulator (reset at start of invoke_agent)
+_token_session = {"calls": [], "totals": {"input": 0, "output": 0, "context": 0, "history": 0, "selected_text": 0, "prompt": 0}}
+_token_lock = threading.Lock()
+
+def reset_token_session():
+    with _token_lock:
+        _token_session["calls"] = []
+        _token_session["totals"] = {"input": 0, "output": 0, "context": 0, "history": 0, "selected_text": 0, "prompt": 0}
+
+def get_token_session() -> dict:
+    with _token_lock:
+        totals = dict(_token_session["totals"])
+        return {"calls": list(_token_session["calls"]), "totals": totals}
+
+def compute_similarity(v1, v2) -> float:
+    import numpy as np
+    a = np.array(v1)
+    b = np.array(v2)
+    norm_a = np.linalg.norm(a)
+    norm_b = np.linalg.norm(b)
+    if norm_a == 0 or norm_b == 0:
+        return 0.0
+    return float(np.dot(a, b) / (norm_a * norm_b))
 
 def load_knowledge_cache(storage_path: str, pdf_id: str) -> dict:
     if not storage_path or not pdf_id:
@@ -167,6 +194,124 @@ def save_knowledge_cache(storage_path: str, pdf_id: str, cache_data: dict):
     except Exception as e:
         print(f"[knowledge_cache] Error saving cache: {e}", flush=True)
 
+def normalize_knowledge_cache(cache: dict) -> dict:
+    """Ensure cache follows {messages, summary, vector} structure; migrate legacy format."""
+    if not cache:
+        return {"messages": [], "summary": {}, "vector": {}}
+
+    if "messages" in cache or "vector" in cache:
+        cache.setdefault("messages", [])
+        cache.setdefault("summary", {})
+        cache.setdefault("vector", {})
+        return cache
+
+    vector = {}
+    for key in ("category", "sub_type", "reasoning", "focus_areas", "abstract", "queries"):
+        if key in cache:
+            vector[key] = cache[key]
+
+    messages = []
+    for intent in cache.get("user_intents", []):
+        messages.append({
+            "role": "user",
+            "text": intent.get("query", ""),
+            "context": intent.get("context", ""),
+            "ts": intent.get("timestamp", "")
+        })
+
+    return {"messages": messages, "summary": {}, "vector": vector}
+
+def get_unsummarized_messages(cache: dict) -> list:
+    return cache.get("messages", [])
+
+def append_cache_message(cache: dict, role: str, text: str, context: str = ""):
+    entry = {"role": role, "text": text, "ts": str(datetime.datetime.now())}
+    if context:
+        entry["context"] = context
+    cache.setdefault("messages", []).append(entry)
+
+def build_cache_history_text(cache: dict, max_recent: int = 3) -> str:
+    """Build conversation context from summary + recent unsummarized messages."""
+    parts = []
+    summary_text = cache.get("summary", {}).get("text", "")
+    if summary_text:
+        parts.append(f"Previous Conversation Summary:\n{summary_text}")
+
+    for msg in get_unsummarized_messages(cache)[-max_recent:]:
+        role = "User" if msg.get("role") == "user" else "Assistant"
+        text = msg.get("text", "")
+        if msg.get("context"):
+            text = f"[Context: {msg['context']}] {text}"
+        parts.append(f"{role}: {text}")
+
+    return "\n\n".join(parts)
+
+def summarize_cache_conversation(llm, state: dict, cache: dict, force: bool = False) -> str:
+    """Summarize unsummarized cache messages into cache['summary']. Returns summary text or empty."""
+    unsummarized = get_unsummarized_messages(cache)
+    if not force and len(unsummarized) < 5:
+        return ""
+
+    conv_lines = []
+    for msg in unsummarized:
+        role = "User" if msg.get("role") == "user" else "Assistant"
+        text = msg.get("text", "")
+        if msg.get("context"):
+            text = f"[Selected: {msg['context']}] {text}"
+        conv_lines.append(f"{role}: {text}")
+
+    existing = cache.get("summary", {}).get("text", "")
+    previous_block = f"Previous summary/cache to update:\n{existing}\n\n" if existing else ""
+    conv_text = "\n".join(conv_lines)
+
+    pdf_abstract = cache.get("vector", {}).get("abstract", "")
+    abstract_context = f"Document Abstract/Overview:\n{pdf_abstract}\n\n" if pdf_abstract else ""
+
+    prompt = f"""You are a knowledge caching assistant for a PDF research helper.
+Your job is to update a concise, token-efficient, bullet-pointed Knowledge Cache representing:
+1. A short abstract/overview of the PDF (1-2 sentences).
+2. The core information/concepts from the PDF discussed so far.
+3. The user's query intent (the types of questions they are asking).
+4. Confirmed facts and conclusions reached in the conversation.
+
+Keep the output extremely concise and token-efficient using bullet points. Avoid any conversational filler or duplication.
+
+{abstract_context}{previous_block}New conversation to incorporate:
+{conv_text}
+
+Provide the updated cache in this structure:
+### Abstract
+- [1-2 sentence abstract]
+
+### Key Document Info Discussed
+- [Key concepts discussed]
+
+### User Search Intent
+- [Specific kinds of questions the user is interested in/asking]
+
+### Key Conclusions & Facts
+- [Specific answers/conclusions reached]
+"""
+
+    response = invoke_llm_tracked(llm, state, prompt, node="cache_summarize")
+    summary_text = reply_text(response).strip()
+
+    try:
+        from embeddings import embed
+        summary_emb = embed([summary_text])[0].tolist()
+    except Exception as e:
+        print(f"[cache_summarize] Failed to embed summary: {e}", flush=True)
+        summary_emb = None
+
+    cache.setdefault("summary", {})
+    cache["summary"]["text"] = summary_text
+    cache["summary"]["updated_at"] = str(datetime.datetime.now())
+    if summary_emb:
+        cache["summary"]["embedding"] = summary_emb
+    cache["messages"] = []  # Clear messages pool once summarized
+
+    return summary_text
+
 def get_document_beginning(state: AgentState) -> str:
     """Reads the first chunk of metadata to provide document context to the planner."""
     pdf_id = state["pdf_id"]
@@ -188,51 +333,112 @@ def get_document_beginning(state: AgentState) -> str:
         return ""
 
 
-def print_llm_tokens(llm, state: dict, prompt: str):
+def estimate_input_tokens(llm, state: dict, prompt: str) -> dict:
     context = ""
     if state.get("rag_chunks"):
         context = "\n".join(state["rag_chunks"])
-    
+
     history = ""
-    if state.get("messages"):
+    storage_path = state.get("storage_path")
+    pdf_id = state.get("pdf_id")
+    if storage_path and pdf_id:
+        cache = normalize_knowledge_cache(load_knowledge_cache(storage_path, pdf_id))
+        history = build_cache_history_text(cache, max_recent=5)
+    elif state.get("messages"):
         for msg in state["messages"][-5:]:
             role = "User" if msg.get("role") == "user" else "Assistant"
-            text = msg.get("text", "")
-            history += f"{role}: {text}\n"
-            
+            history += f"{role}: {msg.get('text', '')}\n"
+
     selected_text = state.get("user_context", "")
-    
+
     try:
         context_tokens = llm.get_num_tokens(context)
         history_tokens = llm.get_num_tokens(history)
         selected_text_tokens = llm.get_num_tokens(selected_text or "")
         prompt_tokens = llm.get_num_tokens(prompt)
     except Exception as e:
-        print(f"Error calculating token counts: {e}")
+        print(f"Error calculating token counts: {e}", flush=True)
         context_tokens = len(context) // 4
         history_tokens = len(history) // 4
         selected_text_tokens = len(selected_text or "") // 4
         prompt_tokens = len(prompt) // 4
 
-    print("Context Tokens:", context_tokens)
-    print("History Tokens:", history_tokens)
-    print("Selected Text Tokens:", selected_text_tokens)
-    print("Prompt Tokens:", prompt_tokens)
+    return {
+        "context": context_tokens,
+        "history": history_tokens,
+        "selected_text": selected_text_tokens,
+        "prompt": prompt_tokens,
+    }
+
+def print_llm_tokens(llm, state: dict, prompt: str):
+    breakdown = estimate_input_tokens(llm, state, prompt)
+    print("Context Tokens:", breakdown["context"], flush=True)
+    print("History Tokens:", breakdown["history"], flush=True)
+    print("Selected Text Tokens:", breakdown["selected_text"], flush=True)
+    print("Prompt Tokens:", breakdown["prompt"], flush=True)
+    return breakdown
+
+def extract_output_tokens(llm, response) -> int:
+    try:
+        meta = getattr(response, "usage_metadata", None) or getattr(response, "response_metadata", {}) or {}
+        if isinstance(meta, dict):
+            usage = meta.get("usage_metadata") or meta.get("token_usage") or meta
+            for key in ("output_tokens", "completion_tokens", "candidates_token_count"):
+                val = usage.get(key)
+                if val is not None:
+                    return int(val)
+            total = usage.get("total_tokens") or usage.get("total_token_count")
+            input_t = usage.get("input_tokens") or usage.get("prompt_tokens") or usage.get("prompt_token_count") or 0
+            if total is not None:
+                return max(0, int(total) - int(input_t))
+    except Exception:
+        pass
+
+    try:
+        content = reply_text(response)
+        return llm.get_num_tokens(content or "")
+    except Exception:
+        text = reply_text(response)
+        return len(text or "") // 4
+
+def record_token_usage(node: str, input_breakdown: dict, output_tokens: int):
+    input_total = sum(input_breakdown.values())
+    with _token_lock:
+        _token_session["calls"].append({
+            "node": node,
+            "input": input_total,
+            "output": output_tokens,
+            "breakdown": dict(input_breakdown),
+        })
+        _token_session["totals"]["input"] += input_total
+        _token_session["totals"]["output"] += output_tokens
+        for key in ("context", "history", "selected_text", "prompt"):
+            _token_session["totals"][key] += input_breakdown.get(key, 0)
+
+def invoke_llm_tracked(llm, state: dict, prompt: str, node: str = "unknown", messages=None):
+    input_breakdown = print_llm_tokens(llm, state, prompt)
+    if messages is not None:
+        response = llm.invoke(messages)
+    else:
+        response = llm.invoke(prompt)
+    output_tokens = extract_output_tokens(llm, response)
+    record_token_usage(node, input_breakdown, output_tokens)
+    return response
 
 def supervisor_node(state: AgentState):
     llm = create_llm(state)
-    
-    # Update knowledge cache with the current request
-    cache = load_knowledge_cache(state.get("storage_path"), state.get("pdf_id"))
-    user_intents = cache.get("user_intents", [])
-    user_intents.append({
-        "query": state.get("user_query", ""),
-        "context": state.get("user_context", ""),
-        "timestamp": str(datetime.datetime.now())
-    })
-    cache["user_intents"] = user_intents[-20:]  # Keep last 20 queries/intents
-    save_knowledge_cache(state.get("storage_path"), state.get("pdf_id"), cache)
-    
+
+    storage_path = state.get("storage_path")
+    pdf_id = state.get("pdf_id")
+    cache = normalize_knowledge_cache(load_knowledge_cache(storage_path, pdf_id))
+    append_cache_message(cache, "user", state.get("user_query", ""), state.get("user_context", ""))
+
+    cache_summary = ""
+    if len(get_unsummarized_messages(cache)) >= 5:
+        cache_summary = summarize_cache_conversation(llm, state, cache) or ""
+        print(f"[supervisor_node] Auto-summarized knowledge cache ({len(cache.get('messages', []))} messages)", flush=True)
+
+    save_knowledge_cache(storage_path, pdf_id, cache)
     # Classify intent with an explicit, unambiguous prompt
     prompt = f"""You are an intent classifier for a PDF assistant. Your job is to map a user query to EXACTLY ONE intent label.
 
@@ -267,9 +473,8 @@ Return ONLY the intent label (one of: ask, define, highlight, note, mindmap, sea
                     }
                 })
     
-    print_llm_tokens(llm, state, prompt)
-    response = llm.invoke([HumanMessage(content=content)])
-    raw_intent = response.content.strip().lower()
+    response = invoke_llm_tracked(llm, state, prompt, node="supervisor", messages=[HumanMessage(content=content)])
+    raw_intent = reply_text(response).strip().lower()
     print(f"[supervisor_node] Raw intent from LLM: '{raw_intent}'", flush=True)
     
     # Strict exact-word matching (avoids substring false-positives)
@@ -283,11 +488,30 @@ Return ONLY the intent label (one of: ask, define, highlight, note, mindmap, sea
 
     print(f"[supervisor_node] Final intent: '{intent}'", flush=True)
     
-    # Retrieve RAG context
+    # Retrieve RAG context with token-saving dynamic context reduction
+    k_val = 3
+    summary_emb = cache.get("summary", {}).get("embedding")
+    if summary_emb and state["user_query"]:
+        try:
+            from embeddings import embed
+            q_emb = embed(["query: " + state["user_query"]])[0].tolist()
+            similarity = compute_similarity(q_emb, summary_emb)
+            print(f"[supervisor_node] Query vs Cache Similarity: {similarity:.4f}", flush=True)
+            # High semantic overlap: reduce RAG size to save tokens!
+            if similarity > 0.75:
+                k_val = 1
+                print(f"[supervisor_node] High similarity (>0.75) detected. Reducing RAG chunks to k=1.", flush=True)
+            elif similarity > 0.65:
+                k_val = 2
+                print(f"[supervisor_node] Moderate similarity (>0.65) detected. Reducing RAG chunks to k=2.", flush=True)
+        except Exception as e:
+            print(f"[supervisor_node] Error evaluating query-cache similarity: {e}", flush=True)
+
     rag_res = retrieval_service({
         "query": state["user_query"],
         "pdfId": state["pdf_id"],
-        "storagePath": state["storage_path"]
+        "storagePath": state["storage_path"],
+        "k": k_val
     })
 
     hits = rag_res.get("chunks", []) if isinstance(rag_res, dict) else []
@@ -300,7 +524,8 @@ Return ONLY the intent label (one of: ask, define, highlight, note, mindmap, sea
     return {
         "intent": intent,
         "rag_chunks": chunks,
-        "rag_hits": hits
+        "rag_hits": hits,
+        "cache_summary": cache_summary,
     }
 
 def dictionary_node(state: AgentState):
@@ -315,23 +540,18 @@ def dictionary_node(state: AgentState):
 
 def ask_node(state: AgentState):
     llm = create_llm(state)
-    
-    context = "\n".join(state["rag_chunks"])
-    
-    # Format history
-    history = ""
-    for msg in state.get("messages", [])[-5:]:  # Last 5 messages
-        role = "User" if msg.get("role") == "user" else "Assistant"
-        text = msg.get("text", "")
-        history += f"{role}: {text}\n"
 
-    # Incorporate overall document knowledge from cache if available
-    cache = load_knowledge_cache(state.get("storage_path"), state.get("pdf_id"))
+    context = "\n".join(state["rag_chunks"])
+
+    cache = normalize_knowledge_cache(load_knowledge_cache(state.get("storage_path"), state.get("pdf_id")))
+    history = build_cache_history_text(cache, max_recent=3)
+
+    vector = cache.get("vector", {})
     doc_info = ""
-    if cache.get("category") or cache.get("abstract"):
-        doc_info = f"Document Type: {cache.get('category')} ({cache.get('sub_type', 'default')})\n"
-        if cache.get("abstract"):
-            doc_info += f"Document Overview: {cache.get('abstract')}\n"
+    if vector.get("category") or vector.get("abstract"):
+        doc_info = f"Document Type: {vector.get('category')} ({vector.get('sub_type', 'default')})\n"
+        if vector.get("abstract"):
+            doc_info += f"Document Overview: {vector.get('abstract')}\n"
 
     prompt = f"""You are an intelligent PDF assistant. Answer the user's question accurately using the provided context, document overview, and conversation history.
     
@@ -363,9 +583,8 @@ def ask_node(state: AgentState):
                     }
                 })
     
-    print_llm_tokens(llm, state, prompt)
-    response = llm.invoke([HumanMessage(content=content)])
-    return {"response_text": response.content}
+    response = invoke_llm_tracked(llm, state, prompt, node="ask", messages=[HumanMessage(content=content)])
+    return {"response_text": reply_text(response)}
 
 def highlight_node(state: AgentState):
     llm = create_llm(state)
@@ -393,10 +612,9 @@ def highlight_node(state: AgentState):
     Context: {context}
     """
     
-    print_llm_tokens(llm, state, prompt)
-    response = llm.invoke(prompt)
+    response = invoke_llm_tracked(llm, state, prompt, node="highlight")
     try:
-        content = response.content.strip()
+        content = reply_text(response).strip()
         if "```json" in content:
             content = content.split("```json")[1].split("```")[0].strip()
         parsed = json.loads(content)
@@ -471,11 +689,10 @@ Context:
 {context}
 """
     
-    print_llm_tokens(llm, state, prompt)
-    response = llm.invoke(prompt)
+    response = invoke_llm_tracked(llm, state, prompt, node="mindmap")
     return {
         "response_text": "I've visualized the concepts as a mind map.",
-        "actions": [{"type": "mindmap", "code": response.content}]
+        "actions": [{"type": "mindmap", "code": reply_text(response)}]
     }
 
 def websearch_node(state: AgentState):
@@ -498,10 +715,9 @@ def websearch_node(state: AgentState):
     Provide a concise summary of the findings.
     """
     
-    print_llm_tokens(llm, state, prompt)
-    response = llm.invoke(prompt)
+    response = invoke_llm_tracked(llm, state, prompt, node="websearch")
     return {
-        "response_text": response.content,
+        "response_text": reply_text(response),
         "actions": [{"type": "websearch", "results": results}]
     }
 
@@ -509,14 +725,15 @@ def run_notes_planner(state: AgentState) -> Dict:
     print("[run_notes_planner] Initiating planner node...", flush=True)
     
     # Check cache first
-    cache = load_knowledge_cache(state.get("storage_path"), state.get("pdf_id"))
-    if cache.get("category") and cache.get("sub_type") and cache.get("focus_areas"):
+    cache = normalize_knowledge_cache(load_knowledge_cache(state.get("storage_path"), state.get("pdf_id")))
+    vector = cache.get("vector", {})
+    if vector.get("category") and vector.get("sub_type") and vector.get("focus_areas"):
         print("[run_notes_planner] Cache HIT! Skipping Planner LLM call.", flush=True)
         plan = {
-            "category": cache["category"],
-            "sub_type": cache["sub_type"],
-            "reasoning": cache.get("reasoning", "Loaded from cache."),
-            "focus_areas": cache["focus_areas"]
+            "category": vector["category"],
+            "sub_type": vector["sub_type"],
+            "reasoning": vector.get("reasoning", "Loaded from cache."),
+            "focus_areas": vector["focus_areas"]
         }
         return {"plan": plan}
         
@@ -548,10 +765,9 @@ def run_notes_planner(state: AgentState) -> Dict:
     """
     
     print("[run_notes_planner] Calling LLM...", flush=True)
-    print_llm_tokens(llm, state, prompt)
-    response = llm.invoke(prompt)
+    response = invoke_llm_tracked(llm, state, prompt, node="notes_planner")
     print("[run_notes_planner] LLM response received.", flush=True)
-    content = response.content.strip()
+    content = reply_text(response).strip()
     if "```json" in content:
         content = content.split("```json")[1].split("```")[0].strip()
     elif content.startswith("```"):
@@ -564,11 +780,12 @@ def run_notes_planner(state: AgentState) -> Dict:
         group = SUBTYPE_TO_FOCUS_GROUP.get(sub_type, "default")
         plan["focus_areas"] = FOCUS_GROUPS.get(group, FOCUS_GROUPS["default"])
         
-        # Save to cache
-        cache["category"] = plan.get("category", "Document")
-        cache["sub_type"] = sub_type
-        cache["reasoning"] = plan.get("reasoning", "")
-        cache["focus_areas"] = plan["focus_areas"]
+        # Save to cache vector section
+        cache.setdefault("vector", {})
+        cache["vector"]["category"] = plan.get("category", "Document")
+        cache["vector"]["sub_type"] = sub_type
+        cache["vector"]["reasoning"] = plan.get("reasoning", "")
+        cache["vector"]["focus_areas"] = plan["focus_areas"]
         save_knowledge_cache(state.get("storage_path"), state.get("pdf_id"), cache)
         
         print(f"[run_notes_planner] Successfully parsed plan and updated cache: {plan}", flush=True)
@@ -590,12 +807,13 @@ def run_document_analyzer(state: AgentState) -> Dict:
     print("[run_document_analyzer] Initiating document analyzer node...", flush=True)
     
     # Check cache first
-    cache = load_knowledge_cache(state.get("storage_path"), state.get("pdf_id"))
-    if cache.get("abstract") and cache.get("queries"):
+    cache = normalize_knowledge_cache(load_knowledge_cache(state.get("storage_path"), state.get("pdf_id")))
+    vector = cache.get("vector", {})
+    if vector.get("abstract") and vector.get("queries"):
         print("[run_document_analyzer] Cache HIT! Skipping Analyzer LLM call.", flush=True)
         analysis = {
-            "abstract": cache["abstract"],
-            "queries": cache["queries"]
+            "abstract": vector["abstract"],
+            "queries": vector["queries"]
         }
         return {"analysis": analysis}
         
@@ -627,10 +845,9 @@ def run_document_analyzer(state: AgentState) -> Dict:
     """
     
     print("[run_document_analyzer] Calling LLM...", flush=True)
-    print_llm_tokens(llm, state, prompt)
-    response = llm.invoke(prompt)
+    response = invoke_llm_tracked(llm, state, prompt, node="document_analyzer")
     print("[run_document_analyzer] LLM response received.", flush=True)
-    content = response.content.strip()
+    content = reply_text(response).strip()
     if "```json" in content:
         content = content.split("```json")[1].split("```")[0].strip()
     elif content.startswith("```"):
@@ -639,9 +856,10 @@ def run_document_analyzer(state: AgentState) -> Dict:
     try:
         analysis = json.loads(content)
         
-        # Save to cache
-        cache["abstract"] = analysis.get("abstract", "")
-        cache["queries"] = analysis.get("queries", {})
+        # Save to cache vector section
+        cache.setdefault("vector", {})
+        cache["vector"]["abstract"] = analysis.get("abstract", "")
+        cache["vector"]["queries"] = analysis.get("queries", {})
         save_knowledge_cache(state.get("storage_path"), state.get("pdf_id"), cache)
         
         print(f"[run_document_analyzer] Successfully parsed analysis and updated cache: {analysis}", flush=True)
@@ -689,12 +907,11 @@ def run_parallel_workers(state: AgentState) -> Dict:
             Include key insights and definitions. Be direct and clear. Limit the output to 200 words.
             Do not add overall headers, just write the paragraph content of this section.
             """
-            print_llm_tokens(llm, state, prompt)
-            response = llm.invoke(prompt)
-            print(f"  [Worker - {title}] LLM output completed (length: {len(response.content)} chars).", flush=True)
+            response = invoke_llm_tracked(llm, state, prompt, node=f"worker_{title}")
+            print(f"  [Worker - {title}] LLM output completed (length: {len(reply_text(response))} chars).", flush=True)
             return {
                 "title": title,
-                "content": response.content,
+                "content": reply_text(response),
                 "context_chunks": [h.get("text", "") for h in hits]
             }
         except Exception as ex:
@@ -815,8 +1032,7 @@ def run_markdown_formatter(state: AgentState) -> Dict:
     """
     
     print("[run_markdown_formatter] Calling LLM to format notes...", flush=True)
-    print_llm_tokens(llm, state, prompt)
-    response = llm.invoke(prompt)
+    response = invoke_llm_tracked(llm, state, prompt, node="markdown_formatter")
     print("[run_markdown_formatter] Formatting completed successfully.", flush=True)
     
     sub_type_label = plan.get('sub_type', 'document').replace('_', ' ')
@@ -824,7 +1040,7 @@ def run_markdown_formatter(state: AgentState) -> Dict:
     
     return {
         "response_text": response_text,
-        "actions": [{"type": "note", "content": response.content}]
+        "actions": [{"type": "note", "content": reply_text(response)}]
     }
 
 
@@ -855,11 +1071,10 @@ def comment_node(state: AgentState):
     {chr(10).join(snippets)}
     """
     
-    print_llm_tokens(llm, state, prompt)
-    response = llm.invoke(prompt)
+    response = invoke_llm_tracked(llm, state, prompt, node="comment")
     comments = []
     try:
-        content = response.content.strip()
+        content = reply_text(response).strip()
         if "```json" in content:
             content = content.split("```json")[1].split("```")[0].strip()
         parsed = json.loads(content)
@@ -917,9 +1132,8 @@ def critic_node(state: AgentState):
     Return ONLY the final (corrected) response text.
     """
     
-    print_llm_tokens(llm, state, prompt)
-    response = llm.invoke(prompt)
-    return {"response_text": response.content}
+    response = invoke_llm_tracked(llm, state, prompt, node="critic")
+    return {"response_text": reply_text(response)}
 
 def precision_node(state: AgentState):
     llm = create_llm(state)
@@ -942,9 +1156,8 @@ def precision_node(state: AgentState):
     Response: {generated}
     """
 
-    print_llm_tokens(llm, state, prompt)
-    response = llm.invoke(prompt)
-    content = response.content.strip()
+    response = invoke_llm_tracked(llm, state, prompt, node="precision")
+    content = reply_text(response).strip()
     if "```json" in content:
         content = content.split("```json")[1].split("```")[0].strip()
     try:
@@ -1036,12 +1249,15 @@ workflow.add_edge("comment", END)
 app = workflow.compile()
 
 def invoke_agent(query_data: dict):
+    reset_token_session()
+
     # Resolve provider info from nested profile or flat keys
     profile = query_data.get("profile") or {}
+    profile_id = str(profile.get("id") or query_data.get("profileId") or "default").strip()
     api_format = str(profile.get("format") or query_data.get("apiFormat") or "gemini").strip().lower()
     api_url    = str(profile.get("url")    or query_data.get("apiUrl")    or "").strip()
     api_key    = str(profile.get("key")    or query_data.get("apiKey")    or "").strip()
-    model      = str(profile.get("model")  or query_data.get("model")     or "gemini-2.5-flash-lite").strip()
+    model      = str(profile.get("model")  or query_data.get("model")     or "gemini-3.5-flash-lite").strip()
 
     initial_state = {
         "user_query": query_data.get("query", ""),
@@ -1060,16 +1276,106 @@ def invoke_agent(query_data: dict):
         "messages": query_data.get("messages", []),
         "parts": query_data.get("parts", []),
         "response_text": "",
-        "evaluation": {}
+        "evaluation": {},
+        "cache_summary": "",
     }
 
     print(f"[invoke_agent] Provider: format={api_format}, url={api_url or '(default)'}, model={model}", flush=True)
-    
+
     final_state = app.invoke(initial_state)
+
+    storage_path = query_data.get("storagePath", "")
+    pdf_id = query_data.get("pdfId", "")
+    if final_state.get("response_text") and storage_path and pdf_id:
+        cache = normalize_knowledge_cache(load_knowledge_cache(storage_path, pdf_id))
+        append_cache_message(cache, "assistant", final_state["response_text"])
+        save_knowledge_cache(storage_path, pdf_id, cache)
+
+    token_data = get_token_session()
     return {
         "intent": final_state["intent"],
         "response_text": final_state["response_text"],
         "actions": final_state["actions"],
         "glossary_terms": final_state["glossary_terms"],
-        "evaluation": final_state.get("evaluation", {})
+        "evaluation": final_state.get("evaluation", {}),
+        "cache_summary": final_state.get("cache_summary", ""),
+        "usage": {
+            "profile_id": profile_id,
+            "prompt_tokens": token_data["totals"]["input"],
+            "response_tokens": token_data["totals"]["output"],
+            "total_tokens": token_data["totals"]["input"] + token_data["totals"]["output"],
+            "breakdown": {
+                "context": token_data["totals"]["context"],
+                "history": token_data["totals"]["history"],
+                "selected_text": token_data["totals"]["selected_text"],
+                "prompt": token_data["totals"]["prompt"],
+            },
+            "calls": token_data["calls"],
+        },
+    }
+
+def summarize_knowledge_cache(query_data: dict):
+    """Manually summarize the knowledge cache for a PDF."""
+    reset_token_session()
+
+    profile = query_data.get("profile") or {}
+    api_format = str(profile.get("format") or query_data.get("apiFormat") or "gemini").strip().lower()
+    api_url    = str(profile.get("url")    or query_data.get("apiUrl")    or "").strip()
+    api_key    = str(profile.get("key")    or query_data.get("apiKey")    or "").strip()
+    model      = str(profile.get("model")  or query_data.get("model")     or "gemini-3.5-flash-lite").strip()
+    storage_path = query_data.get("storagePath", "")
+    pdf_id = query_data.get("pdfId", "")
+
+    state = {
+        "storage_path": storage_path,
+        "pdf_id": pdf_id,
+        "api_key": api_key,
+        "api_format": api_format,
+        "api_url": api_url,
+        "model": model,
+        "user_context": "",
+        "rag_chunks": [],
+        "messages": [],
+    }
+
+    cache = normalize_knowledge_cache(load_knowledge_cache(storage_path, pdf_id))
+    unsummarized = get_unsummarized_messages(cache)
+
+    if not unsummarized:
+        return {
+            "summary": cache.get("summary", {}).get("text", ""),
+            "message": "No messages to summarize.",
+            "usage": {
+                "profile_id": str(profile.get("id") or query_data.get("profileId") or "default"),
+                "prompt_tokens": 0,
+                "response_tokens": 0,
+                "total_tokens": 0,
+                "breakdown": {"context": 0, "history": 0, "selected_text": 0, "prompt": 0},
+                "calls": [],
+            },
+        }
+
+    llm = create_llm(state)
+    summary_text = summarize_cache_conversation(llm, state, cache, force=True)
+    save_knowledge_cache(storage_path, pdf_id, cache)
+
+    token_data = get_token_session()
+    profile_id = str(profile.get("id") or query_data.get("profileId") or "default").strip()
+
+    return {
+        "summary": summary_text,
+        "message_count": len(cache.get("messages", [])),
+        "usage": {
+            "profile_id": profile_id,
+            "prompt_tokens": token_data["totals"]["input"],
+            "response_tokens": token_data["totals"]["output"],
+            "total_tokens": token_data["totals"]["input"] + token_data["totals"]["output"],
+            "breakdown": {
+                "context": token_data["totals"]["context"],
+                "history": token_data["totals"]["history"],
+                "selected_text": token_data["totals"]["selected_text"],
+                "prompt": token_data["totals"]["prompt"],
+            },
+            "calls": token_data["calls"],
+        },
     }

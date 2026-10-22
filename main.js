@@ -5,17 +5,52 @@ const fsPromises = require('fs/promises');
 const crypto = require('crypto');
 const { PDFDocument, rgb } = require('pdf-lib');
 const { spawn } = require('child_process');
+const net = require('net');
 const axios = require('axios');
-require('dotenv').config();
 
-const { getItemSync, setItemSync, removeItemSync, getItemDirect } = require('./app-storage');
+const { migrateProfileSecrets, getItemSync, setItemSync, removeItemSync, getItemDirect, readJsonlAll, appendJsonlEntry } = require('./app-storage');
 const { handleLLMGenerate } = require('./llm-handler');
+const { resolveSecrets } = require('./secrets');
+const { writeRealAnnotations } = require('./pdf-annotations');
 
 // ── Backend process handle (so we can kill it cleanly on exit) ──────────────
 let backendProcess = null;
 
+// ── Backend address: random free port + per-launch token, chosen at startup ──
+let BACKEND_PORT = 0;
+let BACKEND_URL = '';
+const BACKEND_TOKEN = crypto.randomBytes(32).toString('hex');
+const PDF_ID_PATTERN = /^[0-9a-f]{64}$/;
+
+function pickFreePort() {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const { port } = server.address();
+      server.close(() => resolve(port));
+    });
+  });
+}
+
+// The renderer is not trusted to choose where the backend reads or writes: the storage
+// directory is fixed here and document ids must be content hashes.
+async function backendPost(route, data) {
+  const body = { ...data };
+  if ('pdfId' in body && !PDF_ID_PATTERN.test(String(body.pdfId))) {
+    throw new Error('Invalid document id');
+  }
+  if ('storagePath' in body) body.storagePath = app.getPath('userData');
+  return axios.post(`${BACKEND_URL}${route}`, body, { headers: { 'x-thinker-token': BACKEND_TOKEN } });
+}
+
 // ── Spawn the Python/compiled backend ───────────────────────────────────────
 function startBackend() {
+  const backendEnv = {
+    ...process.env,
+    THINKER_TOKEN: BACKEND_TOKEN,
+    THINKER_STORAGE_ROOT: app.getPath('userData')
+  };
   // Production: search multiple locations for backend.exe
   const possiblePaths = [
     path.join(path.dirname(app.getPath('exe')), 'backend.exe'),
@@ -31,17 +66,17 @@ function startBackend() {
   }
 
   if (exePath) {
-    console.log('[backend] Launching backend.exe:', exePath);
-    backendProcess = spawn(exePath, [], { detached: false });
+    console.log('[backend] Launching backend.exe on port:', BACKEND_PORT, exePath);
+    backendProcess = spawn(exePath, [String(BACKEND_PORT)], { detached: false, env: backendEnv });
   } else {
     // Dev fallback: use the venv uvicorn
-    console.log('[backend] backend.exe not found – falling back to venv uvicorn');
+    console.log('[backend] backend.exe not found – falling back to venv uvicorn on port:', BACKEND_PORT);
     const venvPython = path.join(__dirname, 'venv', 'Scripts', 'python.exe');
     const pythonBin = fs.existsSync(venvPython) ? venvPython : 'python';
     backendProcess = spawn(
       pythonBin,
-      ['-m', 'uvicorn', 'main:app', '--host', '127.0.0.1', '--port', '8000'],
-      { cwd: path.join(__dirname, 'agent-handler'), detached: false }
+      ['-m', 'uvicorn', 'main:app', '--host', '127.0.0.1', '--port', String(BACKEND_PORT)],
+      { cwd: path.join(__dirname, 'agent-handler'), detached: false, env: backendEnv }
     );
   }
 
@@ -55,7 +90,7 @@ async function waitForBackend(timeoutMs = 60_000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     try {
-      const res = await axios.get('http://127.0.0.1:8000/health', { timeout: 2000 });
+      const res = await axios.get(`${BACKEND_URL}/health`, { timeout: 2000, headers: { 'x-thinker-token': BACKEND_TOKEN } });
       if (res.data?.status === 'ok') return true;
     } catch { /* not ready yet */ }
     await new Promise(r => setTimeout(r, 1000));
@@ -79,7 +114,7 @@ function createSplash() {
     center: true,
     alwaysOnTop: true,
     skipTaskbar: true,
-    webPreferences: { nodeIntegration: false, contextIsolation: true }
+    webPreferences: { nodeIntegration: false, sandbox: true, contextIsolation: true }
   });
   
   splashWindow.loadFile('renderer/splash.html', {
@@ -172,6 +207,92 @@ function inferStrokeWidth(pathData, pageWidth) {
   return 1.5;
 }
 
+// Legacy export: burns annotations into the page content as drawn shapes (not editable afterwards).
+function flattenAnnotations(pdfDoc, annotationsByPage, highlightBoxesByPage) {
+  const pages = pdfDoc.getPages();
+  for (let pageIndex = 0; pageIndex < pages.length; pageIndex += 1) {
+    const pageNumber = pageIndex + 1;
+    const pageData = annotationsByPage[String(pageNumber)] || annotationsByPage[pageNumber] || { paths: [], stickyNotes: [] };
+    const highlightBoxes = highlightBoxesByPage[String(pageNumber)] || highlightBoxesByPage[pageNumber] || [];
+
+    const page = pages[pageIndex];
+    const { width, height } = page.getSize();
+    const paths = Array.isArray(pageData.paths) ? pageData.paths : [];
+    const stickyNotes = Array.isArray(pageData.stickyNotes) ? pageData.stickyNotes : [];
+    if (paths.length === 0 && stickyNotes.length === 0 && highlightBoxes.length === 0) {
+      continue;
+    }
+
+    for (const pathData of paths) {
+      const points = Array.isArray(pathData.points) ? pathData.points : [];
+      if (points.length < 2) continue;
+
+      const { color, opacity } = parseColor(pathData.color);
+      const thickness = inferStrokeWidth(pathData, width);
+
+      for (let i = 1; i < points.length; i += 1) {
+        const p1 = points[i - 1];
+        const p2 = points[i];
+        const a = toPdfPoint(p1.x, p1.y, width, height);
+        const b = toPdfPoint(p2.x, p2.y, width, height);
+
+        page.drawLine({
+          start: a,
+          end: b,
+          thickness,
+          color,
+          opacity: Math.max(0.1, Math.min(1, opacity ?? pathData.alpha ?? 1))
+        });
+      }
+    }
+
+    // Render AI highlights as translucent rectangles
+    for (const box of highlightBoxes) {
+      const rect = toPdfRect(box.x, box.y, box.w, box.h, width, height);
+      if (rect.w <= 0 || rect.h <= 0) continue;
+      page.drawRectangle({
+        x: rect.x,
+        y: rect.y,
+        width: rect.w,
+        height: rect.h,
+        color: rgb(1, 0.92, 0.35),
+        opacity: 0.35
+      });
+    }
+
+    for (const note of stickyNotes) {
+      const p = toPdfPoint(note.x, note.y, width, height);
+      const boxW = Math.max(100, Math.min(220, width * 0.24));
+      const boxH = 44;
+      const yBottom = Math.max(6, p.y - boxH + 8);
+      const xLeft = Math.max(6, Math.min(width - boxW - 6, p.x - 12));
+      const text = String(note.text || '').replace(/\s+/g, ' ').trim().slice(0, 280) || 'Note';
+
+      page.drawRectangle({
+        x: xLeft,
+        y: yBottom,
+        width: boxW,
+        height: boxH,
+        color: rgb(1, 0.94, 0.55),
+        opacity: 0.9,
+        borderColor: rgb(0.55, 0.46, 0.1),
+        borderWidth: 0.8
+      });
+
+      page.drawText(text, {
+        x: xLeft + 6,
+        y: yBottom + boxH - 15,
+        size: 9,
+        color: rgb(0.24, 0.22, 0.12),
+        maxWidth: boxW - 10,
+        lineHeight: 10
+      });
+    }
+  }
+}
+
+const TOKEN_USAGE_KEY = 'smartpdf.tokenUsage';
+
 ipcMain.on('storage:getItem', getItemSync);
 ipcMain.on('storage:setItem', setItemSync);
 ipcMain.on('storage:removeItem', removeItemSync);
@@ -183,8 +304,9 @@ const diskCachePath = path.join(sessionDataPath, 'disk-cache');
 app.setPath('sessionData', sessionDataPath);
 app.commandLine.appendSwitch('disk-cache-dir', diskCachePath);
 
-let mainWindow;  // track your main window globally
-let snipWindow;  // track snipping tool window
+const windows = new Set();
+let snipWindow = null;
+let snippingRequestorWindow = null;
 
 
 function getChatHistoryDir() {
@@ -216,8 +338,8 @@ async function readJsonl(filePath) {
   }
 }
 
-function createMainWindow() {
-  mainWindow = new BrowserWindow({
+function createMainWindow(filePath = null) {
+  const win = new BrowserWindow({
     width: 1200,
     height: 800,
     icon: path.join(__dirname, 'renderer/assets/logoWhite.png'),
@@ -232,23 +354,46 @@ function createMainWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: true,
     }
   });
 
-  mainWindow.loadFile('renderer/index.html');
+  windows.add(win);
 
+  win.on('closed', () => {
+    windows.delete(win);
+  });
 
-  ipcMain.handle('dialog:openPDF', async () => {
-    const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+  if (filePath) {
+    win.loadFile('renderer/index.html', {
+      query: { open: filePath }
+    });
+  } else {
+    win.loadFile('renderer/index.html');
+  }
+
+  return win;
+}
+
+function registerIpcHandlers() {
+  ipcMain.handle('window:create', (event, filePath) => {
+    createMainWindow(filePath);
+    return true;
+  });
+
+  ipcMain.handle('dialog:openPDF', async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const { canceled, filePaths } = await dialog.showOpenDialog(win, {
       filters: [{ name: 'PDF Files', extensions: ['pdf'] }],
       properties: ['openFile']
     });
     return canceled ? null : filePaths[0];
   });
 
-  ipcMain.handle('dialog:saveTextFile', async (_event, payload) => {
+  ipcMain.handle('dialog:saveTextFile', async (event, payload) => {
     try {
-      const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+      const win = BrowserWindow.fromWebContents(event.sender);
+      const { canceled, filePath } = await dialog.showSaveDialog(win, {
         defaultPath: payload?.defaultPath || 'mindmap.svg',
         filters: payload?.filters || [{ name: 'All Files', extensions: ['*'] }]
       });
@@ -296,7 +441,7 @@ function createMainWindow() {
     return embeddingsPath;
   });
 
-  ipcMain.handle('pdf:saveAnnotated', async (_event, payload) => {
+  ipcMain.handle('pdf:saveAnnotated', async (event, payload) => {
     try {
       const sourcePath = toLocalPath(payload?.pdfPath);
       if (!sourcePath || !fs.existsSync(sourcePath)) {
@@ -309,84 +454,10 @@ function createMainWindow() {
       const pdfDoc = await PDFDocument.load(inputBytes);
       const pages = pdfDoc.getPages();
 
-      for (let pageIndex = 0; pageIndex < pages.length; pageIndex += 1) {
-        const pageNumber = pageIndex + 1;
-        const pageData = annotationsByPage[String(pageNumber)] || annotationsByPage[pageNumber] || { paths: [], stickyNotes: [] };
-        const highlightBoxes = highlightBoxesByPage[String(pageNumber)] || highlightBoxesByPage[pageNumber] || [];
-
-        const page = pages[pageIndex];
-        const { width, height } = page.getSize();
-        const paths = Array.isArray(pageData.paths) ? pageData.paths : [];
-        const stickyNotes = Array.isArray(pageData.stickyNotes) ? pageData.stickyNotes : [];
-        if (paths.length === 0 && stickyNotes.length === 0 && highlightBoxes.length === 0) {
-          continue;
-        }
-
-        for (const pathData of paths) {
-          const points = Array.isArray(pathData.points) ? pathData.points : [];
-          if (points.length < 2) continue;
-
-          const { color, opacity } = parseColor(pathData.color);
-          const thickness = inferStrokeWidth(pathData, width);
-
-          for (let i = 1; i < points.length; i += 1) {
-            const p1 = points[i - 1];
-            const p2 = points[i];
-            const a = toPdfPoint(p1.x, p1.y, width, height);
-            const b = toPdfPoint(p2.x, p2.y, width, height);
-
-            page.drawLine({
-              start: a,
-              end: b,
-              thickness,
-              color,
-              opacity: Math.max(0.1, Math.min(1, opacity ?? pathData.alpha ?? 1))
-            });
-          }
-        }
-
-        // Render AI highlights as translucent rectangles
-        for (const box of highlightBoxes) {
-          const rect = toPdfRect(box.x, box.y, box.w, box.h, width, height);
-          if (rect.w <= 0 || rect.h <= 0) continue;
-          page.drawRectangle({
-            x: rect.x,
-            y: rect.y,
-            width: rect.w,
-            height: rect.h,
-            color: rgb(1, 0.92, 0.35),
-            opacity: 0.35
-          });
-        }
-
-        for (const note of stickyNotes) {
-          const p = toPdfPoint(note.x, note.y, width, height);
-          const boxW = Math.max(100, Math.min(220, width * 0.24));
-          const boxH = 44;
-          const yBottom = Math.max(6, p.y - boxH + 8);
-          const xLeft = Math.max(6, Math.min(width - boxW - 6, p.x - 12));
-          const text = String(note.text || '').replace(/\s+/g, ' ').trim().slice(0, 280) || 'Note';
-
-          page.drawRectangle({
-            x: xLeft,
-            y: yBottom,
-            width: boxW,
-            height: boxH,
-            color: rgb(1, 0.94, 0.55),
-            opacity: 0.9,
-            borderColor: rgb(0.55, 0.46, 0.1),
-            borderWidth: 0.8
-          });
-
-          page.drawText(text, {
-            x: xLeft + 6,
-            y: yBottom + boxH - 15,
-            size: 9,
-            color: rgb(0.24, 0.22, 0.12),
-            maxWidth: boxW - 10,
-            lineHeight: 10
-          });
-        }
+      if (payload?.flatten) {
+        flattenAnnotations(pdfDoc, annotationsByPage, highlightBoxesByPage);
+      } else {
+        writeRealAnnotations(pdfDoc, annotationsByPage, highlightBoxesByPage);
       }
 
       // Append detailed notes (if any) as extra pages at the end of the PDF
@@ -456,7 +527,8 @@ function createMainWindow() {
 
       const parsed = path.parse(sourcePath);
       const defaultPath = path.join(parsed.dir, `${parsed.name}-annotated.pdf`);
-      const dialogResult = await dialog.showSaveDialog(mainWindow, {
+      const win = BrowserWindow.fromWebContents(event.sender);
+      const dialogResult = await dialog.showSaveDialog(win, {
         defaultPath,
         filters: [{ name: 'PDF Files', extensions: ['pdf'] }]
       });
@@ -564,8 +636,8 @@ function createMainWindow() {
 
     try {
       const requestProfile = profile && typeof profile === 'object'
-        ? { ...profile, key: profile.key || apiKey, model: profile.model || model || 'gemini-2.0-flash' }
-        : { format: 'gemini', key: apiKey, model: model || 'gemini-2.0-flash' };
+        ? { ...profile, key: profile.key || apiKey, model: profile.model || model || 'gemini-3.5-flash-lite' }
+        : { format: 'gemini', key: apiKey, model: model || 'gemini-3.5-flash-lite' };
 
       const apiFormat = requestProfile.format || 'gemini';
       const apiUrl    = requestProfile.url    || '';
@@ -614,11 +686,44 @@ function createMainWindow() {
 
   ipcMain.handle('agent:invoke', async (_event, data) => {
     try {
-      const response = await axios.post('http://localhost:8000/agent/invoke', data);
+      const response = await backendPost('/agent/invoke', resolveSecrets(data));
       return { ok: true, result: response.data };
     } catch (error) {
       console.error('Agent invocation failed:', error);
       return { ok: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('agent:summarizeCache', async (_event, data) => {
+    try {
+      const response = await backendPost('/agent/summarize-cache', resolveSecrets(data));
+      return { ok: true, result: response.data };
+    } catch (error) {
+      console.error('Cache summarization failed:', error);
+      return { ok: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('tokens:append', async (_event, entry) => {
+    try {
+      appendJsonlEntry(TOKEN_USAGE_KEY, entry);
+      return { ok: true };
+    } catch (error) {
+      console.error('Failed to append token usage:', error);
+      return { ok: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('tokens:getHistory', async () => {
+    try {
+      const rows = readJsonlAll(TOKEN_USAGE_KEY);
+      return rows.map((row) => {
+        const { timestamp, ...rest } = row;
+        return { timestamp, ...rest };
+      });
+    } catch (error) {
+      console.error('Failed to read token usage:', error);
+      return [];
     }
   });
 
@@ -696,40 +801,90 @@ app.on('web-contents-created', (event, contents) => {
   }
 });
 
-// ── App startup flow ─────────────────────────────────────────────────────────
-app.whenReady().then(async () => {
-  // Hide application menu in production to prevent keyboard shortcut DevTools access
-  if (app.isPackaged) {
-    Menu.setApplicationMenu(null);
-  }
-
-  // 1. Show splash immediately
-  createSplash();
-
-  // 2. Start backend (exe or venv fallback)
-  startBackend();
-
-  // 3. Wait until /health returns ok (up to 60 s)
-  const ready = await waitForBackend(60_000);
-  if (!ready) {
-    console.warn('[startup] Backend did not become healthy within 60 s – opening anyway.');
-  } else {
-    // Signal the splash to animate to 100%
-    if (splashWindow && !splashWindow.isDestroyed()) {
-      await splashWindow.webContents.executeJavaScript('window.onBackendReady && window.onBackendReady()').catch(() => {});
-      await new Promise(r => setTimeout(r, 500)); // brief pause so the user sees "Ready"
+function parsePdfPathFromArgv(argv) {
+  if (!Array.isArray(argv)) return null;
+  for (let i = 1; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg.startsWith('-') || arg === '.') continue;
+    if (arg.toLowerCase().endsWith('.pdf')) {
+      try {
+        const fullPath = path.resolve(arg);
+        if (fs.existsSync(fullPath)) {
+          return fullPath;
+        }
+      } catch (e) {
+        console.warn('Failed to resolve arg path:', arg, e);
+      }
     }
   }
+  return null;
+}
 
-  // 4. Open the main window
-  createMainWindow();
+const gotTheLock = app.requestSingleInstanceLock();
 
-  // 5. Close splash
-  if (splashWindow && !splashWindow.isDestroyed()) {
-    splashWindow.close();
-    splashWindow = null;
-  }
-});
+if (!gotTheLock) {
+  app.quit();
+} else {
+  let startupPdfPath = parsePdfPathFromArgv(process.argv);
+
+  app.on('second-instance', (event, commandLine, workingDirectory) => {
+    const activeWin = BrowserWindow.getFocusedWindow() || Array.from(windows)[0];
+    if (activeWin) {
+      if (activeWin.isMinimized()) activeWin.restore();
+      activeWin.focus();
+
+      const pdfPath = parsePdfPathFromArgv(commandLine);
+      if (pdfPath) {
+        activeWin.webContents.send('open-pdf', pdfPath);
+      }
+    } else {
+      const pdfPath = parsePdfPathFromArgv(commandLine);
+      createMainWindow(pdfPath);
+    }
+  });
+
+  // ── App startup flow ─────────────────────────────────────────────────────────
+  app.whenReady().then(async () => {
+    // Hide application menu in production to prevent keyboard shortcut DevTools access
+    if (app.isPackaged) {
+      Menu.setApplicationMenu(null);
+    }
+
+    migrateProfileSecrets();
+
+    // Register all IPC handlers once
+    registerIpcHandlers();
+
+    // 1. Show splash immediately
+    createSplash();
+
+    // 2. Start backend (exe or venv fallback) on a random local port
+    BACKEND_PORT = await pickFreePort();
+    BACKEND_URL = `http://127.0.0.1:${BACKEND_PORT}`;
+    startBackend();
+
+    // 3. Wait until /health returns ok (up to 60 s)
+    const ready = await waitForBackend(60_000);
+    if (!ready) {
+      console.warn('[startup] Backend did not become healthy within 60 s – opening anyway.');
+    } else {
+      // Signal the splash to animate to 100%
+      if (splashWindow && !splashWindow.isDestroyed()) {
+        await splashWindow.webContents.executeJavaScript('window.onBackendReady && window.onBackendReady()').catch(() => {});
+        await new Promise(r => setTimeout(r, 500)); // brief pause so the user sees "Ready"
+      }
+    }
+
+    // 4. Open the main window
+    createMainWindow(startupPdfPath);
+
+    // 5. Close splash
+    if (splashWindow && !splashWindow.isDestroyed()) {
+      splashWindow.close();
+      splashWindow = null;
+    }
+  });
+}
 
 app.on('window-all-closed', () => {
   // Kill the backend process when the app closes
@@ -741,7 +896,8 @@ app.on('window-all-closed', () => {
 });
 
 // 🖼️ Trigger snipping tool from renderer
-ipcMain.on('open-snipping-tool', () => {
+ipcMain.on('open-snipping-tool', (event) => {
+  snippingRequestorWindow = BrowserWindow.fromWebContents(event.sender);
   snipWindow = new BrowserWindow({
     width: 800,
     height: 600,
@@ -753,6 +909,7 @@ ipcMain.on('open-snipping-tool', () => {
       preload: path.join(__dirname, 'renderer/snipper-preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: true,
     }
   });
 
@@ -761,8 +918,8 @@ ipcMain.on('open-snipping-tool', () => {
 
 // 📤 Once snipping is done and image data is ready
 ipcMain.on('snip-complete', (event, dataUrl) => {
-  if (mainWindow) {
-    mainWindow.webContents.send('image-snipped', dataUrl);
+  if (snippingRequestorWindow && !snippingRequestorWindow.isDestroyed()) {
+    snippingRequestorWindow.webContents.send('image-snipped', dataUrl);
   }
   if (snipWindow) {
     snipWindow.close();
@@ -774,7 +931,7 @@ ipcMain.on('snip-complete', (event, dataUrl) => {
 
 ipcMain.handle('pdf:index', async (_event, data) => {
   try {
-    const response = await axios.post('http://localhost:8000/index', data);
+    const response = await backendPost('/index', data);
     return { ok: true, result: response.data };
   } catch (error) {
     console.error('Indexing failed:', error);
@@ -784,7 +941,7 @@ ipcMain.handle('pdf:index', async (_event, data) => {
 
 ipcMain.handle('pdf:query', async (_event, data) => {
   try {
-    const response = await axios.post('http://localhost:8000/query', data);
+    const response = await backendPost('/query', data);
     return { ok: true, result: response.data };
   } catch (error) {
     console.error('Query failed:', error);

@@ -4,90 +4,19 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Thinker</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-  <script>
-    pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-  </script>
-  <script type="module">
-    import { marked } from "https://cdn.jsdelivr.net/npm/marked@11.1.1/lib/marked.esm.js";
-    window.marked = marked;
-  </script>
-  <script src="https://kit.fontawesome.com/b43b64dde2.js" crossorigin="anonymous"></script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: file:; font-src 'self'; worker-src 'self' blob:; connect-src 'self' blob: data: file:; object-src 'none'; base-uri 'none'; form-action 'none'" />
+  <script src="vendor/pdfjs/pdf.min.js"></script>
+  <script src="js/pdfjs-config.js"></script>
+  <script src="vendor/marked/marked.umd.js"></script>
+  <script src="vendor/dompurify/purify.min.js"></script>
+  <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
+  <link rel="stylesheet" href="vendor/fonts/fonts.css" />
   <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf_viewer.min.css"/>
-  <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/d3@7.8.5/dist/d3.min.js"></script>
+  <link rel="stylesheet" href="vendor/pdfjs/pdf_viewer.min.css" />
+  <script src="vendor/d3/d3.min.js"></script>
   <!-- markmap-view exposes: Markmap, defaultColorFn, etc. on window.markmap -->
-  <script src="https://cdn.jsdelivr.net/npm/markmap-view@0.16.0/dist/browser/index.js"></script>
-  <!-- Corrected inline Transformer: absolute-indent-based tree parsing -->
-  <script>
-    (function() {
-      /**
-       * Parse Markdown into a markmap node tree.
-       * Strategy:
-       *   - '# Header' lines set header nodes at depth (hashes - 1)
-       *   - '- list' lines at absolute indent level: depth = lastHeaderDepth + 1 + floor(indent/2)
-       *   - Stack is used to find the correct parent by comparing absolute depths
-       */
-      function parseMarkdown(md) {
-        var lines = md.split('\n');
-        // Sentinel root so we always have a parent
-        var sentinel = { content: '', children: [], depth: -1 };
-        var stack = [sentinel];
-        var lastHeaderDepth = 0;
-
-        for (var i = 0; i < lines.length; i++) {
-          var line = lines[i];
-          if (!line.trim()) continue;
-
-          var hm = line.match(/^(#{1,6})\s+(.+)/);
-          var lm = line.match(/^(\s*)[-*+]\s+(.+)/);
-
-          if (hm) {
-            var nodeDepth = hm[1].length - 1; // 0-indexed: # → 0, ## → 1
-            var nodeContent = hm[2].trim();
-            lastHeaderDepth = nodeDepth;
-            var node = { content: nodeContent, children: [], depth: nodeDepth };
-            // Pop until stack top has smaller depth
-            while (stack.length > 1 && stack[stack.length - 1].depth >= nodeDepth) {
-              stack.pop();
-            }
-            stack[stack.length - 1].children.push(node);
-            stack.push(node);
-
-          } else if (lm) {
-            var indentLen = lm[1].length;
-            var nodeContent = lm[2].trim();
-            // Absolute depth: relative to the last header, not the stack top
-            var nodeDepth = lastHeaderDepth + 1 + Math.floor(indentLen / 2);
-            var node = { content: nodeContent, children: [], depth: nodeDepth };
-            // Pop until stack top has smaller depth than this node
-            while (stack.length > 1 && stack[stack.length - 1].depth >= nodeDepth) {
-              stack.pop();
-            }
-            stack[stack.length - 1].children.push(node);
-            stack.push(node);
-          }
-        }
-        return sentinel;
-      }
-
-      function MinimalTransformer() {}
-      MinimalTransformer.prototype.transform = function(md) {
-        var sentinel = parseMarkdown(md);
-        // Unwrap sentinel: if there's one child (the # root), promote it
-        var root = sentinel.children.length === 1 ? sentinel.children[0] : sentinel;
-        return { root: root };
-      };
-
-      window.markmap = window.markmap || {};
-      window.markmap.Transformer = MinimalTransformer;
-      console.debug('MinimalTransformer registered on window.markmap');
-    })();
-  </script>
+  <script src="vendor/markmap/markmap-view.js"></script>
+  <script src="js/markmap-transformer.js"></script>
 </head>
 <body>
   <div class="custom-title-bar">
@@ -196,7 +125,9 @@
           <div class="welcome-card tips-card" id="token-usage-panel">
             <div class="card-head">
               <h3><i class="fa-solid fa-microchip" style="color: var(--accent);"></i> API Token Usage</h3>
-              <span id="token-usage-session-label" style="font-size: 0.7rem; opacity: 0.6;">This Session</span>
+              <select id="token-usage-profile-filter" class="token-profile-filter" title="Filter by profile">
+                <option value="all">All Profiles</option>
+              </select>
             </div>
             <div id="token-usage-body" style="display: flex; flex-direction: column; gap: 10px; margin-top: 4px;">
               <div class="token-usage-empty" id="token-usage-empty" style="color: var(--text-soft); font-size: 0.8rem; opacity: 0.7;">
@@ -231,6 +162,14 @@
                   <div style="display: flex; justify-content: space-between; font-size: 0.6rem; color: var(--text-soft); margin-top: 3px;">
                     <span>Prompt</span><span>Response</span>
                   </div>
+                </div>
+                <div class="token-chart-section">
+                  <div class="token-chart-label">Input Breakdown (print_llm_tokens)</div>
+                  <canvas id="token-breakdown-chart" class="token-chart-canvas" width="280" height="80"></canvas>
+                </div>
+                <div class="token-chart-section">
+                  <div class="token-chart-label">Recent Requests</div>
+                  <canvas id="token-usage-graph" class="token-chart-canvas" width="280" height="60"></canvas>
                 </div>
               </div>
             </div>
@@ -430,6 +369,7 @@
               <option value="document">Document Only</option>
             </select>
             <select id="chat-profile-select" class="chat-bottom-select"></select>
+            <button id="summarize-cache-btn" class="btn icon-btn" title="Summarize knowledge cache" style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-size: 0.75rem;"><i class="fa-solid fa-brain"></i></button>
           </div>
           <div id="token-tracker" style="font-size: 0.65rem; color: var(--text-soft); font-family: monospace;" title="Last Request Tokens (Prompt + Response)">Tokens: 0</div>
         </div>
@@ -498,6 +438,19 @@
               </div>
               <label class="toggle-switch">
                 <input type="checkbox" id="save-opt-notes" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+          <div class="save-option-group">
+            <div class="save-option-group-label"><i class="fa-solid fa-file-pdf"></i> Format</div>
+            <div class="save-option-row">
+              <div class="save-option-info">
+                <span class="save-option-name">Flatten into the page</span>
+                <span class="save-option-desc">Off: real PDF annotations that stay editable in Acrobat. On: burned into the page and not editable.</span>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="save-opt-flatten">
                 <span class="toggle-slider"></span>
               </label>
             </div>

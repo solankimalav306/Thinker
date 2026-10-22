@@ -1,4 +1,7 @@
-const DEFAULT_CHAT_MODEL = "gemini-2.5-flash-lite";
+import { recordTokenUsage, updateTokenTracker } from "./token-usage.js";
+import { escapeHtml, renderMarkdown } from "./safe-html.js";
+
+const DEFAULT_CHAT_MODEL = "gemini-3.5-flash-lite";
 
 function processCitations(html) {
   let processed = html.replace(/\[?Page\s+(\d+)\]?\.?/gi, '<button class="citation-tag page-citation" data-page="$1" title="Go to Page $1"><i class="fa-solid fa-file-pdf"></i> Page $1</button>');
@@ -7,20 +10,7 @@ function processCitations(html) {
 }
 
 function markdownToHtml(text) {
-  let html = "";
-  if (window.marked) {
-    html = window.marked.parse(text);
-  } else {
-    html = String(text || "").replace(/\n/g, "<br>");
-  }
-  return processCitations(html);
-}
-
-function escapeHtml(value) {
-  return String(value || "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+  return processCitations(renderMarkdown(text));
 }
 
 function summarizeText(text, max = 120) {
@@ -40,6 +30,9 @@ export class ChatController {
     this.getChatConfig = options.getChatConfig;
     this.onAgentAction = options.onAgentAction;
     this.onGlossaryTermFound = options.onGlossaryTermFound;
+    this.onTokenUsage = options.onTokenUsage;
+    this.tokenTracker = options.tokenTracker;
+    this.summarizeCacheBtn = options.summarizeCacheBtn;
 
     this.attachedImage = null;
     this.activePdfPath = null;
@@ -106,7 +99,10 @@ export class ChatController {
     }
 
     if (usage && usage.totalTokenCount) {
-      html += `<div style="text-align: right; font-size: 0.65rem; color: var(--text-soft); margin-top: 6px; font-family: monospace; border-top: 1px dashed var(--line); padding-top: 4px; opacity: 0.5;">Tokens: ${usage.totalTokenCount}</div>`;
+      const prompt = usage.promptTokens || 0;
+      const response = usage.responseTokens || 0;
+      const detail = prompt || response ? ` (${prompt} in, ${response} out)` : "";
+      html += `<div style="text-align: right; font-size: 0.65rem; color: var(--text-soft); margin-top: 6px; font-family: monospace; border-top: 1px dashed var(--line); padding-top: 4px; opacity: 0.5;">Tokens: ${usage.totalTokenCount}${detail}</div>`;
     }
 
     msg.innerHTML = html;
@@ -118,7 +114,7 @@ export class ChatController {
     const welcome = document.createElement("div");
     welcome.className = "agent-welcome";
     welcome.innerHTML = `
-      <h3><i class="fa-solid fa-wand-magic-sparkles"></i> Smart PDF Agent</h3>
+      <h3><i class="fa-solid fa-wand-magic-sparkles"></i> Thinker Agent</h3>
       <p>I'm your AI research assistant. I can help you analyze this document, define complex terms, and generate study materials.</p>
       <div class="capabilities-grid">
         <div class="capability-chip" data-query="Summarize the main points of this document">
@@ -148,6 +144,22 @@ export class ChatController {
     });
 
     this.chatHistory.appendChild(welcome);
+  }
+
+  appendCacheSummary(summaryText, auto = false) {
+    if (!summaryText) return;
+
+    const msg = document.createElement("div");
+    msg.className = "bot-msg cache-summary-msg";
+    msg.innerHTML = `
+      <div class="cache-summary-header">
+        <i class="fa-solid fa-brain"></i>
+        ${auto ? "Knowledge Cache Auto-Summary" : "Knowledge Cache Summary"}
+      </div>
+      ${markdownToHtml(summaryText)}
+    `;
+    this.chatHistory.appendChild(msg);
+    this.chatHistory.scrollTop = this.chatHistory.scrollHeight;
   }
 
 
@@ -445,11 +457,28 @@ export class ChatController {
 
       const botMetadata = {
         totalTokenCount: agentRes.usage?.total_tokens || 0,
+        promptTokens: agentRes.usage?.prompt_tokens || 0,
+        responseTokens: agentRes.usage?.response_tokens || 0,
         actions: isInteractiveIntent ? (agentRes.actions || []) : [],
         evaluation: agentRes.evaluation || null
       };
 
+      if (agentRes.cache_summary) {
+        this.appendCacheSummary(agentRes.cache_summary, true);
+      }
+
       this.appendMessage("Bot", replyText, null, botMetadata);
+
+      if (agentRes.usage) {
+        updateTokenTracker(this.tokenTracker, agentRes.usage);
+        await recordTokenUsage({
+          profileId: config.profile?.id || agentRes.usage.profile_id,
+          profileLabel: config.profile?.label || config.apiKeyLabel || "Unknown",
+          usage: agentRes.usage,
+          pdfId,
+        });
+        if (this.onTokenUsage) this.onTokenUsage();
+      }
 
       const botEntry = {
         role: "assistant",
@@ -482,8 +511,66 @@ export class ChatController {
     }
   }
 
+  async summarizeKnowledgeCache() {
+    if (!this.enabled || !this.activePdfPath) {
+      this.onStatus("Open a PDF first to summarize the knowledge cache.");
+      return;
+    }
+
+    const config = this.getChatConfigOrPrompt();
+    if (!config?.profile && !config?.apiKey) {
+      this.onStatus("Select an AI profile before summarizing.");
+      return;
+    }
+
+    const pdfId = await window.electronAPI.getPdfId(this.activePdfPath);
+    const storagePath = await window.electronAPI.getUserDataPath();
+
+    this.onStatus("Summarizing knowledge cache...");
+    try {
+      const res = await window.electronAPI.summarizeCache({
+        pdfId,
+        storagePath,
+        apiKey: config.apiKey,
+        apiFormat: config.profile?.format || "gemini",
+        apiUrl: config.profile?.url || "",
+        model: config.model,
+        profile: config.profile || null,
+        profileId: config.profile?.id,
+      });
+
+      if (!res.ok) throw new Error(res.error || "Summarization failed");
+
+      const summaryText = res.result?.summary || "";
+      if (summaryText) {
+        this.appendCacheSummary(summaryText, false);
+        this.onStatus("Knowledge cache summarized.");
+      } else {
+        this.onStatus(res.result?.message || "Nothing to summarize.");
+      }
+
+      if (res.result?.usage) {
+        updateTokenTracker(this.tokenTracker, res.result.usage);
+        await recordTokenUsage({
+          profileId: config.profile?.id || res.result.usage.profile_id,
+          profileLabel: config.profile?.label || "Unknown",
+          usage: res.result.usage,
+          pdfId,
+        });
+        if (this.onTokenUsage) this.onTokenUsage();
+      }
+    } catch (error) {
+      console.error(error);
+      this.onStatus(`Cache summarization failed: ${error?.message || "Unknown error"}`);
+    }
+  }
+
   bindEvents() {
     this.chatSend.addEventListener("click", () => this.sendMessage());
+
+    if (this.summarizeCacheBtn) {
+      this.summarizeCacheBtn.addEventListener("click", () => this.summarizeKnowledgeCache());
+    }
 
     this.chatInput.addEventListener("keydown", (event) => {
       if (event.key === "Enter" && !event.shiftKey) {

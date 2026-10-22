@@ -1,4 +1,6 @@
-const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash-lite";
+const { resolveSecrets } = require("./secrets");
+
+const DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite";
 const DEFAULT_OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 
 const fetchFn = globalThis.fetch;
@@ -67,7 +69,8 @@ async function readResponseText(response) {
   }
 }
 
-async function handleLLMGenerate(_event, payload) {
+async function handleLLMGenerate(_event, rawPayload) {
+  const payload = resolveSecrets(rawPayload);
   if (typeof fetchFn !== "function") {
     return { ok: false, error: "Fetch is not available in this Electron runtime." };
   }
@@ -116,21 +119,12 @@ async function handleLLMGenerate(_event, payload) {
       return { ok: false, error: "Missing API key for Gemini." };
     }
 
-    let endpoint = endpointUrl || `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
-    if (!endpointUrl) {
-      endpoint += `?key=${encodeURIComponent(apiKey)}`;
-    } else if (apiKey && !endpoint.includes("key=")) {
-      const url = new URL(endpoint);
-      if (url.hostname.includes("googleapis.com") || url.searchParams.has("key")) {
-        url.searchParams.set("key", apiKey);
-        endpoint = url.toString();
-      }
-    }
-
+    const endpoint = endpointUrl || `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
     const response = await fetchFn(endpoint, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        ...(apiKey ? { "x-goog-api-key": apiKey } : {})
       },
       body: JSON.stringify({
         contents: [{ parts: geminiParts }],

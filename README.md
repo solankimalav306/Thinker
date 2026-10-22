@@ -108,7 +108,7 @@ Thinker has built-in token monitoring so you never accidentally exhaust your API
 1. **Clone the repository**:
    ```bash
    git clone <repository-url>
-   cd SmartPDFReader
+   cd Thinker
    ```
 
 2. **Install Node dependencies**:

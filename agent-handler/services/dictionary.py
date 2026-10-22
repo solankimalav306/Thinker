@@ -1,14 +1,15 @@
+from utils.llm_text import reply_text
 import os
 import json
 import requests
 from typing import Dict, Optional
 
 
-def _build_llm(api_key: str = None, model: str = "gemini-2.5-flash-lite",
+def _build_llm(api_key: str = None, model: str = "gemini-3.5-flash-lite",
                api_format: str = "gemini", api_url: str = ""):
     """Build the appropriate LangChain LLM for the given provider."""
     fmt = str(api_format or "gemini").strip().lower()
-    mdl = str(model or "gemini-2.5-flash-lite").strip()
+    mdl = str(model or "gemini-3.5-flash-lite").strip()
     key = str(api_key or "").strip()
     url = str(api_url or "").strip()
 
@@ -27,7 +28,7 @@ def _build_llm(api_key: str = None, model: str = "gemini-2.5-flash-lite",
 
 
 def get_llm_definition(word: str, context: str, api_key: str = None,
-                       model: str = "gemini-2.5-flash-lite",
+                       model: str = "gemini-3.5-flash-lite",
                        api_format: str = "gemini", api_url: str = "") -> Optional[Dict]:
     if not api_key and api_format in ("gemini", ""):
         return None  # No key and Gemini → skip LLM entirely
@@ -45,7 +46,7 @@ def get_llm_definition(word: str, context: str, api_key: str = None,
         from langchain_core.messages import HumanMessage
         response = llm.invoke([HumanMessage(content=prompt_text)])
 
-        content = response.content.strip()
+        content = reply_text(response).strip()
         if content.startswith("```json"):
             content = content[7:-3].strip()
         elif content.startswith("```"):
@@ -82,7 +83,7 @@ def get_api_definition(word: str) -> Optional[Dict]:
 
 
 def dictionary_service(word: str, context: str = "", api_key: str = None,
-                       model: str = "gemini-2.5-flash-lite",
+                       model: str = "gemini-3.5-flash-lite",
                        api_format: str = "gemini", api_url: str = ""):
     """Return a definition dict for word.
     Tries LLM first (context-aware), then free dictionary API.

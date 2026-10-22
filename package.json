@@ -1,14 +1,22 @@
 {
   "name": "thinker",
   "productName": "Thinker",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "AI-Powered PDF Reader",
   "main": "main.js",
   "scripts": {
+    "postinstall": "node scripts/vendor.js",
+    "vendor": "node scripts/vendor.js",
     "start": "electron .",
+    "test": "node --test",
+    "test:backend": "venv/Scripts/python -m pytest agent-handler/tests -q",
     "dev": "launch.bat",
     "build": "electron-builder --win",
-    "build:dir": "electron-builder --win --dir"
+    "build:dir": "electron-builder --win --dir",
+    "release": "powershell -ExecutionPolicy Bypass -File build.ps1",
+    "release:patch": "powershell -ExecutionPolicy Bypass -File build.ps1 -BumpVersion patch",
+    "release:minor": "powershell -ExecutionPolicy Bypass -File build.ps1 -BumpVersion minor",
+    "release:skip-backend": "powershell -ExecutionPolicy Bypass -File build.ps1 -SkipBackend"
   },
   "keywords": [],
   "author": "Thinker",
@@ -16,8 +24,17 @@
   "type": "commonjs",
   "build": {
     "appId": "com.thinker.app",
+    "fileAssociations": [
+      {
+        "ext": "pdf",
+        "name": "PDF Document",
+        "description": "Portable Document Format",
+        "role": "Viewer",
+        "icon": "build/pdf-file-icon"
+      }
+    ],
     "productName": "Thinker",
-    "copyright": "Copyright © 2025 Thinker",
+    "copyright": "Copyright Â© 2025 Thinker",
     "directories": {
       "output": "dist"
     },
@@ -25,25 +42,30 @@
       "main.js",
       "preload.js",
       "app-storage.js",
+      "secrets.js",
+      "pdf-annotations.js",
       "llm-handler.js",
       "renderer/**/*",
       "!renderer/sample.pdf",
       "!renderer/sample2.pdf",
-      "node_modules/**/*",
-      ".env"
+      "node_modules/**/*"
     ],
     "extraResources": [
       {
         "from": "backend.exe",
         "to": "backend.exe",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "win": {
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "renderer/assets/logoWhite.png"
@@ -61,9 +83,16 @@
     "electron-builder": "^26.0.12"
   },
   "dependencies": {
+    "@fontsource/manrope": "^5.3.0",
+    "@fontsource/space-grotesk": "^5.3.0",
+    "@fortawesome/fontawesome-free": "^7.3.1",
     "axios": "^1.15.2",
-    "dotenv": "^16.6.1",
+    "d3": "^7.8.5",
+    "dompurify": "^3.4.17",
+    "marked": "^11.1.1",
+    "markmap-view": "^0.16.0",
     "mermaid": "^11.14.0",
-    "pdf-lib": "^1.17.1"
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^3.11.174"
   }
 }

@@ -10,7 +10,6 @@ def retrieval_service(data):
     k = data.get("k", 5)
 
     index_path = os.path.join(storage, f"{pdf_id}.index")
-    print("LOOKING FOR INDEX AT:", index_path)
     meta_path = os.path.join(storage, f"{pdf_id}.json")
 
     index = load_index(index_path)
@@ -18,7 +17,6 @@ def retrieval_service(data):
         return {"error": "Index not found"}
 
     metadata = load_metadata(meta_path)
-    print("LOADED METADATA AT:", meta_path)
 
     # BGE requires this
     q_vec = embed(["query: " + query]).astype("float32")
@@ -27,7 +25,7 @@ def retrieval_service(data):
 
     results = []
     for i in indices:
-        if i < len(metadata):
+        if 0 <= i < len(metadata):
             results.append(metadata[i])
 
     return {"chunks": results}

@@ -8,7 +8,7 @@ export const STORAGE_KEYS = {
 };
 
 const RECENT_LIMIT = 8;
-export const DEFAULT_CHAT_MODEL = "gemini-2.5-flash-lite";
+export const DEFAULT_CHAT_MODEL = "gemini-3.5-flash-lite";
 export const DEFAULT_THEME_PALETTE = "aurora";
 
 function safeParse(value, fallback) {

@@ -1,3 +1,5 @@
+import { escapeHtml, renderMarkdown } from "./safe-html.js";
+
 export class NotesController {
 
   constructor(options) {
@@ -65,11 +67,11 @@ export class NotesController {
       const dateStr = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
       
       // Using marked if available for rendering markdown in notes
-      const contentHtml = window.marked ? window.marked.parse(note.content) : note.content.replace(/\n/g, '<br>');
+      const contentHtml = renderMarkdown(note.content);
 
       el.innerHTML = `
         <div class="note-header">
-          <div class="note-source-badge">${note.source || 'Agent'}</div>
+          <div class="note-source-badge">${escapeHtml(note.source || 'Agent')}</div>
           <div class="note-date">${dateStr} · ${timeStr}</div>
           <button class="btn icon-btn note-remove" title="Remove note" style="margin-left:auto; opacity:0.6; padding:2px 4px; height:auto;">
             <i class="fa-solid fa-trash-can" style="font-size:0.75rem;"></i>
@@ -114,7 +116,7 @@ export class NotesController {
   printNotes() {
     const printWindow = window.open('', '_blank');
     const md = this.getNotesMarkdown();
-    const html = window.marked ? window.marked.parse(md) : md.replace(/\n/g, '<br>');
+    const html = renderMarkdown(md);
     
     printWindow.document.write(`
       <html>

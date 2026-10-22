@@ -14,8 +14,8 @@ def indexing_service(data):
     index_path = os.path.join(storage, f"{pdf_id}.index")
     meta_path = os.path.join(storage, f"{pdf_id}.json")
 
-    # prevent duplicate indexing
-    if os.path.exists(index_path):
+    # An index counts as complete only when both files exist; the index is written last.
+    if os.path.exists(index_path) and os.path.exists(meta_path):
         return {"status": "already indexed", "pdfId": pdf_id}
 
     chunks = []
@@ -40,9 +40,9 @@ def indexing_service(data):
     index = create_index(embeddings.shape[1])
     add_vectors(index, embeddings)
 
-    save_index(index, index_path)
-    print("INDEX SAVED AT:", index_path)
     save_metadata(meta_path, chunks)
-    print("METADATA SAVED AT:", meta_path)
+    tmp_index_path = f"{index_path}.tmp"
+    save_index(index, tmp_index_path)
+    os.replace(tmp_index_path, index_path)
 
     return {"status": "indexed", "pdfId": pdf_id}

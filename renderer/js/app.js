@@ -28,6 +28,7 @@ import { MindMapController } from "./mindmap-controller.js";
 import { StickyNotesController } from "./sticky-notes-controller.js";
 import { HistoryController } from "./history-controller.js";
 import { FindController } from "./find-controller.js";
+import { refreshTokenDashboard } from "./token-usage.js";
 
 const elements = {
   appShell: document.querySelector(".app-shell"),
@@ -109,6 +110,7 @@ const elements = {
   saveOptSticky: document.getElementById("save-opt-sticky"),
   saveOptHighlights: document.getElementById("save-opt-highlights"),
   saveOptNotes: document.getElementById("save-opt-notes"),
+  saveOptFlatten: document.getElementById("save-opt-flatten"),
   statStrokes: document.getElementById("stat-strokes"),
   statHighlights: document.getElementById("stat-highlights"),
   statStickies: document.getElementById("stat-stickies"),
@@ -161,7 +163,21 @@ const elements = {
   settingsCustomColor: document.getElementById("settings-custom-color"),
   resetColorBtn: document.getElementById("reset-color-btn"),
   homeGreeting: document.getElementById("home-greeting"),
-  titleTyping: document.getElementById("title-typing")
+  titleTyping: document.getElementById("title-typing"),
+  tokenUsageEmpty: document.getElementById("token-usage-empty"),
+  tokenUsageStats: document.getElementById("token-usage-stats"),
+  statPromptTokens: document.getElementById("stat-prompt-tokens"),
+  statResponseTokens: document.getElementById("stat-response-tokens"),
+  statTotalTokens: document.getElementById("stat-total-tokens"),
+  statTotalRequests: document.getElementById("stat-total-requests"),
+  statLastTokens: document.getElementById("stat-last-tokens"),
+  barPrompt: document.getElementById("bar-prompt"),
+  barResponse: document.getElementById("bar-response"),
+  tokenBreakdownChart: document.getElementById("token-breakdown-chart"),
+  tokenUsageGraph: document.getElementById("token-usage-graph"),
+  tokenUsageProfileFilter: document.getElementById("token-usage-profile-filter"),
+  tokenTracker: document.getElementById("token-tracker"),
+  summarizeCacheBtn: document.getElementById("summarize-cache-btn"),
 };
 
 let openTabs = [];
@@ -246,6 +262,7 @@ function showWelcome() {
   currentView = "home";
   syncLayoutToggles();
   renderTabs();
+  refreshTokenDashboard(elements, elements.tokenUsageProfileFilter?.value || "all");
 }
 
 function showSettings() {
@@ -307,6 +324,7 @@ function renderTabs(
     const tab = document.createElement("button");
     tab.type = "button";
     tab.className = `pdf-tab ${currentView === "reader" && path === activeTabPath ? "active" : ""}`;
+    tab.draggable = true;
 
     const title = document.createElement("span");
     title.className = "tab-title";
@@ -325,6 +343,59 @@ function renderTabs(
     tab.appendChild(close);
 
     tab.addEventListener("click", () => onActivate(path));
+
+    // Drag & Drop events for tab reordering and drag-out
+    tab.addEventListener("dragstart", (e) => {
+      e.dataTransfer.setData("text/plain", path);
+      e.dataTransfer.effectAllowed = "move";
+      tab.classList.add("dragging");
+    });
+
+    tab.addEventListener("dragend", (e) => {
+      tab.classList.remove("dragging");
+      document.querySelectorAll(".pdf-tab").forEach(t => t.classList.remove("drag-over"));
+      
+      const isOutside = (
+        e.screenX < window.screenX ||
+        e.screenX > window.screenX + window.outerWidth ||
+        e.screenY < window.screenY ||
+        e.screenY > window.screenY + window.outerHeight
+      );
+      
+      if (isOutside) {
+        window.electronAPI.createWindow(path);
+        closeTab(path);
+        if (openTabs.length === 0) {
+          window.close();
+        }
+      }
+    });
+
+    tab.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      tab.classList.add("drag-over");
+    });
+
+    tab.addEventListener("dragleave", () => {
+      tab.classList.remove("drag-over");
+    });
+
+    tab.addEventListener("drop", (e) => {
+      e.preventDefault();
+      tab.classList.remove("drag-over");
+      const draggedPath = e.dataTransfer.getData("text/plain");
+      if (draggedPath && draggedPath !== path) {
+        const fromIndex = openTabs.indexOf(draggedPath);
+        const toIndex = openTabs.indexOf(path);
+        if (fromIndex > -1 && toIndex > -1) {
+          openTabs.splice(fromIndex, 1);
+          openTabs.splice(toIndex, 0, draggedPath);
+          renderAll();
+        }
+      }
+    });
+
     elements.pdfTabs.appendChild(tab);
   });
 
@@ -397,7 +468,7 @@ function getCurrentChatConfig() {
   const profiles = getApiProfiles();
   const selectedId = getActiveApiProfileId();
   const selectedProfile = profiles.find((profile) => profile.id === selectedId) || profiles[0] || null;
-  const model = selectedProfile?.model || getChatModel() || "gemini-2.5-flash-lite";
+  const model = selectedProfile?.model || getChatModel() || "gemini-3.5-flash-lite";
 
   return {
     profile: selectedProfile,
@@ -473,6 +544,21 @@ function renderSettings() {
     elements.chatProfileSelect.onchange = (event) => {
       setActiveApiProfileId(event.target.value);
       renderSettings();
+    };
+  }
+
+  if (elements.tokenUsageProfileFilter) {
+    const currentFilter = elements.tokenUsageProfileFilter.value || "all";
+    elements.tokenUsageProfileFilter.innerHTML = '<option value="all">All Profiles</option>';
+    apiProfiles.forEach((profile) => {
+      const option = document.createElement("option");
+      option.value = profile.id;
+      option.textContent = profile.label;
+      elements.tokenUsageProfileFilter.appendChild(option);
+    });
+    elements.tokenUsageProfileFilter.value = currentFilter;
+    elements.tokenUsageProfileFilter.onchange = () => {
+      refreshTokenDashboard(elements, elements.tokenUsageProfileFilter.value);
     };
   }
 
@@ -743,8 +829,11 @@ async function boot() {
     chatSend: elements.chatSend,
     selectedTextBox: elements.selectedTextBox,
     imagePreviewContainer: elements.imagePreviewContainer,
+    tokenTracker: elements.tokenTracker,
+    summarizeCacheBtn: elements.summarizeCacheBtn,
     onStatus: setStatus,
     getChatConfig: getCurrentChatConfig,
+    onTokenUsage: () => refreshTokenDashboard(elements, elements.tokenUsageProfileFilter?.value || "all"),
     onAgentAction: (action) => {
       if (action.type === 'highlight') {
         pdf.findAndHighlight(action);
@@ -1132,10 +1221,11 @@ async function boot() {
         pen: parsed.pen !== false,
         sticky: parsed.sticky !== false,
         highlights: parsed.highlights !== false,
-        notes: parsed.notes !== false
+        notes: parsed.notes !== false,
+        flatten: parsed.flatten === true
       };
     } catch {
-      return { pen: true, sticky: true, highlights: true, notes: true };
+      return { pen: true, sticky: true, highlights: true, notes: true, flatten: false };
     }
   };
 
@@ -1149,6 +1239,7 @@ async function boot() {
     if (elements.saveOptSticky) elements.saveOptSticky.checked = opts.sticky;
     if (elements.saveOptHighlights) elements.saveOptHighlights.checked = opts.highlights;
     if (elements.saveOptNotes) elements.saveOptNotes.checked = opts.notes;
+    if (elements.saveOptFlatten) elements.saveOptFlatten.checked = opts.flatten;
 
     // Update stats
     const annotationsByPage = annotation.collectDocumentAnnotations();
@@ -1201,7 +1292,8 @@ async function boot() {
       pen: Boolean(elements.saveOptPen?.checked),
       sticky: Boolean(elements.saveOptSticky?.checked),
       highlights: Boolean(elements.saveOptHighlights?.checked),
-      notes: Boolean(elements.saveOptNotes?.checked)
+      notes: Boolean(elements.saveOptNotes?.checked),
+      flatten: Boolean(elements.saveOptFlatten?.checked)
     };
     setSaveOptions(opts);
 
@@ -1231,7 +1323,8 @@ async function boot() {
       pdfPath: pdf.getCurrentPath(),
       annotationsByPage,
       highlightBoxesByPage,
-      includeNotes: opts.notes
+      includeNotes: opts.notes,
+      flatten: opts.flatten
     });
 
     if (result?.ok) {
@@ -1530,6 +1623,37 @@ async function boot() {
       openPdfDialog();
     }
   });
+
+  // Allow dropping on the empty space of the tab container to append
+  elements.pdfTabs.addEventListener("dragover", (e) => {
+    e.preventDefault();
+  });
+  elements.pdfTabs.addEventListener("drop", (e) => {
+    e.preventDefault();
+    const draggedPath = e.dataTransfer.getData("text/plain");
+    if (draggedPath) {
+      const fromIndex = openTabs.indexOf(draggedPath);
+      if (fromIndex > -1) {
+        openTabs.splice(fromIndex, 1);
+        openTabs.push(draggedPath);
+        renderAll();
+      }
+    }
+  });
+
+  // Listen for new PDFs opened from external triggers (second-instance event in main process)
+  window.electronAPI.onOpenPdf((path) => {
+    if (path) {
+      openTab(path);
+    }
+  });
+
+  // Check URL query parameters to see if a PDF needs to be opened on startup
+  const params = new URLSearchParams(window.location.search);
+  const pdfToOpen = params.get("open");
+  if (pdfToOpen) {
+    openTab(decodeURIComponent(pdfToOpen));
+  }
 
   renderRecents(loadRecent);
   renderSettings();
