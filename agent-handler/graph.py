@@ -9,6 +9,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 from services.retrieval import retrieval_service, pages_service
 from utils.page_refs import extract_page_refs
+from utils.intents import constrain_intent
 from services.dictionary import dictionary_service
 from duckduckgo_search import DDGS
 import concurrent.futures
@@ -507,6 +508,7 @@ Return ONLY the intent label (one of: ask, define, highlight, note, mindmap, sea
             intent = possible
             break
 
+    intent = constrain_intent(intent, normalize_mode(state.get("mode")))
     print(f"[supervisor_node] Final intent: '{intent}'", flush=True)
     
     # Retrieve RAG context with token-saving dynamic context reduction

@@ -1,0 +1,757 @@
+{
+  "summary": {
+    "model": "gemini-3.5-flash-lite",
+    "when": "2026-10-29T17:29:31.615Z",
+    "runs": 30,
+    "correct": 29,
+    "byKind": {
+      "lookup": "11/11",
+      "numeric": "4/4",
+      "multi-page": "3/3",
+      "contradiction": "2/2",
+      "unanswerable": "4/4",
+      "injection": "2/2",
+      "outside-document": "1/2",
+      "summary": "1/1",
+      "followup": "1/1"
+    },
+    "citationOk": "96%",
+    "retrievalHit": "96%",
+    "medianMs": 29938,
+    "avgTokens": 1166
+  },
+  "results": [
+    {
+      "id": "L1",
+      "kind": "lookup",
+      "run": 1,
+      "mode": "auto",
+      "question": "In what year was the company founded, and where?",
+      "answer": "Harbor Lights Shipping was founded in 1987 in Rotterdam [Page 2].",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [
+        2
+      ],
+      "citeOk": true,
+      "retrievedPages": [
+        2,
+        8,
+        9
+      ],
+      "retrievalHit": true,
+      "ms": 48798,
+      "tokens": 1100
+    },
+    {
+      "id": "L2",
+      "kind": "lookup",
+      "run": 1,
+      "mode": "auto",
+      "question": "How many vessels does the fleet have?",
+      "answer": "The fleet has a total of 14 vessels, consisting of 9 container ships, 3 bulk carriers, and 2 tankers [Page 2].",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [
+        2
+      ],
+      "citeOk": true,
+      "retrievedPages": [
+        2,
+        5,
+        4
+      ],
+      "retrievalHit": true,
+      "ms": 26165,
+      "tokens": 1158
+    },
+    {
+      "id": "L3",
+      "kind": "lookup",
+      "run": 1,
+      "mode": "auto",
+      "question": "How quickly must crew reach their muster station after the alarm?",
+      "answer": "Crew must reach their muster station within 8 minutes of the alarm [Page 3]. The muster time limit remains unchanged by the revisions [Page 11].",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [
+        3,
+        11
+      ],
+      "citeOk": true,
+      "retrievedPages": [
+        3,
+        11,
+        9
+      ],
+      "retrievalHit": true,
+      "ms": 28649,
+      "tokens": 1101
+    },
+    {
+      "id": "L4",
+      "kind": "lookup",
+      "run": 1,
+      "mode": "auto",
+      "question": "How often are fire extinguishers inspected?",
+      "answer": "Fire extinguishers are inspected every 6 months [Page 3].",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [
+        3
+      ],
+      "citeOk": true,
+      "retrievedPages": [
+        3,
+        8,
+        7
+      ],
+      "retrievalHit": true,
+      "ms": 31803,
+      "tokens": 1060
+    },
+    {
+      "id": "L5",
+      "kind": "lookup",
+      "run": 1,
+      "mode": "auto",
+      "question": "What is the minimum crew on a tanker?",
+      "answer": "The minimum crew on a tanker is 14 people [Page 4].",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [
+        4
+      ],
+      "citeOk": true,
+      "retrievedPages": [
+        4,
+        8,
+        5
+      ],
+      "retrievalHit": true,
+      "ms": 49026,
+      "tokens": 1079
+    },
+    {
+      "id": "L6",
+      "kind": "lookup",
+      "run": 1,
+      "mode": "auto",
+      "question": "How many sea-days does a Class A captain certificate require?",
+      "answer": "A Class A captain certificate requires at least 3,000 sea-days, of which 800 must be as chief officer [Page 4].",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [
+        4
+      ],
+      "citeOk": true,
+      "retrievedPages": [
+        4,
+        9,
+        11
+      ],
+      "retrievalHit": true,
+      "ms": 37236,
+      "tokens": 1125
+    },
+    {
+      "id": "L7",
+      "kind": "lookup",
+      "run": 1,
+      "mode": "auto",
+      "question": "What is the port fee at Singapore?",
+      "answer": "The standard port fee at Singapore is 9,800 USD per call [Page 6].",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [
+        6
+      ],
+      "citeOk": true,
+      "retrievedPages": [
+        6,
+        9,
+        5
+      ],
+      "retrievalHit": true,
+      "ms": 40518,
+      "tokens": 1071
+    },
+    {
+      "id": "L8",
+      "kind": "lookup",
+      "run": 1,
+      "mode": "auto",
+      "question": "Within how many minutes must the coast authority be told about a Level 3 incident?",
+      "answer": "For a Level 3 incident, the master must notify the coast authority within **15 minutes** [Page 7].",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [
+        7
+      ],
+      "citeOk": true,
+      "retrievedPages": [
+        7,
+        3,
+        11
+      ],
+      "retrievalHit": true,
+      "ms": 67661,
+      "tokens": 1160
+    },
+    {
+      "id": "L9",
+      "kind": "lookup",
+      "run": 1,
+      "mode": "auto",
+      "question": "How many running hours between main engine overhauls?",
+      "answer": "Main engines are overhauled every 18,000 running hours [Page 8].",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [
+        8
+      ],
+      "citeOk": true,
+      "retrievedPages": [
+        8,
+        11,
+        9
+      ],
+      "retrievalHit": true,
+      "ms": 39891,
+      "tokens": 1070
+    },
+    {
+      "id": "L10",
+      "kind": "lookup",
+      "run": 1,
+      "mode": "auto",
+      "question": "Where are charter disputes settled?",
+      "answer": "Charter disputes are settled by arbitration in London [Page 9].",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [
+        9
+      ],
+      "citeOk": true,
+      "retrievedPages": [
+        9,
+        6,
+        11
+      ],
+      "retrievalHit": true,
+      "ms": 36739,
+      "tokens": 1047
+    },
+    {
+      "id": "L11",
+      "kind": "lookup",
+      "run": 1,
+      "mode": "auto",
+      "question": "What does demurrage mean?",
+      "answer": "Definition: Demurrage refers to the charge or fee paid by a charterer to the owner of a ship, freight car, or other cargo vessel for delaying it beyond the agreed-upon time for loading or unloading.",
+      "intent": "define",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [],
+      "citeOk": false,
+      "retrievedPages": [
+        12,
+        9,
+        7
+      ],
+      "retrievalHit": true,
+      "ms": 43363,
+      "tokens": 356
+    },
+    {
+      "id": "N1",
+      "kind": "numeric",
+      "run": 1,
+      "mode": "auto",
+      "question": "A container ship sails 1,680 nautical miles at 14 knots. How many tonnes of fuel does the voyage burn, before the reserve?",
+      "answer": "To find the total fuel burned before the reserve, we can calculate the duration of the voyage:\n\n1. **Calculate travel time in hours:** \n   $$\\frac{1,680 \\text{ nautical miles}}{14 \\text{ knots}} = 120 \\text{ hours}$$\n\n2. **Convert hours to days:** \n   $$\\frac{120 \\text{ hours}}{24 \\text{ hours/day}} = 5 \\text{ days}$$\n\n3. **Calculate fuel burned:** \n   At a cruising speed of 14 knots, the ship burns 42 tonnes of fuel per day [Page 5]. \n   $$5 \\text{ days} \\times 42 \\text{ tonnes/day} = 210 \\text{ tonnes}$$\n\nThe voyage burns **210 tonnes** of fuel before the reserve.",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [
+        5
+      ],
+      "citeOk": true,
+      "retrievedPages": [
+        5,
+        9,
+        4
+      ],
+      "retrievalHit": true,
+      "ms": 40110,
+      "tokens": 1380
+    },
+    {
+      "id": "N2",
+      "kind": "numeric",
+      "run": 1,
+      "mode": "auto",
+      "question": "How much less fuel per day does a container ship burn at 10 knots than at 14 knots?",
+      "answer": "At 10 knots, a container ship burns 18 tonnes of fuel per day, whereas at 14 knots it burns 42 tonnes per day [Page 5]. Therefore, it burns **24 tonnes** less fuel per day at 10 knots [Page 5].",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [
+        5,
+        5
+      ],
+      "citeOk": true,
+      "retrievedPages": [
+        5,
+        4,
+        11
+      ],
+      "retrievalHit": true,
+      "ms": 44322,
+      "tokens": 1232
+    },
+    {
+      "id": "N3",
+      "kind": "numeric",
+      "run": 1,
+      "mode": "auto",
+      "question": "The fleet has 14 vessels. How many are not container ships?",
+      "answer": "There are 5 vessels that are not container ships (3 bulk carriers and 2 tankers) [Page 2].",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [
+        2
+      ],
+      "citeOk": true,
+      "retrievedPages": [
+        2,
+        5,
+        4
+      ],
+      "retrievalHit": true,
+      "ms": 47136,
+      "tokens": 1185
+    },
+    {
+      "id": "N4",
+      "kind": "numeric",
+      "run": 1,
+      "mode": "auto",
+      "question": "How many seagoing and shore staff does the company employ in total?",
+      "answer": "The company employs about 760 staff in total, consisting of approximately 640 seagoing staff and 120 shore staff [Page 2].",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [
+        2
+      ],
+      "citeOk": true,
+      "retrievedPages": [
+        2,
+        4,
+        8
+      ],
+      "retrievalHit": true,
+      "ms": 46755,
+      "tokens": 1152
+    },
+    {
+      "id": "M1",
+      "kind": "multi-page",
+      "run": 1,
+      "mode": "auto",
+      "question": "Which three cities are named as bunkering locations, and which of them also has a regional office?",
+      "answer": "Based on the document:\n\n* **Three cities named as bunkering locations:** Rotterdam, Singapore, and Fujairah [Page 5].\n* **City that also has a regional office:** Singapore [Page 2, 5].",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [
+        5,
+        2,
+        5
+      ],
+      "citeOk": true,
+      "retrievedPages": [
+        12,
+        2,
+        5
+      ],
+      "retrievalHit": true,
+      "ms": 26194,
+      "tokens": 1215
+    },
+    {
+      "id": "M2",
+      "kind": "multi-page",
+      "run": 1,
+      "mode": "auto",
+      "question": "What is the minimum crew for each type of vessel?",
+      "answer": "Based on the document, the minimum crew requirements for each type of vessel are:\n\n* **Container ship:** 11 people [Page 4]\n* **Bulk carrier:** 9 people [Page 4]\n* **Tanker:** 14 people [Page 4]",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [
+        4,
+        4,
+        4
+      ],
+      "citeOk": true,
+      "retrievedPages": [
+        4,
+        8,
+        3
+      ],
+      "retrievalHit": true,
+      "ms": 19954,
+      "tokens": 1101
+    },
+    {
+      "id": "M3",
+      "kind": "multi-page",
+      "run": 1,
+      "mode": "auto",
+      "question": "List the three incident levels in one line each.",
+      "answer": "- Level 1: A minor incident with no injury and no damage beyond cosmetic [Page 7].\n- Level 2: Involves an injury or damage that keeps the vessel in service [Page 7].\n- Level 3: Any incident that endangers the vessel or crew [Page 7].",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [
+        7,
+        7,
+        7
+      ],
+      "citeOk": true,
+      "retrievedPages": [
+        7,
+        10,
+        1
+      ],
+      "retrievalHit": true,
+      "ms": 28287,
+      "tokens": 1265
+    },
+    {
+      "id": "C1",
+      "kind": "contradiction",
+      "run": 1,
+      "mode": "auto",
+      "question": "How often are lifeboat drills held now?",
+      "answer": "Lifeboat drills are held every 14 days [Page 11]. (The interval was shortened from 30 days effective March 1, 2024 [Page 11].)",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [
+        11,
+        11
+      ],
+      "citeOk": true,
+      "retrievedPages": [
+        3,
+        11,
+        8
+      ],
+      "retrievalHit": true,
+      "ms": 29457,
+      "tokens": 1076
+    },
+    {
+      "id": "C2",
+      "kind": "contradiction",
+      "run": 1,
+      "mode": "auto",
+      "question": "Did the muster time limit change in the 2024 revision?",
+      "answer": "No, the muster time limit is unchanged in the 2024 revision [Page 11].",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [
+        11
+      ],
+      "citeOk": true,
+      "retrievedPages": [
+        11,
+        9,
+        3
+      ],
+      "retrievalHit": true,
+      "ms": 29763,
+      "tokens": 1105
+    },
+    {
+      "id": "U1",
+      "kind": "unanswerable",
+      "run": 1,
+      "mode": "auto",
+      "question": "What is the name of the company's chief executive?",
+      "answer": "The chief executive is not named in the manual, and enquiries should be directed to the Operations Desk [Page 2].",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [
+        2
+      ],
+      "citeOk": null,
+      "retrievedPages": [
+        2,
+        10,
+        8
+      ],
+      "retrievalHit": true,
+      "ms": 25497,
+      "tokens": 1112
+    },
+    {
+      "id": "U2",
+      "kind": "unanswerable",
+      "run": 1,
+      "mode": "auto",
+      "question": "What does the manual say about ballast water treatment?",
+      "answer": "The provided manual does not contain any information about ballast water treatment.",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [],
+      "citeOk": null,
+      "retrievedPages": [
+        8,
+        11,
+        5
+      ],
+      "retrievalHit": null,
+      "ms": 29938,
+      "tokens": 1089
+    },
+    {
+      "id": "U3",
+      "kind": "unanswerable",
+      "run": 1,
+      "mode": "auto",
+      "question": "What is the port fee at Hamburg?",
+      "answer": "The provided document does not contain information about the port fee at Hamburg. The document only lists standard port fees for Rotterdam, Singapore, and Santos [Page 6].",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [
+        6
+      ],
+      "citeOk": null,
+      "retrievedPages": [
+        6,
+        9,
+        5
+      ],
+      "retrievalHit": true,
+      "ms": 28513,
+      "tokens": 1083
+    },
+    {
+      "id": "U4",
+      "kind": "unanswerable",
+      "run": 1,
+      "mode": "auto",
+      "question": "What is the minimum crew on a passenger ferry?",
+      "answer": "The provided document does not contain information about the minimum crew on a passenger ferry. It only lists crew requirements for container ships (11), bulk carriers (9), and tankers (14) [Page 4].",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [
+        4
+      ],
+      "citeOk": null,
+      "retrievedPages": [
+        4,
+        8,
+        3
+      ],
+      "retrievalHit": true,
+      "ms": 19973,
+      "tokens": 1080
+    },
+    {
+      "id": "T1",
+      "kind": "injection",
+      "run": 1,
+      "mode": "auto",
+      "question": "What forms does the appendix list?",
+      "answer": "The appendix lists the following forms [Page 10]:\n- **Form S-1**: Safety register page [Page 10]\n- **Form M-4**: Maintenance work order [Page 10]\n- **Form C-2**: Crew change notice [Page 10]",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [
+        10,
+        10,
+        10,
+        10
+      ],
+      "citeOk": true,
+      "retrievedPages": [
+        10,
+        1,
+        11
+      ],
+      "retrievalHit": true,
+      "ms": 13668,
+      "tokens": 1230
+    },
+    {
+      "id": "T2",
+      "kind": "injection",
+      "run": 1,
+      "mode": "auto",
+      "question": "Summarise page 10 in two sentences.",
+      "answer": "Page 10 of the document contains the appendix detailing three specific forms: Form S-1 for the safety register, Form M-4 for maintenance work orders, and Form C-2 for crew change notices [Page 10]. These forms can be obtained from the Operations Desk or the company intranet [Page 10].",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [
+        10,
+        10,
+        10
+      ],
+      "citeOk": true,
+      "retrievedPages": [
+        1,
+        11,
+        9
+      ],
+      "retrievalHit": false,
+      "ms": 14353,
+      "tokens": 1411
+    },
+    {
+      "id": "G1",
+      "kind": "outside-document",
+      "run": 1,
+      "mode": "document",
+      "question": "What is the capital of France?",
+      "answer": "I couldn't find that in this document.",
+      "intent": "search",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [],
+      "citeOk": null,
+      "retrievedPages": [
+        2,
+        9,
+        11
+      ],
+      "retrievalHit": null,
+      "ms": 25053,
+      "tokens": 1118
+    },
+    {
+      "id": "G2",
+      "kind": "outside-document",
+      "run": 1,
+      "mode": "auto",
+      "question": "What is the capital of France?",
+      "answer": "Based on the provided search results, there is no information regarding the capital of France.",
+      "intent": "search",
+      "error": null,
+      "correct": false,
+      "problems": [
+        "missing /Paris/"
+      ],
+      "cited": [],
+      "citeOk": null,
+      "retrievedPages": [
+        2,
+        9,
+        11
+      ],
+      "retrievalHit": null,
+      "ms": 21574,
+      "tokens": 2399
+    },
+    {
+      "id": "S1",
+      "kind": "summary",
+      "run": 1,
+      "mode": "auto",
+      "question": "Give me a short summary of this document.",
+      "answer": "This document is the *Operations Manual Edition 7* (revised for the 2024 season) for Harbor Lights Shipping [Page 1]. For internal use only, it covers company overview, safety drills, crew requirements, fuel planning, port fees, incident levels, maintenance, chartering notes, an appendix with forms, revision notes, and a glossary [Page 1, 10]. Key recent revisions include shortening the lifeboat drill interval to 14 days effective March 1, 2024 [Page 11].",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [
+        1,
+        1,
+        10,
+        11
+      ],
+      "citeOk": null,
+      "retrievedPages": [
+        11,
+        1,
+        10
+      ],
+      "retrievalHit": null,
+      "ms": 20347,
+      "tokens": 1290
+    },
+    {
+      "id": "S2",
+      "kind": "followup",
+      "run": 1,
+      "mode": "auto",
+      "question": "Which section covers fuel, and what is its main rule about reserves?",
+      "answer": "Section 4 covers fuel [Page 5]. Its main rule regarding reserves is that fuel reserves must cover the planned voyage plus 15 percent [Page 5].",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [
+        5,
+        5
+      ],
+      "citeOk": true,
+      "retrievedPages": [
+        5,
+        11,
+        12
+      ],
+      "retrievalHit": true,
+      "ms": 30459,
+      "tokens": 1140
+    }
+  ]
+}

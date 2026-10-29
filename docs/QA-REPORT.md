@@ -13,9 +13,9 @@ Open = not fixed yet. Unverified = seen in code, not reproduced.
 
 | | Count |
 |---|---|
-| Findings | 36 |
-| Fixed and re-verified | 27 |
-| Open or unverified | 9 |
+| Findings | 39 |
+| Fixed and re-verified | 31 |
+| Open or unverified | 8 |
 
 The biggest problems were structural: marks, sticky notes, the snip tool and selection all assumed
 single-page view, and continuous scrolling was half built.
@@ -77,14 +77,17 @@ Before: only Ctrl+O, Ctrl+F and Esc existed.
 | # | Finding | Status |
 |---|---|---|
 | F1 | When the model service failed (for example `504 DEADLINE_EXCEEDED`), the backend returned `{error: ...}` as a normal reply and the chat showed a bare "No response." 7 of 30 evaluation questions hit this. | Fixed (plain-language message with the next step) |
-| F2 | A question that names a page ("Summarise page 10") is answered as if the page was not in the document, because retrieval is by meaning only. | Open (see `docs/CHAT-EVAL.md`) |
-| F3 | Every answer takes about 35 to 50 seconds. A single bare model call here takes 14 to 22 seconds, and each question makes two calls in a row (intent, then answer). | Open (see `docs/CHAT-EVAL.md`) |
+| F2 | A question that names a page ("Summarise page 10") is answered as if the page was not in the document, because retrieval is by meaning only. | Fixed (named pages are fetched directly) |
+| F4 | In Document-only mode, "What does the word X mean?" was routed to a dictionary and answered from general knowledge, ignoring the document. | Fixed |
+| F5 | The web-search route sends the question to DuckDuckGo, which the Help text does not say. | Open (decision needed; see `docs/CHAT-EVAL.md`) |
+| F6 | In Document + AI mode a general question can be sent to web search, which finds nothing, and the answer is "no information". | Open |
+| F3 | Every answer takes about 20 to 50 seconds. A single bare model call here takes 14 to 22 seconds, and each question makes two calls in a row (intent, then answer). | Open (see `docs/CHAT-EVAL.md`) |
 
 ### G. Visual polish (Low)
 | # | Finding | Status |
 |---|---|---|
-| G1 | At 1440x900 with no model connected, the chat's "What would you like to know?" heading is clipped under the header. | Open |
-| G2 | The status toast uses the same "info" icon for success ("Sticky note placed.") as for notices. | Open |
+| G1 | At 1440x900 with no model connected, the chat's "What would you like to know?" heading is clipped under the header. | Fixed |
+| G2 | The status toast uses the same "info" icon for success ("Sticky note placed.") as for notices. | Fixed (tick, warning, info) |
 | G3 | When Settings is open, Esc does not go back. | Open (may be intended) |
 
 ## Things that worked well
@@ -106,4 +109,5 @@ Unit tests for the new geometry and error messages are in `tests/page-geometry.t
 2. D8 and D7: move sticky notes; decide on a partial eraser.
 3. D9: text-anchored highlights (highlight what you select, with a colour popup).
 4. D10: switch drawing to Pointer Events so touch and pen work.
-5. G1 to G3: the polish items.
+5. F5 and F6: the web-search decision and general-knowledge routing; F3: fewer model calls per question.
+6. G3: Esc in Settings.
