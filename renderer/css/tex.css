@@ -1019,3 +1019,261 @@
     display: none;
   }
 }
+
+/* ---------- The agent panel ---------- */
+.ta-root {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.ta-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+}
+
+.ta-title {
+  display: flex;
+  flex-direction: column;
+}
+
+.ta-title small {
+  color: var(--text-3);
+}
+
+.ta-sources {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-2);
+  font-size: var(--text-sm);
+}
+
+.ta-sources[hidden] {
+  display: none;
+}
+
+.ta-messages {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-height: 0;
+  padding: var(--space-3);
+  overflow-y: auto;
+}
+
+.ta-welcome {
+  padding: var(--space-5);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  color: var(--text-2);
+}
+
+.ta-welcome h3 {
+  margin-bottom: var(--space-2);
+  color: var(--text);
+}
+
+.ta-msg {
+  max-width: 92%;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-lg);
+  font-size: var(--text-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.ta-msg.user {
+  align-self: flex-end;
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+.ta-msg.agent {
+  align-self: flex-start;
+  border: 1px solid var(--border);
+  background: var(--surface-2, var(--surface));
+}
+
+.ta-msg.agent.wide {
+  align-self: stretch;
+  max-width: 100%;
+  white-space: normal;
+}
+
+.ta-msg.agent.error {
+  border-color: var(--danger, #dc2626);
+  color: var(--danger, #dc2626);
+}
+
+.ta-msg.status {
+  align-self: flex-start;
+  color: var(--text-3);
+  font-style: italic;
+}
+
+.ta-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 var(--space-3) var(--space-2);
+}
+
+.ta-chip {
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--surface);
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.ta-chip:hover:not(:disabled) {
+  border-color: var(--primary);
+  color: var(--text);
+}
+
+.ta-chip:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.ta-form {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3) var(--space-3);
+  border-top: 1px solid var(--border);
+}
+
+.ta-input {
+  flex: 1;
+  min-height: 44px;
+  max-height: 160px;
+  resize: vertical;
+}
+
+.ta-send {
+  min-width: 40px;
+  min-height: 40px;
+}
+
+.ta-proposal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.ta-note {
+  margin: 0;
+}
+
+.ta-file {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.ta-file-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 4px var(--space-3);
+  border-bottom: 1px solid var(--border);
+  background: var(--sunken);
+  font-size: var(--text-xs);
+}
+
+.ta-file-head strong {
+  flex: 1;
+}
+
+.ta-stat {
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.ta-new {
+  padding: 0 6px;
+  border-radius: var(--radius-full);
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+.ta-diff {
+  max-height: 280px;
+  overflow: auto;
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.ta-line {
+  display: flex;
+  min-width: max-content;
+  padding: 0 var(--space-2);
+  white-space: pre;
+}
+
+.ta-line.add {
+  background: color-mix(in srgb, #16a34a 18%, transparent);
+}
+
+.ta-line.del {
+  background: color-mix(in srgb, #dc2626 16%, transparent);
+  color: var(--text-2);
+}
+
+.ta-line.gap {
+  background: var(--sunken);
+  color: var(--text-3);
+  font-style: italic;
+}
+
+.ta-sign {
+  width: 1.4em;
+  flex: none;
+  color: var(--text-3);
+}
+
+.ta-verdict {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+}
+
+.ta-verdict.ok {
+  background: color-mix(in srgb, #16a34a 16%, transparent);
+}
+
+.ta-verdict.bad {
+  background: color-mix(in srgb, #dc2626 14%, transparent);
+}
+
+.ta-verdict.unknown {
+  background: var(--sunken);
+  color: var(--text-2);
+}
+
+.ta-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.ta-done {
+  color: var(--text-2);
+  font-size: var(--text-sm);
+}
+
+.ta-done.bad {
+  color: var(--danger, #dc2626);
+}

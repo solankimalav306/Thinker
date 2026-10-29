@@ -929,12 +929,14 @@ export function createTexStudio(deps) {
     if (path !== state.path) await openFile(path);
     if (state.mode === "visual") setMode("code");
     code.applyEdits(edits);
+    code.focus(); // so one Ctrl+Z undoes the whole change
   }
 
   async function setFileText(path, text) {
     if (path === state.path) {
       if (state.mode === "visual") setMode("code");
       code.applyEdits([{ from: 0, to: code.getValue().length, insert: text }]);
+      code.focus();
       return;
     }
     const exists = state.files.some((f) => f.path === path);
