@@ -152,3 +152,27 @@ test('an existing v1 database upgrades without losing anything', () => {
   assert.strictEqual(old.updatedAt, 1000);
   assert.deepStrictEqual(old.documents, []);
 });
+
+test('chats with a whole Thinkspace are listed per Thinkspace and go away with it; document chats stay', () => {
+  const { dir, store, ws } = fresh();
+  const a = ws.createWorkspace({ name: 'A' });
+  const b = ws.createWorkspace({ name: 'B' });
+  const c1 = store.createWorkspaceConversation(a.id, {});
+  store.createWorkspaceConversation(b.id, { title: 'About B' });
+  store.appendMessage(c1.id, { role: 'user', text: 'Which paper says what?' });
+  store.appendMessage(c1.id, { role: 'assistant', text: 'Paper one does.' });
+  assert.deepStrictEqual(store.listWorkspaceConversations(a.id).map((c) => c.title), ['Which paper says what?']);
+  assert.strictEqual(store.listWorkspaceConversations(a.id)[0].messageCount, 2);
+  assert.strictEqual(store.listWorkspaceConversations(a.id)[0].workspaceId, a.id);
+  assert.strictEqual(store.listWorkspaceConversations(b.id).length, 1);
+  assert.throws(() => store.createWorkspaceConversation('nope', {}), /no longer exists/);
+
+  const file = pdf(dir, 'one.pdf');
+  const docChat = store.createConversation(file, { title: 'about the PDF' });
+  assert.strictEqual(store.listWorkspaceConversations(a.id).some((c) => c.id === docChat.id), false, 'a document chat is not a Thinkspace chat');
+
+  ws.deleteWorkspace(a.id);
+  assert.ok(!store.getConversation(c1.id), 'the Thinkspace chat is gone');
+  assert.strictEqual(store.listWorkspaceConversations(b.id).length, 1);
+  assert.strictEqual(store.getConversation(docChat.id).title, 'about the PDF');
+});

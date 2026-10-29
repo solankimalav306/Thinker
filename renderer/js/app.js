@@ -1585,6 +1585,10 @@ async function boot() {
     container: elements.spacesContent,
     homeRow: elements.spaceRow,
     openPdf: (path) => openTab(path),
+    openPdfAt: async (path, page) => {
+      await openTab(path);
+      window.dispatchEvent(new CustomEvent("navigate-pdf-page", { detail: { page } }));
+    },
     openProject: (id) => texStudio.openProject(id),
     newProject: (workspaceId) => texStudio.showNewProject(workspaceId),
     setStatus,

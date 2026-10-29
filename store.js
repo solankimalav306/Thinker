@@ -200,7 +200,7 @@ function createStore(db) {
 
   // ── Conversations and messages ────────────────────────────────────────────
   const conversationRow = (r) => r && ({
-    id: r.id, docId: r.doc_id, title: r.title, mode: r.mode, profileId: r.profile_id,
+    id: r.id, docId: r.doc_id, workspaceId: r.workspace_id, title: r.title, mode: r.mode, profileId: r.profile_id,
     messageCount: r.message_count || 0, preview: r.preview || '',
     instructions: r.instructions, pinned: Boolean(r.pinned), archived: Boolean(r.archived),
     createdAt: r.created_at, updatedAt: r.updated_at
@@ -223,6 +223,25 @@ function createStore(db) {
     q(`INSERT INTO conversations (id, doc_id, title, mode, profile_id, instructions, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
       .run(id, docId, fields.title || 'New chat', fields.mode || null, fields.profileId || null, fields.instructions || '', now(), now());
+    return conversationRow(q('SELECT * FROM conversations WHERE id = ?').get(id));
+  }
+
+  // Chats that belong to a Thinkspace as a whole (they have no single document).
+  function listWorkspaceConversations(workspaceId) {
+    return q(`SELECT c.*,
+        (SELECT COUNT(*) FROM messages m WHERE m.conversation_id = c.id) AS message_count,
+        (SELECT substr(m.content, 1, 90) FROM messages m
+           WHERE m.conversation_id = c.id AND m.role = 'assistant' ORDER BY m.id DESC LIMIT 1) AS preview
+      FROM conversations c WHERE c.workspace_id = ? AND c.doc_id IS NULL AND c.archived = 0
+      ORDER BY c.pinned DESC, c.updated_at DESC`).all(String(workspaceId)).map(conversationRow);
+  }
+
+  function createWorkspaceConversation(workspaceId, fields = {}) {
+    if (!q('SELECT 1 FROM workspaces WHERE id = ?').get(String(workspaceId))) throw new Error('That Thinkspace no longer exists.');
+    const id = newId('chat');
+    q(`INSERT INTO conversations (id, doc_id, workspace_id, title, mode, profile_id, instructions, created_at, updated_at)
+       VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(id, String(workspaceId), fields.title || 'New chat', fields.mode || null, fields.profileId || null, fields.instructions || '', now(), now());
     return conversationRow(q('SELECT * FROM conversations WHERE id = ?').get(id));
   }
 
@@ -299,7 +318,7 @@ function createStore(db) {
     loadNotes, saveNotes, listMindmaps, saveMindmap, deleteMindmap,
     getGlossary, addGlossaryTerm, removeGlossaryTerm,
     appendUsage, readUsage,
-    listConversations, getConversation, createConversation, updateConversation, deleteConversation, getMessages, appendMessage,
+    listConversations, listWorkspaceConversations, createWorkspaceConversation, getConversation, createConversation, updateConversation, deleteConversation, getMessages, appendMessage,
     listInstructions, saveInstruction, deleteInstruction
   };
 }

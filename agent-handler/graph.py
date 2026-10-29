@@ -7,7 +7,7 @@ from typing import Annotated, Dict, List, TypedDict, Union, Literal
 from langgraph.graph import StateGraph, END
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
-from services.retrieval import retrieval_service, pages_service
+from services.retrieval import retrieval_service, pages_service, retrieval_multi
 from utils.page_refs import extract_page_refs
 from utils.intents import constrain_intent
 from services.dictionary import dictionary_service
@@ -152,6 +152,7 @@ class AgentState(TypedDict):
     conversation_id: str
     mode: str          # "auto" | "document"
     instructions: List[Dict]   # layered user instructions
+    docs: List[Dict]   # a Thinkspace chat: [{pdfId, title}] searched together
 
 # Per-request token accumulator (reset at start of invoke_agent)
 _token_session = {"calls": [], "totals": {"input": 0, "output": 0, "context": 0, "history": 0, "selected_text": 0, "prompt": 0}}
@@ -508,7 +509,7 @@ Return ONLY the intent label (one of: ask, define, highlight, note, mindmap, sea
             intent = possible
             break
 
-    intent = constrain_intent(intent, normalize_mode(state.get("mode")))
+    intent = constrain_intent(intent, normalize_mode(state.get("mode")), multi=bool(state.get("docs")))
     print(f"[supervisor_node] Final intent: '{intent}'", flush=True)
     
     # Retrieve RAG context with token-saving dynamic context reduction
@@ -530,18 +531,27 @@ Return ONLY the intent label (one of: ask, define, highlight, note, mindmap, sea
         except Exception as e:
             print(f"[supervisor_node] Error evaluating query-cache similarity: {e}", flush=True)
 
-    rag_res = retrieval_service({
-        "query": state["user_query"],
-        "pdfId": state["pdf_id"],
-        "storagePath": state["storage_path"],
-        "k": k_val
-    })
+    if state.get("docs"):
+        rag_res = retrieval_multi({
+            "query": state["user_query"],
+            "docs": state["docs"],
+            "storagePath": state["storage_path"],
+            "k": 6,
+            "perDoc": 3
+        })
+    else:
+        rag_res = retrieval_service({
+            "query": state["user_query"],
+            "pdfId": state["pdf_id"],
+            "storagePath": state["storage_path"],
+            "k": k_val
+        })
 
     hits = rag_res.get("chunks", []) if isinstance(rag_res, dict) else []
 
     # A question that names a page ("summarise page 10") is answered from that page, not from whatever
     # happens to be closest in meaning.
-    named = extract_page_refs(state["user_query"])
+    named = [] if state.get("docs") else extract_page_refs(state["user_query"])
     if named:
         named_res = pages_service({"pdfId": state["pdf_id"], "storagePath": state["storage_path"], "pages": named})
         named_hits = named_res.get("chunks", []) if isinstance(named_res, dict) else []
@@ -553,7 +563,10 @@ Return ONLY the intent label (one of: ask, define, highlight, note, mindmap, sea
     for hit in hits:
         page = hit.get("page", "?")
         text = hit.get("text", "")
-        chunks.append(f"[Page {page}] {text}")
+        if hit.get("doc"):
+            chunks.append(f"[{hit['doc']}, page {page}] {text}")
+        else:
+            chunks.append(f"[Page {page}] {text}")
     
     return {
         "intent": intent,
@@ -595,6 +608,7 @@ def ask_node(state: AgentState):
         question=state["user_query"],
         mode=state.get("mode"),
         instructions=state.get("instructions"),
+        multi=bool(state.get("docs")),
     )
     
     content = [{"type": "text", "text": prompt}]
@@ -1307,6 +1321,7 @@ def invoke_agent(query_data: dict):
         "cache_summary": "",
         "mode": normalize_mode(query_data.get("mode")),
         "instructions": query_data.get("instructions") or [],
+        "docs": [d for d in (query_data.get("docs") or []) if isinstance(d, dict) and d.get("pdfId")][:12],
     }
 
     print(f"[invoke_agent] Provider: format={api_format}, url={api_url or '(default)'}, model={model}", flush=True)

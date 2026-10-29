@@ -367,3 +367,202 @@
     flex-basis: calc(100% - 60px);
   }
 }
+
+/* ---------- Thinkspace page with its chat ---------- */
+.space-page {
+  width: min(1240px, 100%);
+}
+
+.space-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.space-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.space-chat-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 420px;
+  max-height: 640px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+}
+
+@media (min-width: 1100px) {
+  .space-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 440px);
+  }
+
+  .space-chat-card {
+    position: sticky;
+    top: var(--space-4);
+    height: min(720px, calc(100vh - 140px));
+    max-height: none;
+  }
+}
+
+.sc-root {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.sc-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+}
+
+.sc-title {
+  display: flex;
+  flex-direction: column;
+}
+
+.sc-title strong {
+  font-family: var(--font-display);
+  font-size: var(--text-md);
+}
+
+.sc-title small {
+  color: var(--text-3);
+}
+
+.sc-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.sc-controls .btn,
+.sc-select {
+  min-height: 30px;
+  font-size: var(--text-sm);
+}
+
+.sc-select {
+  max-width: 180px;
+}
+
+.sc-messages {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-height: 0;
+  padding: var(--space-4);
+  overflow-y: auto;
+}
+
+.sc-welcome {
+  color: var(--text-2);
+  font-size: var(--text-sm);
+}
+
+.sc-welcome h3 {
+  margin-bottom: var(--space-2);
+  color: var(--text);
+}
+
+.sc-ideas {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: var(--space-3);
+}
+
+.sc-msg {
+  max-width: 94%;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-lg);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.sc-msg.user {
+  align-self: flex-end;
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+.sc-msg.assistant {
+  align-self: flex-start;
+  border: 1px solid var(--border);
+  background: var(--surface-2, var(--surface));
+}
+
+.sc-msg.assistant.error {
+  border-color: var(--danger, #dc2626);
+  color: var(--danger, #dc2626);
+}
+
+.sc-msg.status {
+  align-self: flex-start;
+  color: var(--text-3);
+  font-style: italic;
+}
+
+.sc-cite {
+  display: inline;
+  margin: 0 1px;
+  padding: 0 7px;
+  border: 1px solid color-mix(in srgb, var(--primary) 45%, transparent);
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  color: var(--primary);
+  font: inherit;
+  font-size: 0.85em;
+  cursor: pointer;
+}
+
+.sc-cite:hover {
+  background: color-mix(in srgb, var(--primary) 24%, transparent);
+}
+
+.sc-progress {
+  padding: var(--space-2) var(--space-4);
+  border-top: 1px solid var(--border);
+  background: var(--sunken);
+  color: var(--text-2);
+  font-size: var(--text-sm);
+}
+
+.sc-progress[hidden] {
+  display: none;
+}
+
+.sc-form {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border);
+}
+
+.sc-input {
+  flex: 1;
+  min-height: 44px;
+  max-height: 140px;
+  resize: vertical;
+}
+
+.sc-send {
+  min-width: 40px;
+  min-height: 40px;
+}

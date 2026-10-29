@@ -68,10 +68,14 @@ function createWorkspaces(store) {
     return getWorkspace(id);
   }
 
-  // Never touches documents, projects or files; only the grouping goes away. Chats and notes that were
-  // made inside the Thinkspace keep existing (their workspace link is cleared by the schema).
+  // Never touches documents, projects or files; only the grouping goes away. Chats about a single document
+  // keep existing; chats with the whole Thinkspace are deleted with it.
   function deleteWorkspace(id) {
-    q('DELETE FROM workspaces WHERE id = ?').run(String(id));
+    transaction(db, () => {
+      // chats made for the whole Thinkspace have nothing to belong to afterwards; chats about one document stay
+      q('DELETE FROM conversations WHERE workspace_id = ? AND doc_id IS NULL').run(String(id));
+      q('DELETE FROM workspaces WHERE id = ?').run(String(id));
+    });
     return true;
   }
 

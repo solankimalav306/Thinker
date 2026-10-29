@@ -39,6 +39,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Thinkspaces and ThinkerTex projects
   listWorkspaces: () => ipcRenderer.invoke('ws:list'),
+  listWorkspaceConversations: (id) => ipcRenderer.invoke('wsconv:list', id),
+  createWorkspaceConversation: (id, fields) => ipcRenderer.invoke('wsconv:create', id, fields),
   getWorkspace: (id) => ipcRenderer.invoke('ws:get', id),
   createWorkspace: (fields) => ipcRenderer.invoke('ws:create', fields),
   updateWorkspace: (id, patch) => ipcRenderer.invoke('ws:update', id, patch),

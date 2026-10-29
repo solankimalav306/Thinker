@@ -37,3 +37,5 @@ evals/last-run.log
 evals/results/eval-partial.json
 
 vendor/tectonic/
+evals/results/space-eval-partial.json
+evals/last-space-run.log

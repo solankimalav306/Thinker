@@ -63,12 +63,26 @@ def render_instructions(layers) -> str:
     return "The user's own instructions (follow them unless they conflict with the rules above):\n" + "\n\n".join(lines)
 
 
-def build_ask_prompt(*, doc_info="", history="", context="", selected_text="", question="", mode="auto", instructions=None) -> str:
+MULTI_RULES = (
+    "You are answering from SEVERAL documents. Every passage in the context is labelled [Document title, page N]. "
+    "Cite each statement as [Document title, page N] using exactly that label, never just [Page N]. "
+    "Never attribute something to a document unless the passage labelled with that title says it. "
+    "If the documents disagree (they give different answers to the same question), say so and name each one. "
+    "Mention only documents whose passages actually answer the question. A document that is silent on the point does not disagree with the others, so do not mention it, and never describe silence as a disagreement."
+)
+
+
+def build_ask_prompt(*, doc_info="", history="", context="", selected_text="", question="", mode="auto", instructions=None, multi=False) -> str:
+    rules = MODE_RULES[normalize_mode(mode)]
+    if multi:
+        rules = rules.replace("in this document", "in these documents").replace("the document context", "the context")
     parts = [
-        "You are an intelligent PDF assistant.",
+        "You are an intelligent PDF assistant." if not multi else "You are an intelligent assistant that reads several PDF documents together.",
         APP_RULES,
-        MODE_RULES[normalize_mode(mode)],
+        rules,
     ]
+    if multi:
+        parts.append(MULTI_RULES)
     block = render_instructions(instructions)
     if block:
         parts.append(block)

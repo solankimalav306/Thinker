@@ -1,5 +1,12 @@
 # Plan: Thinkspaces (v3, together with ThinkerTex)
 
+## Status (2026-10-30, branch `v3`)
+Phases 1 to 3 are built and verified: data layer, the Thinkspace pages, and **chat across a Thinkspace's
+documents** (balanced retrieval, labelled sources, clickable `[Title, page N]` citations, chats saved per
+Thinkspace, Thinkspace-level instructions). Results are in `docs/THINKSPACE-EVAL.md` (11 of 12 questions pass,
+no wrong attribution of a fact). Still to do: shared notes, glossary and mind maps at Thinkspace level, a Marks
+overview, a compare view, opening a folder as a Thinkspace, and testing with large Thinkspaces.
+
 A **Thinkspace** is a project: a named set of PDFs plus the chats, notes, glossary and mind maps that
 belong to the project as a whole. Today everything hangs off a single document. A Thinkspace lets a
 person ask "what do these six papers disagree about?" and keep that thinking in one place.

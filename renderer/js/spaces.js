@@ -1,6 +1,7 @@
 // Thinkspaces: the list, the Home row and the page for one Thinkspace.
 // A Thinkspace groups PDFs and ThinkerTex projects. Removing things from it never deletes files.
 import { timeAgo } from "./chat-groups.js";
+import { createSpaceChat } from "./space-chat.js";
 
 const COLORS = ["#6366f1", "#0ea5e9", "#10b981", "#f59e0b", "#ef4444", "#a855f7", "#14b8a6", "#64748b"];
 
@@ -33,7 +34,7 @@ function countLabel(space) {
   return parts.join(" · ");
 }
 
-export function createSpaces({ container, homeRow, api = window.electronAPI, openPdf, openProject, newProject, setStatus, go }) {
+export function createSpaces({ container, homeRow, api = window.electronAPI, openPdf, openPdfAt, openProject, newProject, setStatus, go }) {
   let currentId = null;
   let armedDelete = false;
 
@@ -165,6 +166,12 @@ export function createSpaces({ container, homeRow, api = window.electronAPI, ope
     head.append(el("span", "space-dot big"), titleBox);
     page.append(head);
 
+    // two columns on a wide window: documents and projects on the left, the Thinkspace chat on the right
+    const layout = el("div", "space-layout");
+    const main = el("div", "space-main");
+    const side = el("aside", "space-chat-card");
+    layout.append(main, side);
+
     // actions
     const actions = el("div", "space-actions");
     actions.append(
@@ -175,7 +182,7 @@ export function createSpaces({ container, homeRow, api = window.electronAPI, ope
       button("New LaTeX project", "btn", "fa-pen-nib", () => newProject?.(id), "Start a ThinkerTex project in this Thinkspace"),
       button("Link a project", "btn", "fa-link", () => linkProjectMenu(space, actions), "Link a ThinkerTex project that already exists")
     );
-    page.append(actions);
+    main.append(actions);
 
     // documents
     const docsCard = el("section", "space-section");
@@ -190,7 +197,7 @@ export function createSpaces({ container, homeRow, api = window.electronAPI, ope
     }
     space.documents.forEach((doc, index) => docList.append(docRow(space, doc, index)));
     docsCard.append(docList);
-    page.append(docsCard);
+    main.append(docsCard);
 
     // projects
     const projCard = el("section", "space-section");
@@ -202,7 +209,7 @@ export function createSpaces({ container, homeRow, api = window.electronAPI, ope
     if (!space.projects.length) projList.append(el("li", "space-list-empty", "No LaTeX projects here yet. A project can also live on its own, outside any Thinkspace."));
     space.projects.forEach((project) => projList.append(projectRow(space, project)));
     projCard.append(projList);
-    page.append(projCard);
+    main.append(projCard);
 
     // danger zone
     const danger = el("div", "space-danger");
@@ -222,7 +229,9 @@ export function createSpaces({ container, homeRow, api = window.electronAPI, ope
       showList();
     });
     danger.append(del);
-    page.append(danger);
+    main.append(danger);
+    page.append(layout);
+    createSpaceChat(side, { api, space, openPdfAt: openPdfAt || ((path) => openPdf(path)), setStatus });
 
     // drop PDFs onto the page
     page.addEventListener("dragover", (e) => {

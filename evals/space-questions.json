@@ -1,0 +1,18 @@
+{
+  "documents": ["corpus-spaces/Operations Manual 2023.pdf", "corpus-spaces/Safety Bulletin 2024.pdf", "corpus-spaces/Port Authority Handbook.pdf"],
+  "notes": "must = every regex has to match. mustNot = none may match. cites = documents the answer has to cite. onlyCites = the answer may cite no others (wrong attribution). refuse = the documents do not contain it.",
+  "questions": [
+    { "id": "S1", "kind": "one-document", "q": "What is the muster time limit?", "must": ["8\\s*minutes"], "mustNot": ["disagree|conflict|contradict"], "cites": ["Safety Bulletin 2024"], "onlyCites": ["Safety Bulletin 2024"] },
+    { "id": "S2", "kind": "only-in-one", "q": "Is a pilot required for a 180 metre vessel?", "must": ["(yes|required|mandatory)"], "cites": ["Port Authority Handbook"], "onlyCites": ["Port Authority Handbook"] },
+    { "id": "S3", "kind": "conflict", "q": "How often are lifeboat drills held according to each document?", "must": ["30", "14"], "cites": ["Operations Manual 2023", "Safety Bulletin 2024"] },
+    { "id": "S4", "kind": "which-document", "q": "Which document mentions pilotage?", "must": ["Port Authority Handbook"], "mustNot": ["Operations Manual 2023.*pilotage"] },
+    { "id": "S5", "kind": "one-document", "q": "What is the port fee for a container ship, and where does it come from?", "must": ["12,?400"], "cites": ["Port Authority Handbook"], "onlyCites": ["Port Authority Handbook"] },
+    { "id": "S6", "kind": "no-bleed", "q": "How many tonnes of fuel does a container ship burn per day at 14 knots?", "must": ["42"], "cites": ["Operations Manual 2023"], "onlyCites": ["Operations Manual 2023"] },
+    { "id": "S7", "kind": "unanswerable", "q": "What do the documents say about ballast water treatment?", "mode": "document", "refuse": true, "mustNot": ["\\d+\\s*(litres|tonnes)"] },
+    { "id": "S8", "kind": "outside", "q": "What is the capital of France?", "mode": "document", "refuse": true, "mustNot": ["\\bParis\\b"] },
+    { "id": "S9", "kind": "each-document", "q": "Summarise each document in one sentence.", "must": ["Operations Manual", "Safety Bulletin", "Port Authority"] },
+    { "id": "S10", "kind": "compare", "q": "Where do the Operations Manual and the Safety Bulletin disagree?", "must": ["30", "14"], "cites": ["Operations Manual 2023", "Safety Bulletin 2024"] },
+    { "id": "S11", "kind": "no-bleed", "q": "How often are fire extinguishers inspected now?", "must": ["month"], "mustNot": ["every 6 months\\.?$"], "cites": ["Safety Bulletin 2024"] },
+    { "id": "S12", "kind": "unanswerable", "q": "What is the port fee at Singapore?", "mode": "document", "refuse": true, "mustNot": ["\\d{1,2},\\d{3}\\s*(EUR|USD)"] }
+  ]
+}

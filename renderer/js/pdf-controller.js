@@ -1,6 +1,6 @@
 import { mostVisiblePage, anchorFromScroll, scrollFromAnchor, scaleAfterWheel, createWheelTurner } from "./page-geometry.js";
 
-function toPdfSource(path) {
+export function toPdfSource(path) {
   // Already a URL — pass through untouched
   if (/^https?:\/\//i.test(path) || /^file:\/\//i.test(path) || /^\.\//.test(path)) {
     return path;

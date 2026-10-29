@@ -51,6 +51,14 @@ async function backendPost(route, data, signal) {
   if ('pdfId' in body && !PDF_ID_PATTERN.test(String(body.pdfId))) {
     throw new Error('Invalid document id');
   }
+  if ('docs' in body) {
+    // a Thinkspace question searches several documents: each needs a real content hash and a plain title
+    const docs = Array.isArray(body.docs) ? body.docs.slice(0, 12) : [];
+    body.docs = docs.map((d) => {
+      if (!d || !PDF_ID_PATTERN.test(String(d.pdfId))) throw new Error('Invalid document id');
+      return { pdfId: String(d.pdfId), title: String(d.title || 'Untitled').replace(/[\r\n\[\]]+/g, ' ').trim().slice(0, 120) };
+    });
+  }
   if ('storagePath' in body) body.storagePath = app.getPath('userData');
   // Slower than any normal answer, but finite: a stalled provider call must not hang the chat.
   return axios.post(`${BACKEND_URL}${route}`, body, { headers: { 'x-thinker-token': BACKEND_TOKEN }, timeout: 150000, signal });
@@ -568,6 +576,8 @@ function registerIpcHandlers() {
   // Thinkspaces and ThinkerTex projects. Every call validates its arguments; nothing here touches files.
   const text = (v) => String(v ?? '');
   const paths = (v) => (Array.isArray(v) ? v.map(text).slice(0, 500) : []);
+  ipcMain.handle('wsconv:list', (_e, id) => store.listWorkspaceConversations(text(id)));
+  ipcMain.handle('wsconv:create', (_e, id, fields) => store.createWorkspaceConversation(text(id), fields || {}));
   ipcMain.handle('ws:list', () => spaces().listWorkspaces());
   ipcMain.handle('ws:get', (_e, id) => spaces().getWorkspace(text(id)));
   ipcMain.handle('ws:create', (_e, fields) => spaces().createWorkspace(fields || {}));
@@ -598,6 +608,10 @@ function registerIpcHandlers() {
     const docId = pdfPath ? store.docIdForPath(pdfPath) : null;
     if (docId) layers.push(...store.listInstructions('document', docId).filter((i) => i.enabled));
     const conversation = conversationId ? store.getConversation(String(conversationId)) : null;
+    // a Thinkspace chat also gets the Thinkspace's own instructions, between the global and the chat's
+    if (conversation?.workspaceId) {
+      layers.splice(layers.length, 0, ...store.listInstructions('workspace', conversation.workspaceId).filter((i) => i.enabled));
+    }
     const result = layers.map(({ scope, title, body }) => ({ scope, title, body }));
     if (conversation?.instructions?.trim()) {
       result.push({ scope: 'conversation', title: '', body: conversation.instructions });
