@@ -382,6 +382,98 @@ function registerIpcHandlers() {
     return canceled ? [] : filePaths;
   });
 
+  // Export an artifact as PDF, PNG, Word or PowerPoint. The page is only ever drawn in a hidden window that has no
+  // preload, a policy that refuses everything but styles and data images, and no way to leave the page.
+  const EXPORTS = {
+    pdf: { name: 'PDF document', ext: 'pdf' },
+    png: { name: 'PNG image', ext: 'png' },
+    docx: { name: 'Word document', ext: 'docx' },
+    pptx: { name: 'PowerPoint presentation', ext: 'pptx' }
+  };
+  const EXPORT_POLICY = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:">`;
+
+  async function renderExportPage(html, width) {
+    const win = new BrowserWindow({
+      show: false, width, height: 800, useContentSize: true,
+      webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true, partition: `artifact-export-${Date.now()}` }
+    });
+    win.webContents.session.webRequest.onBeforeRequest((details, callback) => callback({ cancel: !details.url.startsWith('data:') }));
+    win.webContents.on('will-navigate', (e) => e.preventDefault());
+    win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    const page = String(html).includes('<head>') ? String(html).replace('<head>', `<head>${EXPORT_POLICY}`) : `${EXPORT_POLICY}${html}`;
+    await win.loadURL(`data:text/html;charset=utf-8;base64,${Buffer.from(page).toString('base64')}`);
+    await win.webContents.insertCSS('::-webkit-scrollbar { display: none }');
+    return win;
+  }
+
+  async function capturePage(html, width = 900) {
+    const win = await renderExportPage(html, width);
+    try {
+      const height = await win.webContents.executeJavaScript('Math.ceil(document.documentElement.scrollHeight)');
+      win.setContentSize(width, Math.min(Math.max(height, 100), 8000));
+      await new Promise((r) => setTimeout(r, 150));
+      const image = await win.webContents.capturePage();
+      return image.toPNG();
+    } finally {
+      win.destroy();
+    }
+  }
+
+  ipcMain.handle('art:export', async (event, req) => {
+    try {
+      const format = String(req?.format || '');
+      const kind = EXPORTS[format];
+      if (!kind) return { ok: false, error: 'Unknown format' };
+      const html = String(req?.html || '');
+      if (!html.trim() || html.length > 2000000) return { ok: false, error: 'There is nothing to export.' };
+      const title = String(req?.title || 'artifact').slice(0, 120);
+
+      let data;
+      if (format === 'png') {
+        data = await capturePage(html);
+      } else if (format === 'pdf') {
+        const win = await renderExportPage(html, 900);
+        try {
+          data = await win.webContents.printToPDF({ printBackground: true, pageSize: 'A4', landscape: req?.kindOfArtifact === 'slides' });
+        } finally {
+          win.destroy();
+        }
+      } else {
+        const builders = require('./artifact-export');
+        const image = req?.withImage ? (await capturePage(html)).toString('base64') : '';
+        if (format === 'docx') {
+          const blocks = Array.isArray(req?.blocks) ? req.blocks.slice() : [];
+          if (image) blocks.push({ t: 'img', data: image });
+          data = await builders.buildDocx({ title, blocks });
+        } else {
+          const slides = Array.isArray(req?.slides) ? req.slides.map((x) => ({ ...x })) : [];
+          if (image && slides.length <= 1) {
+            if (!slides.length) slides.push({ title, bullets: [] });
+            slides[0].image = image;
+          }
+          data = await builders.buildPptx({ title, slides });
+        }
+      }
+
+      const win = BrowserWindow.fromWebContents(event.sender);
+      const safe = title.replace(/[\\/:*?"<>|]+/g, '-').trim() || 'artifact';
+      // automated tests (development runs only) name a folder instead of answering the dialog
+      const testDir = !app.isPackaged && process.env.THINKER_TEST_EXPORT_DIR;
+      const { canceled, filePath } = testDir
+        ? { canceled: false, filePath: path.join(testDir, `${safe}.${kind.ext}`) }
+        : await dialog.showSaveDialog(win, {
+          defaultPath: `${safe}.${kind.ext}`,
+          filters: [{ name: kind.name, extensions: [kind.ext] }]
+        });
+      if (canceled || !filePath) return { ok: false, canceled: true };
+      await fsPromises.writeFile(filePath, data);
+      return { ok: true, filePath };
+    } catch (error) {
+      console.error('Failed to export artifact:', error);
+      return { ok: false, error: error.message || 'Export failed' };
+    }
+  });
+
   ipcMain.handle('dialog:saveTextFile', async (event, payload) => {
     try {
       const win = BrowserWindow.fromWebContents(event.sender);

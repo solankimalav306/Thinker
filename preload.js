@@ -55,6 +55,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   createArtifact: (fields) => ipcRenderer.invoke('art:create', fields),
   updateArtifact: (id, patch) => ipcRenderer.invoke('art:update', id, patch),
   deleteArtifact: (id) => ipcRenderer.invoke('art:delete', id),
+  exportArtifact: (request) => ipcRenderer.invoke('art:export', request),
   listProjects: () => ipcRenderer.invoke('proj:list'),
   getProject: (id) => ipcRenderer.invoke('proj:get', id),
   updateProject: (id, patch) => ipcRenderer.invoke('proj:update', id, patch),

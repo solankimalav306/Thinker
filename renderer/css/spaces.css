@@ -705,3 +705,88 @@
 .art-more:hover {
   background: var(--border);
 }
+
+/* Export menu and slide presentation */
+.art-menu {
+  position: fixed;
+  z-index: 900;
+  display: flex;
+  flex-direction: column;
+  min-width: 190px;
+  padding: var(--space-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-3);
+}
+
+.art-menu[hidden] {
+  display: none;
+}
+
+.art-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm, 6px);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.art-menu-item:hover,
+.art-menu-item:focus-visible {
+  background: var(--sunken);
+}
+
+.art-menu-item i {
+  width: 1.2em;
+  color: var(--text-3);
+  text-align: center;
+}
+
+.art-present {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #05050c;
+}
+
+.art-present-stage {
+  flex: none;
+  width: 960px;
+  height: 540px;
+  margin-bottom: 56px;
+  transform-origin: center center;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.art-present-stage .art-iframe {
+  display: block;
+  border: 0;
+}
+
+.art-present-bar {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  transform: translateX(-50%);
+  color: #c9c7e6;
+}
+
+.art-present-count {
+  min-width: 64px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}

@@ -74,7 +74,7 @@ function iconButton(icon, title, onClick) {
 }
 
 // A frame showing `html`. It reports its height and relays the few actions it is allowed to.
-function mountFrame({ html, valid, onCite, minHeight = 80, maxHeight, label }) {
+function mountFrame({ html, valid, onCite, minHeight = 80, maxHeight, label, extraCss = "", fixed = false }) {
   const frame = document.createElement("iframe");
   frame.className = "art-iframe";
   frame.title = label;
@@ -88,7 +88,7 @@ function mountFrame({ html, valid, onCite, minHeight = 80, maxHeight, label }) {
   const cites = new Set(valid.map((c) => `${c.doc.toLowerCase()}|${c.page}`));
 
   const send = async () => {
-    const css = await loadKitCss();
+    const css = (await loadKitCss()) + extraCss;
     frame.contentWindow?.postMessage({ type: "render", html, css, tokens: readTokens() }, "*");
   };
 
@@ -97,7 +97,7 @@ function mountFrame({ html, valid, onCite, minHeight = 80, maxHeight, label }) {
     if (event.source !== frame.contentWindow) return;
     const data = event.data || {};
     if (data.type === "ready") send();
-    else if (data.type === "height" && Number.isFinite(data.value)) {
+    else if (data.type === "height" && Number.isFinite(data.value) && !fixed) {
       const limit = maxHeight ? maxHeight() : Infinity;
       frame.style.height = `${Math.max(minHeight, Math.min(Math.ceil(data.value), limit))}px`;
     } else if (data.type === "action") {
@@ -126,7 +126,7 @@ export function standaloneDocument(title, html, css, tokens) {
   return `<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">\n<title>${safeTitle}</title>\n<style>:root{${vars}}\n${css}</style></head>\n<body><div id="root">${html}</div></body></html>\n`;
 }
 
-export function createArtifactView({ title, html, complete = true, sources, onCite, onSave, onKeep }) {
+export function createArtifactView({ title, html, complete = true, sources, onCite, onSave, onKeep, kind = "page" }) {
   const clean = sanitizeArtifact(html);
   const checked = validateCitations(clean, sources);
   const box = el("section", "art-frame");
@@ -173,13 +173,129 @@ export function createArtifactView({ title, html, complete = true, sources, onCi
   }
   tools.append(
     iconButton("fa-up-right-and-down-left-from-center", "Open larger", () => openLarge({ title, checked, onCite })),
-    iconButton("fa-copy", "Copy the HTML", () => navigator.clipboard?.writeText(checked.html).catch(() => {})),
-    iconButton("fa-floppy-disk", "Save as an HTML file", async () => {
-      const css = await loadKitCss();
-      onSave?.({ title, content: standaloneDocument(title, checked.html.replace(/\sdata-cite(-unverified)?="[^"]*"/g, ""), css, readTokens()) });
-    })
+    iconButton("fa-copy", "Copy the HTML", () => navigator.clipboard?.writeText(checked.html).catch(() => {}))
   );
+  const slides = slideHtml(checked.html);
+  if (slides.length) tools.prepend(iconButton("fa-display", "Present as slides", () => openPresent({ title, slides, onCite })));
+  tools.append(exportMenu({ title, checked, kind, onSave }));
   return box;
+}
+
+// the .tk-slide elements of an artifact, one HTML string each
+function slideHtml(html) {
+  const doc = new DOMParser().parseFromString(`<body>${html}</body>`, "text/html");
+  return [...doc.querySelectorAll(".tk-slide")].map((node) => node.outerHTML);
+}
+
+const withoutCites = (html) => html.replace(/\sdata-cite(-unverified)?="[^"]*"/g, "");
+
+// One slide at a time, 16:9, with the keyboard. Each slide is shown in the same sealed frame as everything else.
+function openPresent({ title, slides, onCite }) {
+  const overlay = el("div", "art-present");
+  overlay.setAttribute("role", "dialog");
+  overlay.setAttribute("aria-modal", "true");
+  overlay.setAttribute("aria-label", `${title}: presentation`);
+  const stage = el("div", "art-present-stage");
+  const counter = el("span", "art-present-count");
+  const bar = el("div", "art-present-bar");
+  let index = 0;
+  let frame = null;
+
+  const SLIDE_CSS = "html,body{overflow:hidden}#root{padding:0;height:100vh}.tk-slide{height:100%;width:100%;margin:0;border:0;border-radius:0;aspect-ratio:auto;padding:5% 7%;font-size:26px}.tk-slide h1,.tk-slide h2{font-size:2.3rem}";
+  const fit = () => {
+    const scale = Math.min(overlay.clientWidth / 960, (overlay.clientHeight - 56) / 540);
+    stage.style.transform = `scale(${Math.max(scale, 0.2)})`;
+  };
+  const show = (n) => {
+    index = Math.max(0, Math.min(slides.length - 1, n));
+    frame?.remove();
+    const checked = { html: slides[index], valid: [] };
+    frame = mountFrame({ html: checked.html, valid: checked.valid, onCite, label: `${title}, slide ${index + 1}`, minHeight: 540, maxHeight: () => 540, extraCss: SLIDE_CSS, fixed: true });
+    frame.style.width = "960px";
+    frame.style.height = "540px";
+    stage.append(frame);
+    counter.textContent = `${index + 1} / ${slides.length}`;
+  };
+  const prev = iconButton("fa-chevron-left", "Previous slide", () => show(index - 1));
+  const next = iconButton("fa-chevron-right", "Next slide", () => show(index + 1));
+  const close = iconButton("fa-xmark", "End presentation", () => done());
+  bar.append(prev, counter, next, close);
+  overlay.append(stage, bar);
+
+  const onKey = (e) => {
+    const go = { ArrowRight: 1, PageDown: 1, " ": 1, ArrowDown: 1, ArrowLeft: -1, PageUp: -1, ArrowUp: -1 }[e.key];
+    if (e.key === "Escape") { e.stopPropagation(); done(); }
+    else if (go) { e.preventDefault(); e.stopPropagation(); show(index + go); }
+    else if (e.key === "Home") show(0);
+    else if (e.key === "End") show(slides.length - 1);
+  };
+  const done = () => {
+    document.removeEventListener("keydown", onKey, true);
+    window.removeEventListener("resize", fit);
+    document.removeEventListener("fullscreenchange", onFullscreen);
+    overlay.remove();
+    if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+  };
+  const onFullscreen = () => { if (!document.fullscreenElement) done(); else fit(); };
+  document.addEventListener("keydown", onKey, true);
+  window.addEventListener("resize", fit);
+  document.body.append(overlay);
+  show(0);
+  fit();
+  overlay.requestFullscreen?.().then(() => document.addEventListener("fullscreenchange", onFullscreen)).catch(() => {});
+  close.focus();
+}
+
+// A small menu of ways to take an artifact out of the app.
+function exportMenu({ title, checked, kind, onSave }) {
+  const wrap = el("span", "art-menu-wrap");
+  const trigger = iconButton("fa-download", "Export", () => {
+    menu.hidden = !menu.hidden;
+    if (!menu.hidden) {
+      // fixed, so the card's edges never clip it
+      const r = trigger.getBoundingClientRect();
+      menu.style.top = `${Math.round(r.bottom + 4)}px`;
+      menu.style.right = `${Math.round(window.innerWidth - r.right)}px`;
+    }
+  });
+  trigger.setAttribute("aria-haspopup", "menu");
+  const menu = el("div", "art-menu");
+  menu.hidden = true;
+  menu.setAttribute("role", "menu");
+
+  const api = () => window.electronAPI;
+  const notify = (result, label) => {
+    if (result?.ok) window.dispatchEvent(new CustomEvent("thinker:status", { detail: `Saved ${label}.` }));
+    else if (!result?.canceled) window.dispatchEvent(new CustomEvent("thinker:status", { detail: `Could not export: ${result?.error || "unknown error"}` }));
+  };
+  const clean = () => withoutCites(checked.html);
+  const standalone = async (tokens) => standaloneDocument(title, clean(), await loadKitCss(), tokens);
+
+  const items = [
+    ["HTML page", "fa-code", async () => onSave?.({ title, content: await standalone(readTokens()) })],
+    ["PDF", "fa-file-pdf", async () => notify(await api().exportArtifact({ format: "pdf", title, html: await standalone({}), kindOfArtifact: kind }), "PDF")],
+    ["Image (PNG)", "fa-image", async () => notify(await api().exportArtifact({ format: "png", title, html: await standalone({}) }), "image")],
+    ["Word (.docx)", "fa-file-word", async () => {
+      const { extractBlocks } = await import("./artifact-blocks.js");
+      notify(await api().exportArtifact({ format: "docx", title, html: await standalone({}), blocks: extractBlocks(clean()), withImage: /<svg\b/i.test(checked.html) }), "Word document");
+    }],
+    ["PowerPoint (.pptx)", "fa-file-powerpoint", async () => {
+      const { extractSlides } = await import("./artifact-blocks.js");
+      notify(await api().exportArtifact({ format: "pptx", title, html: await standalone({}), slides: extractSlides(clean(), title), withImage: /<svg\b/i.test(checked.html) }), "presentation");
+    }]
+  ];
+  for (const [label, icon, run] of items) {
+    const item = el("button", "art-menu-item");
+    item.type = "button";
+    item.setAttribute("role", "menuitem");
+    item.append(el("i", `fa-solid ${icon}`), document.createTextNode(` ${label}`));
+    item.addEventListener("click", async () => { menu.hidden = true; try { await run(); } catch (error) { notify({ error: error.message }); } });
+    menu.append(item);
+  }
+  const away = (e) => { if (!wrap.isConnected) document.removeEventListener("mousedown", away, true); else if (!wrap.contains(e.target)) menu.hidden = true; };
+  document.addEventListener("mousedown", away, true);
+  wrap.append(trigger, menu);
+  return wrap;
 }
 
 function openLarge({ title, checked, onCite }) {

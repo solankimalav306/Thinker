@@ -147,6 +147,7 @@ export function createArtifactsLibrary({ container, api = window.electronAPI, op
       title: item.title,
       html: item.html,
       sources: item.sources,
+      kind: item.kind,
       onCite: ({ doc, page: n }) => {
         const d = docs.find((x) => x.title.toLowerCase() === doc.toLowerCase());
         if (d?.path) openPdfAt(d.path, n);

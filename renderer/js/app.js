@@ -1593,6 +1593,7 @@ async function boot() {
   const texStudio = createTexStudio({ container: elements.texRoot, setStatus, go: showTex });
   elements.navTex.addEventListener("click", () => texStudio.show());
   document.addEventListener("visibilitychange", () => { if (document.hidden) texStudio.flush(); });
+  window.addEventListener("thinker:status", (event) => setStatus(String(event.detail || "")));
 
   // Thinkspaces
   const spaces = createSpaces({

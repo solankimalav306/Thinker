@@ -151,6 +151,7 @@ export function createSpaceChat(root, { api = window.electronAPI, space, openPdf
           wrap.append(createArtifactView({
             title: part.title, html: part.html, complete: part.complete, sources: entry.sources || [],
             onCite: ({ doc, page }) => { const d = docs.find((x) => x.title.toLowerCase() === doc.toLowerCase()); if (d) openPdfAt(d.path, page); },
+            kind: part.kind,
             onKeep: async (file) => {
               const saved = await api.createArtifact({ title: part.title, html: file.html, kind: part.kind, sources: entry.sources || [], workspaceId: space.id });
               setStatus(`Saved "${saved.title}" to Artifacts.`);
