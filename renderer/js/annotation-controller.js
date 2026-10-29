@@ -1,3 +1,5 @@
+import { strokeTouchedBy } from "./page-geometry.js";
+
 function hexToRgba(hex, alpha) {
   const normalized = hex.replace("#", "");
   const r = parseInt(normalized.substring(0, 2), 16);
@@ -6,10 +8,15 @@ function hexToRgba(hex, alpha) {
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
+const HISTORY_LIMIT = 100;
+
+// Marks (pens, highlighters, eraser, sticky notes) live on "surfaces": one transparent canvas per page
+// that is on screen. Single-page view has one surface (the original #annotation-canvas, which always
+// shows the current page); two-page and continuous view register one surface per page card. Tool state
+// is shared, and every stroke is stored per page with coordinates relative to the page, so marks line
+// up at any zoom and in any view.
 export class AnnotationController {
   constructor(options) {
-    this.canvas = options.canvas;
-    this.ctx = this.canvas.getContext("2d");
     this.pdfViewer = options.pdfViewer;
     this.textLayer = options.textLayer;
     this.penControls = options.penControls;
@@ -22,6 +29,7 @@ export class AnnotationController {
     this.highlighterButtons = options.highlighterButtons;
     this.eraserButton = options.eraserButton;
     this.onStatus = options.onStatus;
+    this.onChange = options.onChange || (() => {});
     this.getStorageKeyForPage = options.getStorageKeyForPage;
     this.getCurrentPage = options.getCurrentPage;
     this.getPageCount = options.getPageCount;
@@ -31,7 +39,7 @@ export class AnnotationController {
     this.tool = null;
     this.drawing = false;
     this.activePath = null;
-    this.paths = [];
+    this.placementHandler = null; // set by the app while a sticky note is being placed
 
     this.penStates = this.penButtons.map((_, i) => ({
       color: ["#222222", "#e74c3c", "#3498db"][i] || "#222222",
@@ -42,31 +50,98 @@ export class AnnotationController {
       color: ["#ffff00", "#00ff00"][i] || "#ffff00",
       width: 12
     }));
-    
-    this.activeButtonIndex = -1;
-    this.stickyNotes = []; // { text, x, y, date } where x/y are normalized 0..1
 
+    this.activeButtonIndex = -1;
     this.isEnabled = true;
     this.eraserSize = 12;
-    
+    this.lastErasePoint = null;
+    this.undoStack = [];
+    this.redoStack = [];
+
+    this.surfaces = new Map(); // page number -> surface (two-page and continuous view)
+    this.main = this.makeSurface({ canvas: options.canvas, host: options.pdfViewer, pageNum: null });
+    this.mainVisible = true;
+    this.active = this.main;
+
     this.updateButtonColors();
-
-    this.pdfViewer.addEventListener("mousedown", (event) => {
-      // Only handle if not currently in an active drawing mode
-      if (!this.isAnnotating && this.isEnabled) {
-        this.handleCanvasClick(event);
-      }
-    });
-
-    // Add mousemove to show pointer cursor over stickies
-    this.pdfViewer.addEventListener("mousemove", (event) => {
-      if (!this.isAnnotating && this.isEnabled) {
-        const point = this.getPoint(event);
-        const hit = this.findStickyNoteAtPoint(point);
-        this.pdfViewer.style.cursor = hit ? "pointer" : "";
-      }
-    });
   }
+
+  // ---- surfaces -----------------------------------------------------------------------------------
+
+  makeSurface({ canvas, host, pageNum }) {
+    return { canvas, ctx: canvas.getContext("2d"), host, pageNum, paths: [], stickyNotes: [], bound: false };
+  }
+
+  // Code written for one canvas keeps working: these follow whichever surface is being used.
+  get canvas() { return this.active.canvas; }
+  get ctx() { return this.active.ctx; }
+  get paths() { return this.active.paths; }
+  set paths(value) { this.active.paths = value; }
+  get stickyNotes() { return this.active.stickyNotes; }
+  set stickyNotes(value) { this.active.stickyNotes = value; }
+
+  pageOf(surface = this.active) {
+    return surface.pageNum ?? this.getCurrentPage();
+  }
+
+  allSurfaces() {
+    return this.mainVisible ? [this.main] : [...this.surfaces.values()];
+  }
+
+  // The page view switches the original canvas on (single page) or off (two-page / continuous).
+  setSurfaceMode(mode) {
+    this.mainVisible = mode === "single";
+    if (this.mainVisible) {
+      this.surfaces.clear();
+      this.active = this.main;
+    }
+    this.applyInteractivity();
+  }
+
+  registerSurface(card, pageNum, width, height) {
+    if (!card) return null;
+    card.querySelector(":scope > canvas.annotation-surface")?.remove();
+    const canvas = document.createElement("canvas");
+    canvas.className = "annotation-surface";
+    canvas.width = Math.floor(width);
+    canvas.height = Math.floor(height);
+    canvas.style.width = `${canvas.width}px`;
+    canvas.style.height = `${canvas.height}px`;
+    card.appendChild(canvas);
+
+    const surface = this.makeSurface({ canvas, host: card, pageNum });
+    this.surfaces.set(pageNum, surface);
+    this.attachSurface(surface);
+    this.loadSurface(surface);
+    canvas.style.pointerEvents = this.isAnnotating ? "auto" : "none";
+    return surface;
+  }
+
+  unregisterSurface(pageNum) {
+    const surface = this.surfaces.get(pageNum);
+    if (!surface) return;
+    surface.canvas.remove();
+    this.surfaces.delete(pageNum);
+    if (this.active === surface) this.active = this.main;
+  }
+
+  clearSurfaces() {
+    this.surfaces.clear();
+    this.active = this.main;
+  }
+
+  surfaceFor(pageNum) {
+    if (this.mainVisible) return pageNum === this.getCurrentPage() ? this.main : null;
+    return this.surfaces.get(pageNum) || null;
+  }
+
+  applyInteractivity() {
+    const value = this.isAnnotating ? "auto" : "none";
+    this.main.canvas.style.pointerEvents = value;
+    this.surfaces.forEach((surface) => { surface.canvas.style.pointerEvents = value; });
+  }
+
+  // ---- geometry -----------------------------------------------------------------------------------
 
   updateButtonColors() {
     this.penButtons.forEach((btn, i) => {
@@ -84,46 +159,48 @@ export class AnnotationController {
     }
   }
 
-  getPoint(event) {
-    const rect = this.pdfViewer.getBoundingClientRect();
+  getPoint(event, surface = this.active) {
+    const rect = surface.host.getBoundingClientRect();
     return {
       x: Math.max(0, Math.min(rect.width, event.clientX - rect.left)),
       y: Math.max(0, Math.min(rect.height, event.clientY - rect.top))
     };
   }
 
-  toNormalized(point) {
-    const w = Math.max(1, this.canvas.width || 1);
-    const h = Math.max(1, this.canvas.height || 1);
+  toNormalized(point, surface = this.active) {
+    const w = Math.max(1, surface.canvas.width || 1);
+    const h = Math.max(1, surface.canvas.height || 1);
     return {
       x: Math.max(0, Math.min(1, point.x / w)),
       y: Math.max(0, Math.min(1, point.y / h))
     };
   }
 
-  fromNormalized(point) {
+  fromNormalized(point, surface = this.active) {
     return {
-      x: (Number(point?.x) || 0) * Math.max(1, this.canvas.width || 1),
-      y: (Number(point?.y) || 0) * Math.max(1, this.canvas.height || 1)
+      x: (Number(point?.x) || 0) * Math.max(1, surface.canvas.width || 1),
+      y: (Number(point?.y) || 0) * Math.max(1, surface.canvas.height || 1)
     };
   }
 
-  widthToCanvas(path) {
+  widthToCanvas(path, surface = this.active) {
     if (Number.isFinite(path?.widthNorm) && path.widthNorm > 0) {
-      return Math.max(1, path.widthNorm * Math.max(1, this.canvas.width || 1));
+      return Math.max(1, path.widthNorm * Math.max(1, surface.canvas.width || 1));
     }
     return Math.max(1, Number(path?.width) || 1);
   }
 
   resizeTo(width, height) {
-    this.canvas.width = width;
-    this.canvas.height = height;
-    this.canvas.style.width = `${width}px`;
-    this.canvas.style.height = `${height}px`;
-    this.redraw();
+    this.main.canvas.width = width;
+    this.main.canvas.height = height;
+    this.main.canvas.style.width = `${width}px`;
+    this.main.canvas.style.height = `${height}px`;
+    this.redrawSurface(this.main);
   }
 
-  getStorageData(pageNum = this.getCurrentPage()) {
+  // ---- storage ------------------------------------------------------------------------------------
+
+  getStorageData(pageNum = this.pageOf()) {
     const key = this.getStorageKeyForPage(pageNum);
     const raw = window.electronAPI.getItem(key);
     if (!raw) {
@@ -144,12 +221,12 @@ export class AnnotationController {
     }
   }
 
-  normalizeLoadedPath(path) {
+  normalizeLoadedPath(path, surface = this.active) {
     const points = Array.isArray(path?.points) ? path.points : [];
     const looksNormalized = points.length > 0 && points.every((pt) => Number(pt?.x) <= 1 && Number(pt?.y) <= 1);
-    const normalizedPoints = looksNormalized ? points : points.map((pt) => this.toNormalized(pt));
+    const normalizedPoints = looksNormalized ? points : points.map((pt) => this.toNormalized(pt, surface));
     const width = Number(path?.width) || 2;
-    const widthNorm = Number(path?.widthNorm) || (width / Math.max(1, this.canvas.width || 1));
+    const widthNorm = Number(path?.widthNorm) || (width / Math.max(1, surface.canvas.width || 1));
 
     return {
       color: path?.color || '#222222',
@@ -160,7 +237,7 @@ export class AnnotationController {
     };
   }
 
-  normalizeLoadedNote(note) {
+  normalizeLoadedNote(note, surface = this.active) {
     const maybeNorm = Number(note?.x) <= 1 && Number(note?.y) <= 1;
     if (maybeNorm) {
       return {
@@ -171,7 +248,7 @@ export class AnnotationController {
       };
     }
 
-    const converted = this.toNormalized({ x: Number(note?.x) || 0, y: Number(note?.y) || 0 });
+    const converted = this.toNormalized({ x: Number(note?.x) || 0, y: Number(note?.y) || 0 }, surface);
     return {
       text: String(note?.text || ''),
       x: converted.x,
@@ -180,19 +257,34 @@ export class AnnotationController {
     };
   }
 
-  loadPageAnnotations(pageNum = this.getCurrentPage()) {
-    const data = this.getStorageData(pageNum);
-    this.paths = (data.paths || []).map((path) => this.normalizeLoadedPath(path));
-    this.stickyNotes = (data.stickyNotes || []).map((note) => this.normalizeLoadedNote(note));
-    this.redraw();
+  loadSurface(surface) {
+    const data = this.getStorageData(this.pageOf(surface));
+    surface.paths = (data.paths || []).map((path) => this.normalizeLoadedPath(path, surface));
+    surface.stickyNotes = (data.stickyNotes || []).map((note) => this.normalizeLoadedNote(note, surface));
+    this.redrawSurface(surface);
   }
 
-  savePageAnnotations(pageNum = this.getCurrentPage()) {
-    const key = this.getStorageKeyForPage(pageNum);
+  // Reloads the surface that shows `pageNum`, if one is on screen.
+  loadPageAnnotations(pageNum = this.pageOf()) {
+    const surface = this.surfaceFor(pageNum);
+    if (surface) this.loadSurface(surface);
+  }
+
+  reloadAllSurfaces() {
+    this.allSurfaces().forEach((surface) => this.loadSurface(surface));
+  }
+
+  saveSurface(surface) {
+    const key = this.getStorageKeyForPage(this.pageOf(surface));
     window.electronAPI.setItem(key, JSON.stringify({
-      paths: this.paths,
-      stickyNotes: this.stickyNotes
+      paths: surface.paths,
+      stickyNotes: surface.stickyNotes
     }));
+  }
+
+  savePageAnnotations(pageNum = this.pageOf()) {
+    const surface = this.surfaceFor(pageNum) || this.active;
+    this.saveSurface(surface);
   }
 
   collectDocumentAnnotations() {
@@ -222,180 +314,254 @@ export class AnnotationController {
       };
       window.electronAPI.setItem(this.getStorageKeyForPage(page), JSON.stringify(normalized));
     }
-    this.loadPageAnnotations(this.getCurrentPage());
+    this.reloadAllSurfaces();
   }
 
-  getStickyNotesForPage(pageNum = this.getCurrentPage()) {
+  getStickyNotesForPage(pageNum = this.pageOf()) {
     const data = this.getStorageData(pageNum);
     return (data.stickyNotes || []).map((note) => this.normalizeLoadedNote(note));
   }
 
-  redraw() {
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+  // ---- undo / redo --------------------------------------------------------------------------------
 
-    for (const path of this.paths) {
-      this.ctx.strokeStyle = path.color;
-      this.ctx.lineWidth = this.widthToCanvas(path);
-      this.ctx.lineCap = "round";
-      this.ctx.lineJoin = "round";
-      this.ctx.globalAlpha = path.alpha || 1;
-      this.ctx.beginPath();
+  docKey() {
+    return String(this.getStorageKeyForPage(1)).replace(/:page-\d+$/, "");
+  }
+
+  snapshotPage(pageNum) {
+    const data = this.getStorageData(pageNum);
+    return JSON.stringify({ paths: data.paths || [], stickyNotes: data.stickyNotes || [] });
+  }
+
+  recordChange(pageNum, before) {
+    const after = this.snapshotPage(pageNum);
+    if (before === after) return;
+    this.undoStack.push({ doc: this.docKey(), page: pageNum, before, after });
+    if (this.undoStack.length > HISTORY_LIMIT) this.undoStack.shift();
+    this.redoStack = [];
+  }
+
+  applyPageState(pageNum, serialized) {
+    window.electronAPI.setItem(this.getStorageKeyForPage(pageNum), serialized);
+    this.loadPageAnnotations(pageNum);
+    this.onChange(pageNum);
+  }
+
+  step(from, to, field) {
+    const doc = this.docKey();
+    while (from.length && from[from.length - 1].doc !== doc) from.pop(); // never reach into another document
+    const entry = from.pop();
+    if (!entry) return false;
+    this.applyPageState(entry.page, entry[field]);
+    to.push(entry);
+    return entry.page;
+  }
+
+  undo() {
+    const page = this.step(this.undoStack, this.redoStack, "before");
+    this.onStatus(page ? `Undid a mark on page ${page}.` : "Nothing to undo.");
+    return page;
+  }
+
+  redo() {
+    const page = this.step(this.redoStack, this.undoStack, "after");
+    this.onStatus(page ? `Redid a mark on page ${page}.` : "Nothing to redo.");
+    return page;
+  }
+
+  // ---- drawing ------------------------------------------------------------------------------------
+
+  redraw() {
+    this.redrawSurface(this.active);
+  }
+
+  redrawSurface(surface) {
+    const { ctx, canvas } = surface;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    for (const path of surface.paths) {
+      ctx.strokeStyle = path.color;
+      ctx.lineWidth = this.widthToCanvas(path, surface);
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.globalAlpha = path.alpha || 1;
+      ctx.beginPath();
 
       path.points.forEach((rawPoint, index) => {
-        const pt = this.fromNormalized(rawPoint);
+        const pt = this.fromNormalized(rawPoint, surface);
         if (index === 0) {
-          this.ctx.moveTo(pt.x, pt.y);
+          ctx.moveTo(pt.x, pt.y);
         } else {
-          this.ctx.lineTo(pt.x, pt.y);
+          ctx.lineTo(pt.x, pt.y);
         }
       });
 
-      this.ctx.stroke();
-      this.ctx.globalAlpha = 1;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
     }
 
-    // Draw sticky notes
-    for (const note of this.stickyNotes) {
-      this.drawStickyNoteIcon(note);
+    for (const note of surface.stickyNotes) {
+      this.drawStickyNoteIcon(note, surface);
     }
   }
 
-  drawStickyNoteIcon(note) {
-    const { x, y } = this.fromNormalized(note);
+  drawStickyNoteIcon(note, surface = this.active) {
+    const ctx = surface.ctx;
+    const { x, y } = this.fromNormalized(note, surface);
     const size = 24;
-    
-    // Shadow
-    this.ctx.shadowBlur = 4;
-    this.ctx.shadowColor = "rgba(0,0,0,0.3)";
-    this.ctx.shadowOffsetY = 2;
 
-    // Body
-    this.ctx.fillStyle = "#f1c40f";
-    this.ctx.beginPath();
-    this.ctx.roundRect(x - size/2, y - size/2, size, size, 4);
-    this.ctx.fill();
+    ctx.shadowBlur = 4;
+    ctx.shadowColor = "rgba(0,0,0,0.3)";
+    ctx.shadowOffsetY = 2;
 
-    // Reset shadow
-    this.ctx.shadowBlur = 0;
-    this.ctx.shadowOffsetY = 0;
+    ctx.fillStyle = "#f1c40f";
+    ctx.beginPath();
+    ctx.roundRect(x - size / 2, y - size / 2, size, size, 4);
+    ctx.fill();
 
-    // Icon (simple lines for text)
-    this.ctx.strokeStyle = "#927608";
-    this.ctx.lineWidth = 2;
-    this.ctx.beginPath();
-    this.ctx.moveTo(x - 6, y - 4);
-    this.ctx.lineTo(x + 6, y - 4);
-    this.ctx.moveTo(x - 6, y);
-    this.ctx.lineTo(x + 6, y);
-    this.ctx.moveTo(x - 6, y + 4);
-    this.ctx.lineTo(x + 2, y + 4);
-    this.ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+
+    ctx.strokeStyle = "#927608";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x - 6, y - 4);
+    ctx.lineTo(x + 6, y - 4);
+    ctx.moveTo(x - 6, y);
+    ctx.lineTo(x + 6, y);
+    ctx.moveTo(x - 6, y + 4);
+    ctx.lineTo(x + 2, y + 4);
+    ctx.stroke();
   }
 
-  handleCanvasClick(event) {
+  // ---- sticky notes -------------------------------------------------------------------------------
+
+  handleCanvasClick(event, surface = this.active) {
     if (!this.isEnabled) return;
-    
-    const point = this.getPoint(event);
-    const hit = this.findStickyNoteAtPoint(point);
-    
+    this.active = surface;
+
+    if (this.placementHandler && this.placementHandler(event, surface)) return;
+
+    const point = this.getPoint(event, surface);
+    const hit = this.findStickyNoteAtPoint(point, surface);
+
     if (hit) {
-      this.showStickyNotePopover(hit.note, event.clientX, event.clientY);
-      // If we hit a sticky, we stop propagation if we're in drawing mode to prevent accidental strokes
+      this.showStickyNotePopover(hit.note, event.clientX, event.clientY, this.pageOf(surface));
       if (this.isAnnotating) {
         this.drawing = false;
         event.stopImmediatePropagation();
       }
-      return;
-    }
-
-    // Normal annotation logic continues if no sticky hit
-    if (this.isAnnotating) {
-      // (Mousedown for drawing is handled in bindEvents, this handleCanvasClick 
-      // is primarily for sticky hit testing via the shared listener)
     }
   }
 
-  findStickyNoteAtPoint(point) {
-    // Increased radius for better hit testing
+  findStickyNoteAtPoint(point, surface = this.active) {
     const radius = 20;
-    if (!this.stickyNotes || this.stickyNotes.length === 0) {
-      console.debug("No sticky notes to check");
-      return null;
-    }
-
-    for (const note of this.stickyNotes) {
-      const p = this.fromNormalized(note);
-      const dx = point.x - p.x;
-      const dy = point.y - p.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist <= radius) {
+    for (const note of surface.stickyNotes || []) {
+      const p = this.fromNormalized(note, surface);
+      if (Math.hypot(point.x - p.x, point.y - p.y) <= radius) {
         return { note };
       }
     }
     return null;
   }
 
-  showStickyNotePopover(note, clientX, clientY) {
-    const existing = document.querySelector(".sticky-tooltip");
-    if (existing) existing.remove();
+  // Edits one page's data in storage, keeps undo history and refreshes the surface and notes panel.
+  updatePage(pageNum, mutate) {
+    const before = this.snapshotPage(pageNum);
+    const data = this.getStorageData(pageNum);
+    mutate(data);
+    window.electronAPI.setItem(this.getStorageKeyForPage(pageNum), JSON.stringify(data));
+    this.recordChange(pageNum, before);
+    this.loadPageAnnotations(pageNum);
+    this.onChange(pageNum);
+  }
+
+  showStickyNotePopover(note, clientX, clientY, pageNum = this.pageOf()) {
+    document.querySelector(".sticky-tooltip")?.remove();
 
     const el = document.createElement("div");
     el.className = "sticky-tooltip";
     el.innerHTML = `
       <div class="sticky-tooltip-header">
         <div class="sticky-tooltip-title">Sticky Note</div>
-        <button class="sticky-tooltip-close"><i class="fa-solid fa-xmark"></i></button>
+        <button class="sticky-tooltip-close" title="Close" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
       </div>
-      <div class="sticky-tooltip-body">${String(note?.text || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>
+      <div class="sticky-tooltip-body"></div>
+      <div class="sticky-tooltip-actions">
+        <button type="button" class="sticky-edit"><i class="fa-solid fa-pen"></i> Edit</button>
+        <button type="button" class="sticky-delete"><i class="fa-solid fa-trash"></i> Delete</button>
+      </div>
     `;
+    const body = el.querySelector(".sticky-tooltip-body");
+    body.textContent = String(note?.text || "");
 
     document.body.appendChild(el);
     el.style.left = `${clientX}px`;
     el.style.top = `${clientY}px`;
 
-    const rect = el.getBoundingClientRect();
-    if (rect.right > window.innerWidth) {
-      el.style.left = `${window.innerWidth - rect.width - 16}px`;
-    }
-    if (rect.bottom > window.innerHeight) {
-      const top = clientY - rect.height - 10;
-      el.style.top = `${Math.max(10, top)}px`;
-    }
-
-    el.querySelector(".sticky-tooltip-close").addEventListener("click", () => el.remove());
-    const clickOutside = (e) => {
-      if (!el.contains(e.target)) {
-        el.remove();
-        document.removeEventListener("mousedown", clickOutside);
-      }
+    const place = () => {
+      const rect = el.getBoundingClientRect();
+      if (rect.right > window.innerWidth) el.style.left = `${window.innerWidth - rect.width - 16}px`;
+      if (rect.bottom > window.innerHeight) el.style.top = `${Math.max(10, clientY - rect.height - 10)}px`;
     };
-    setTimeout(() => document.addEventListener("mousedown", clickOutside), 10);
+    place();
+
+    const matches = (n) => n.date === note.date && n.text === note.text;
+    let outside;
+    const close = () => {
+      el.remove();
+      document.removeEventListener("mousedown", outside);
+    };
+    outside = (e) => { if (!el.contains(e.target)) close(); };
+
+    el.querySelector(".sticky-tooltip-close").addEventListener("click", close);
+    el.querySelector(".sticky-delete").addEventListener("click", () => {
+      this.updatePage(pageNum, (data) => {
+        const index = (data.stickyNotes || []).findIndex(matches);
+        if (index >= 0) data.stickyNotes.splice(index, 1);
+      });
+      this.onStatus("Sticky note deleted. Press Ctrl+Z to bring it back.");
+      close();
+    });
+    el.querySelector(".sticky-edit").addEventListener("click", () => {
+      const area = document.createElement("textarea");
+      area.className = "sticky-edit-area";
+      area.value = note.text || "";
+      area.rows = 3;
+      body.replaceWith(area);
+      el.querySelector(".sticky-tooltip-actions").innerHTML = `<button type="button" class="sticky-save"><i class="fa-solid fa-check"></i> Save</button>`;
+      area.focus();
+      area.select();
+      place();
+      const save = () => {
+        const text = area.value.trim();
+        if (!text) return;
+        this.updatePage(pageNum, (data) => {
+          const target = (data.stickyNotes || []).find(matches);
+          if (target) target.text = text;
+        });
+        this.onStatus("Sticky note updated.");
+        close();
+      };
+      el.querySelector(".sticky-save").addEventListener("click", save);
+      area.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); save(); }
+        if (e.key === "Escape") { e.stopPropagation(); close(); }
+      });
+    });
+    setTimeout(() => document.addEventListener("mousedown", outside), 10);
   }
 
-  addStickyNote(text, x, y, pageNum = this.getCurrentPage()) {
-    if (pageNum !== this.getCurrentPage()) {
-      const data = this.getStorageData(pageNum);
-      const normalized = this.toNormalized({ x, y });
-      data.stickyNotes = Array.isArray(data.stickyNotes) ? data.stickyNotes : [];
-      data.stickyNotes.push({
-        text,
-        x: normalized.x,
-        y: normalized.y,
-        date: Date.now()
-      });
-      window.electronAPI.setItem(this.getStorageKeyForPage(pageNum), JSON.stringify(data));
-      return;
-    }
+  addStickyNote(text, x, y, pageNum = this.pageOf(), surface = null) {
+    const target = surface || this.surfaceFor(pageNum);
+    const reference = target || this.active;
+    const normalized = this.toNormalized({ x, y }, reference);
+    const note = { text, x: normalized.x, y: normalized.y, date: Date.now() };
 
-    const normalized = this.toNormalized({ x, y });
-    this.stickyNotes.push({
-      text,
-      x: normalized.x,
-      y: normalized.y,
-      date: Date.now()
+    this.updatePage(pageNum, (data) => {
+      data.stickyNotes = Array.isArray(data.stickyNotes) ? data.stickyNotes : [];
+      data.stickyNotes.push(note);
     });
-    this.savePageAnnotations();
-    this.redraw();
     window.dispatchEvent(new CustomEvent("thinker:milestone", { detail: "markup" }));
   }
 
@@ -406,8 +572,10 @@ export class AnnotationController {
       const ny = Number(comment.y);
 
       if (Number.isFinite(nx) && Number.isFinite(ny)) {
-        const px = nx <= 1 ? nx * Math.max(1, this.canvas.width || 1) : nx;
-        const py = ny <= 1 ? ny * Math.max(1, this.canvas.height || 1) : ny;
+        const w = Math.max(1, this.active.canvas.width || 1);
+        const h = Math.max(1, this.active.canvas.height || 1);
+        const px = nx <= 1 ? nx * w : nx;
+        const py = ny <= 1 ? ny * h : ny;
         this.addStickyNote(comment.text, px, py, page);
       } else {
         const fallbackX = 56 + ((page * 37) % 120);
@@ -415,14 +583,15 @@ export class AnnotationController {
         this.addStickyNote(comment.text, fallbackX, fallbackY, page);
       }
     });
-
-    this.loadPageAnnotations(this.getCurrentPage());
   }
+
+  // ---- tools --------------------------------------------------------------------------------------
 
   clearButtonStates() {
     [...this.penButtons, ...this.highlighterButtons, this.eraserButton].forEach((btn) => {
       if (btn) {
         btn.classList.remove("active");
+        btn.setAttribute("aria-pressed", "false");
       }
     });
   }
@@ -431,16 +600,19 @@ export class AnnotationController {
     this.isAnnotating = false;
     this.tool = null;
     this.toolType = null;
-    this.canvas.style.pointerEvents = "none";
+    this.drawing = false;
+    this.activePath = null;
+    this.applyInteractivity();
     this.penControls.style.display = "none";
     this.highlighterControls.style.display = "none";
-    
+
     const strip = document.getElementById("control-strip");
     if (strip) strip.style.display = "none";
-    
+
     this.clearButtonStates();
     this.activeButtonIndex = -1;
     document.body.classList.remove("drawing-active");
+    delete document.body.dataset.tool;
   }
 
   startPen(button, index) {
@@ -448,7 +620,7 @@ export class AnnotationController {
     const state = this.penStates[index];
     this.penColorInput.value = state.color;
     this.penWidthInput.value = state.width;
-    
+
     this.activate("pen", {
       color: state.color,
       width: state.width,
@@ -461,7 +633,7 @@ export class AnnotationController {
     const state = this.highlighterStates[index];
     this.highlighterColorInput.value = state.color;
     this.highlighterWidthInput.value = state.width;
-    
+
     this.activate("highlighter", {
       color: hexToRgba(state.color, 0.35),
       width: state.width,
@@ -478,7 +650,7 @@ export class AnnotationController {
 
   activate(type, tool, button) {
     if (!this.isEnabled) {
-      this.onStatus("Current view does not support annotations.");
+      this.onStatus("Open a document to use the drawing tools.");
       return;
     }
 
@@ -493,9 +665,11 @@ export class AnnotationController {
     this.tool = tool;
     this.clearButtonStates();
     button.classList.add("active");
-    this.canvas.style.pointerEvents = "auto";
+    button.setAttribute("aria-pressed", "true");
+    this.applyInteractivity();
     document.body.classList.add("drawing-active");
-    
+    document.body.dataset.tool = type;
+
     const strip = document.getElementById("control-strip");
     if (strip) strip.style.display = "flex";
 
@@ -515,73 +689,104 @@ export class AnnotationController {
     }
   }
 
-  eraseAt(point) {
+  eraseAt(point, previous = null) {
+    const surface = this.active;
     const radius = this.eraserSize;
-    const hit = (path) => path.points.some((rawPoint) => {
-      const pt = this.fromNormalized(rawPoint);
-      const dx = pt.x - point.x;
-      const dy = pt.y - point.y;
-      const threshold = Math.max(radius, this.widthToCanvas(path) * 0.7);
-      return (dx * dx + dy * dy) <= threshold * threshold;
-    });
+    const hit = (path) => strokeTouchedBy(
+      path.points.map((raw) => this.fromNormalized(raw, surface)),
+      previous || point,
+      point,
+      Math.max(radius, this.widthToCanvas(path, surface) * 0.7)
+    );
 
-    const next = this.paths.filter((path) => !hit(path));
-    if (next.length !== this.paths.length) {
-      this.paths = next;
-      this.redraw();
-      this.savePageAnnotations();
+    const next = surface.paths.filter((path) => !hit(path));
+    if (next.length !== surface.paths.length) {
+      surface.paths = next;
+      this.redrawSurface(surface);
+      this.saveSurface(surface);
     }
   }
 
-  bindEvents() {
-    this.canvas.addEventListener("mousedown", (event) => {
-      if (!this.isAnnotating || !this.tool) {
+  // ---- events -------------------------------------------------------------------------------------
+
+  attachSurface(surface) {
+    if (surface.bound) return;
+    surface.bound = true;
+    const { canvas, host } = surface;
+
+    host.addEventListener("mousedown", (event) => {
+      if (!this.isAnnotating && this.isEnabled) {
+        this.handleCanvasClick(event, surface);
+      }
+    });
+
+    host.addEventListener("mousemove", (event) => {
+      if (!this.isAnnotating && this.isEnabled) {
+        const hit = this.findStickyNoteAtPoint(this.getPoint(event, surface), surface);
+        host.style.cursor = hit ? "pointer" : "";
+      }
+    });
+
+    canvas.addEventListener("mousedown", (event) => {
+      if (!this.isAnnotating || !this.tool || event.button !== 0) {
         return;
       }
+      this.active = surface;
+      this.historyBefore = this.snapshotPage(this.pageOf(surface));
 
       if (this.toolType === "eraser") {
-        this.eraseAt(this.getPoint(event));
+        const point = this.getPoint(event, surface);
+        this.eraseAt(point);
+        this.lastErasePoint = point;
         this.drawing = true;
         return;
       }
 
       this.drawing = true;
-      const point = this.getPoint(event);
+      const point = this.getPoint(event, surface);
       this.activePath = {
         color: this.tool.color,
         width: this.tool.width,
-        widthNorm: this.tool.width / Math.max(1, this.canvas.width || 1),
+        widthNorm: this.tool.width / Math.max(1, canvas.width || 1),
         alpha: this.tool.alpha,
-        points: [this.toNormalized(point)]
+        points: [this.toNormalized(point, surface)]
       };
-      this.paths.push(this.activePath);
-      this.redraw();
+      surface.paths.push(this.activePath);
+      this.redrawSurface(surface);
     });
 
-    this.canvas.addEventListener("mousemove", (event) => {
-      if (!this.drawing || !this.activePath) {
-        if (this.drawing && this.toolType === "eraser") {
-          this.eraseAt(this.getPoint(event));
-        }
+    canvas.addEventListener("mousemove", (event) => {
+      if (this.active !== surface || !this.drawing) return;
+      const point = this.getPoint(event, surface);
+      if (this.toolType === "eraser") {
+        this.eraseAt(point, this.lastErasePoint);
+        this.lastErasePoint = point;
         return;
       }
-
-      this.activePath.points.push(this.toNormalized(this.getPoint(event)));
-      this.redraw();
+      if (!this.activePath) return;
+      this.activePath.points.push(this.toNormalized(point, surface));
+      this.redrawSurface(surface);
     });
 
     const stop = () => {
-      if (!this.drawing) {
+      if (!this.drawing || this.active !== surface) {
         return;
       }
       this.drawing = false;
       this.activePath = null;
-      this.savePageAnnotations();
+      this.lastErasePoint = null;
+      this.saveSurface(surface);
+      this.recordChange(this.pageOf(surface), this.historyBefore);
+      this.onChange(this.pageOf(surface));
       window.dispatchEvent(new CustomEvent("thinker:milestone", { detail: "markup" }));
     };
 
-    this.canvas.addEventListener("mouseup", stop);
-    this.canvas.addEventListener("mouseleave", stop);
+    canvas.addEventListener("mouseup", stop);
+    canvas.addEventListener("mouseleave", stop);
+  }
+
+  bindEvents() {
+    this.attachSurface(this.main);
 
     this.penButtons.forEach((button, index) => {
       button.addEventListener("click", () => this.startPen(button, index));

@@ -388,6 +388,12 @@ function renderTabs(
     tab.appendChild(close);
 
     tab.addEventListener("click", () => onActivate(path));
+    tab.addEventListener("auxclick", (event) => {
+      if (event.button === 1) {
+        event.preventDefault();
+        onClose(path);
+      }
+    });
 
     // Drag & Drop events for tab reordering and drag-out
     tab.addEventListener("dragstart", (e) => {
@@ -409,7 +415,7 @@ function renderTabs(
       
       if (isOutside) {
         window.electronAPI.createWindow(path);
-        closeTab(path);
+        onClose(path);
         if (openTabs.length === 0) {
           window.close();
         }
@@ -514,12 +520,15 @@ function getSelectionTextInTextLayer() {
     return "";
   }
 
-  let node = selection.getRangeAt(0).commonAncestorContainer;
-  while (node) {
-    if (node.classList && node.classList.contains("textLayer")) {
-      return selection.toString().trim();
-    }
-    node = node.parentNode;
+  const range = selection.getRangeAt(0);
+  const inLayer = (node) => {
+    const element = node && node.nodeType === 1 ? node : node?.parentElement;
+    return Boolean(element?.closest?.(".textLayer"));
+  };
+
+  // Inside one page's text, or from one page's text to another's (two-page and continuous view).
+  if (inLayer(range.commonAncestorContainer) || (inLayer(range.startContainer) && inLayer(range.endContainer))) {
+    return selection.toString().trim();
   }
 
   return "";
@@ -783,18 +792,17 @@ async function boot() {
         elements.activeFileLabel.textContent = name;
       }
     },
+    onSurfacesReset: () => annotation.clearSurfaces(),
+    onPageReleased: ({ pageNum }) => annotation.unregisterSurface(pageNum),
     onRendered: (meta) => {
       setActiveModeButton(meta.mode);
-      if (meta.annotationSupported) {
-        annotation.setEnabled(true);
+      annotation.setEnabled(true);
+      annotation.setSurfaceMode(meta.mode);
+      if (meta.mode === "single") {
         annotation.resizeTo(elements.canvas.width, elements.canvas.height);
         annotation.loadPageAnnotations();
-      } else {
-        annotation.setEnabled(false);
-        snip.stop();
       }
-
-      elements.screenshotBtn.disabled = !meta.annotationSupported;
+      elements.screenshotBtn.disabled = false;
     }
   });
 
@@ -835,6 +843,7 @@ async function boot() {
     highlighterButtons: elements.highlighterButtons,
     eraserButton: elements.eraserBtn,
     onStatus: setStatus,
+    onChange: () => { try { stickyNotes.refresh(); } catch { /* the notes panel is not ready yet */ } },
     getStorageKeyForPage: (pageNum) => `pdf-annotations:${pdf.getCurrentPath()}:page-${pageNum}`,
     getCurrentPage: () => pdf.getPageNum(),
     getPageCount: () => pdf.getPageCount()
@@ -878,41 +887,10 @@ async function boot() {
     }
   });
 
-  const renderStickyMarkersOnCard = ({ card, pageNum, viewport }) => {
-    if (!card || !viewport) return;
-    const notesForPage = annotation.getStickyNotesForPage(pageNum);
-    const existing = card.querySelector(".sticky-layer");
-    if (existing) existing.remove();
-    if (!notesForPage || notesForPage.length === 0) return;
-
-    card.style.position = "relative";
-    const layer = document.createElement("div");
-    layer.className = "sticky-layer";
-    layer.style.position = "absolute";
-    layer.style.left = "0";
-    layer.style.top = "0";
-    layer.style.width = `${viewport.width}px`;
-    layer.style.height = `${viewport.height}px`;
-    layer.style.pointerEvents = "none";
-
-    notesForPage.forEach((note) => {
-      const marker = document.createElement("div");
-      marker.className = "sticky-marker";
-      marker.style.left = `${(note.x * viewport.width) - 9}px`;
-      marker.style.top = `${(note.y * viewport.height) - 9}px`;
-      marker.style.pointerEvents = "auto";
-      marker.addEventListener("mousedown", (e) => {
-        e.stopPropagation();
-        const rect = marker.getBoundingClientRect();
-        annotation.showStickyNotePopover(note, rect.left + rect.width / 2, rect.bottom + 6);
-      });
-      layer.appendChild(marker);
-    });
-
-    card.appendChild(layer);
+  // Two-page and continuous view get the same marks, notes and eraser as single-page view.
+  pdf.onPageRendered = ({ card, pageNum, viewport }) => {
+    annotation.registerSurface(card, pageNum, viewport.width, viewport.height);
   };
-
-  pdf.onPageRendered = renderStickyMarkersOnCard;
 
   // ensure the sticky list refreshes after page renders
   const prevOnRendered = pdf.onRendered;
@@ -1023,6 +1001,7 @@ async function boot() {
   }
 
   const snip = new SnipController({
+    stage: elements.pdfStage,
     pdfViewer: elements.pdfViewer,
     pdfCanvas: elements.canvas,
     screenshotBtn: elements.screenshotBtn,
@@ -1836,32 +1815,34 @@ async function boot() {
     startStickyPlacement();
   });
 
-  // Intercept canvas click for sticky placement
-  const originalHandleCanvasClick = annotation.handleCanvasClick;
-  annotation.handleCanvasClick = (event) => {
-    if (isPlacingSticky) {
-      const rect = elements.canvas.getBoundingClientRect();
-      const x = event.clientX - rect.left;
-      const y = event.clientY - rect.top;
-      
-      stickyPlacementPoint = { x, y };
-      elements.userStickyText.value = "";
-      elements.userStickyDialog.style.display = "flex";
-      elements.userStickyText.focus();
-      return; // Skip original hit testing
-    }
-    originalHandleCanvasClick.call(annotation, event);
+  // While placing a note, the first click on any page opens the note box for that spot.
+  annotation.placementHandler = (event, surface) => {
+    if (!isPlacingSticky) return false;
+    const rect = surface.host.getBoundingClientRect();
+    stickyPlacementPoint = { x: event.clientX - rect.left, y: event.clientY - rect.top, surface, page: annotation.pageOf(surface) };
+    elements.userStickyText.value = "";
+    elements.userStickyDialog.style.display = "flex";
+    // The click that placed the note finishes after this handler and would take the focus back.
+    setTimeout(() => elements.userStickyText.focus(), 0);
+    return true;
   };
 
-  elements.userStickyConfirm?.addEventListener("click", () => {
+  const confirmSticky = () => {
     const text = elements.userStickyText.value.trim();
     if (text && stickyPlacementPoint) {
-      annotation.addStickyNote(text, stickyPlacementPoint.x, stickyPlacementPoint.y);
+      annotation.addStickyNote(text, stickyPlacementPoint.x, stickyPlacementPoint.y, stickyPlacementPoint.page, stickyPlacementPoint.surface);
       stickyNotes.refresh();
       setStatus("Sticky note placed.");
     }
     elements.userStickyDialog.style.display = "none";
     stopStickyPlacement();
+  };
+  elements.userStickyConfirm?.addEventListener("click", confirmSticky);
+  elements.userStickyText?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      confirmSticky();
+    }
   });
 
   elements.userStickyCancel?.addEventListener("click", () => {
@@ -1993,6 +1974,7 @@ async function boot() {
     if (event.key === "Escape") {
       snip.stop();
       annotation.stopMode();
+      if (isPlacingSticky) stopStickyPlacement();
       findCtrl.close();
       setStatus("Ready.");
     }
@@ -2010,6 +1992,78 @@ async function boot() {
       openPdfDialog();
     }
   });
+
+  // ---- Reading shortcuts -------------------------------------------------------------------------
+  // They only act while a document is on screen, and never while you are typing in a box, a dialog
+  // is open or a tour is running.
+  const typingIn = (target) => Boolean(target?.closest?.("input, textarea, select, [contenteditable=''], [contenteditable='true']"));
+
+  document.addEventListener("keydown", (event) => {
+    if (event.defaultPrevented || event.altKey) return;
+    if (currentView !== "reader" || !activeTabPath || !pdf.hasDocument()) return;
+    if (document.querySelector(".tour-layer") || openDialog()) return;
+    const mod = event.ctrlKey || event.metaKey;
+    const key = event.key;
+    const inField = typingIn(event.target);
+
+    if (mod) {
+      if (key === "=" || key === "+") { event.preventDefault(); pdf.zoomBy(1.1); return; }
+      if (key === "-" || key === "_") { event.preventDefault(); pdf.zoomBy(1 / 1.1); return; }
+      if (key === "0") { event.preventDefault(); pdf.fitToWidth(); return; }
+      if (key.toLowerCase() === "g") {
+        event.preventDefault();
+        elements.pageNumEl.focus();
+        elements.pageNumEl.select?.();
+        return;
+      }
+      if (key.toLowerCase() === "w") { event.preventDefault(); closeTab(activeTabPath); return; }
+      if (key === "Tab" || key === "PageDown" || key === "PageUp") {
+        const backwards = key === "PageUp" || (key === "Tab" && event.shiftKey);
+        const index = openTabs.indexOf(activeTabPath);
+        if (openTabs.length > 1 && index >= 0) {
+          event.preventDefault();
+          activateTab(openTabs[(index + (backwards ? -1 : 1) + openTabs.length) % openTabs.length]);
+        }
+        return;
+      }
+      if (!inField && key.toLowerCase() === "z" && !event.shiftKey) { event.preventDefault(); annotation.undo(); return; }
+      if (!inField && (key.toLowerCase() === "y" || (key.toLowerCase() === "z" && event.shiftKey))) { event.preventDefault(); annotation.redo(); return; }
+      if (!inField && key.toLowerCase() === "s") { event.preventDefault(); elements.saveAnnotationsBtn?.click(); return; }
+      return;
+    }
+
+    if (inField || event.target?.closest?.("button, [role='button'], a")) {
+      // Space and Enter belong to a focused button; the arrow keys still page when a button has focus.
+      if (inField || key === " " || key === "Enter") return;
+    }
+
+    switch (key) {
+      case "ArrowRight": case "ArrowLeft": event.preventDefault(); key === "ArrowRight" ? pdf.nextPage() : pdf.prevPage(); break;
+      case "ArrowDown": case "ArrowUp": event.preventDefault(); pdf.scrollByLine(key === "ArrowDown" ? 1 : -1); break;
+      case "PageDown": event.preventDefault(); pdf.scrollByScreen(1); break;
+      case "PageUp": event.preventDefault(); pdf.scrollByScreen(-1); break;
+      case " ": event.preventDefault(); pdf.scrollByScreen(event.shiftKey ? -1 : 1); break;
+      case "Home": event.preventDefault(); pdf.jumpToPage(1); break;
+      case "End": event.preventDefault(); pdf.jumpToPage(pdf.getPageCount()); break;
+      default: break;
+    }
+  });
+
+  // Type a page number into the toolbar and press Enter to go there.
+  elements.pageNumEl.addEventListener("keydown", (event) => {
+    event.stopPropagation();
+    if (event.key === "Enter") {
+      const target = parseInt(elements.pageNumEl.value, 10);
+      if (Number.isFinite(target)) pdf.jumpToPage(target);
+      elements.pageNumEl.blur();
+      pdf.updateControls();
+    } else if (event.key === "Escape") {
+      elements.pageNumEl.blur();
+      pdf.updateControls();
+    }
+  });
+  elements.pageNumEl.addEventListener("focus", () => elements.pageNumEl.select?.());
+  elements.pageNumEl.addEventListener("blur", () => pdf.updateControls());
 
   // Allow dropping on the empty space of the tab container to append
   elements.pdfTabs.addEventListener("dragover", (e) => {

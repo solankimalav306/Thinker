@@ -45,7 +45,7 @@ const problems = () => ev(`(() => {
 
 const waitReady = async () => {
   for (let i = 0; i < 40; i++) {
-    const ok = await ev(`!!document.getElementById('chat-input') && document.getElementById('page-num')?.textContent !== '0'`);
+    const ok = await ev(`!!document.getElementById('chat-input') && document.getElementById('page-num')?.value !== '0'`);
     if (ok) return;
     await sleep(500);
   }

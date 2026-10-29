@@ -5,6 +5,7 @@
   position: relative;
   min-width: 0;
   overflow: auto;
+  scrollbar-gutter: stable;
   padding: var(--space-6);
   background: var(--desk);
 }
@@ -261,4 +262,53 @@ body.sticky-placement-mode .pdf-viewer {
   font-size: var(--text-xs);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+/* ---------- Marks on every page (single, two-page and continuous view) ---------- */
+.annotation-surface {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 40;
+}
+
+body[data-tool="pen"] .annotation-surface,
+body[data-tool="pen"] #annotation-canvas,
+body[data-tool="highlighter"] .annotation-surface,
+body[data-tool="highlighter"] #annotation-canvas {
+  cursor: crosshair;
+}
+
+body[data-tool="eraser"] .annotation-surface,
+body[data-tool="eraser"] #annotation-canvas {
+  cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24'><circle cx='12' cy='12' r='10.5' fill='rgba(255,255,255,0.4)' stroke='%23333' stroke-width='1.5'/></svg>") 12 12, cell;
+}
+
+body.drawing-active .pdf-page-text-layer,
+body.snipping-active .pdf-page-text-layer {
+  pointer-events: none;
+}
+
+body.snipping-active .pdf-page-card,
+body.snipping-active .pdf-viewer {
+  cursor: crosshair;
+}
+
+/* Pages that are not drawn yet (far from the window in continuous view) keep their size and show their number. */
+.pdf-page-card[data-state="empty"]::after,
+.pdf-page-card[data-state="queued"]::after,
+.pdf-page-card[data-state="rendering"]::after {
+  content: attr(data-page);
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: rgba(28, 27, 46, 0.18);
+  font-size: 3rem;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.pdf-page-card[data-state="ready"]::after {
+  content: none;
 }

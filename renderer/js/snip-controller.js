@@ -1,5 +1,6 @@
 export class SnipController {
   constructor(options) {
+    this.stage = options.stage || options.pdfViewer;
     this.pdfViewer = options.pdfViewer;
     this.pdfCanvas = options.pdfCanvas;
     this.screenshotBtn = options.screenshotBtn;
@@ -13,10 +14,22 @@ export class SnipController {
     this.isDragging = false;
     this.startX = 0;
     this.startY = 0;
+    this.host = null; // the page (single view, or one page card) being snipped
+    this.sourceCanvas = null;
+  }
+
+  // The page under the pointer: the single-page viewer, or one page card in two-page / continuous view.
+  hostAt(event) {
+    const card = event.target?.closest?.(".pdf-page-card");
+    if (card) return { host: card, canvas: card.querySelector("canvas:not(.annotation-surface)") };
+    if (this.pdfViewer.offsetParent !== null && this.pdfViewer.contains(event.target)) {
+      return { host: this.pdfViewer, canvas: this.pdfCanvas };
+    }
+    return null;
   }
 
   getPoint(event) {
-    const rect = this.pdfViewer.getBoundingClientRect();
+    const rect = this.host.getBoundingClientRect();
     return {
       x: Math.max(0, Math.min(rect.width, event.clientX - rect.left)),
       y: Math.max(0, Math.min(rect.height, event.clientY - rect.top))
@@ -55,10 +68,19 @@ export class SnipController {
   bindEvents() {
     this.screenshotBtn.addEventListener("click", () => this.toggle());
 
-    this.pdfViewer.addEventListener("mousedown", (event) => {
+    this.stage.addEventListener("mousedown", (event) => {
       if (!this.isSnipping) {
         return;
       }
+
+      const target = this.hostAt(event);
+      if (!target || !target.canvas) {
+        return;
+      }
+      this.host = target.host;
+      this.sourceCanvas = target.canvas;
+      this.host.appendChild(this.selection);
+      event.preventDefault();
 
       this.isDragging = true;
       const point = this.getPoint(event);
@@ -72,7 +94,7 @@ export class SnipController {
       this.selection.style.display = "block";
     });
 
-    this.pdfViewer.addEventListener("mousemove", (event) => {
+    this.stage.addEventListener("mousemove", (event) => {
       if (!this.isDragging) {
         return;
       }
@@ -87,7 +109,7 @@ export class SnipController {
       this.selection.style.height = `${Math.abs(currentY - this.startY)}px`;
     });
 
-    this.pdfViewer.addEventListener("mouseup", () => {
+    this.stage.addEventListener("mouseup", () => {
       if (!this.isDragging) {
         return;
       }
@@ -109,12 +131,12 @@ export class SnipController {
       tempCanvas.width = width;
       tempCanvas.height = height;
       const tempCtx = tempCanvas.getContext("2d");
-      tempCtx.drawImage(this.pdfCanvas, x, y, width, height, 0, 0, width, height);
+      tempCtx.drawImage(this.sourceCanvas, x, y, width, height, 0, 0, width, height);
       this.onImage(tempCanvas.toDataURL("image/png"));
       this.onStatus("Screenshot attached to chat.");
     });
 
-    this.pdfViewer.addEventListener("mouseleave", () => {
+    this.stage.addEventListener("mouseleave", () => {
       if (!this.isDragging) {
         return;
       }

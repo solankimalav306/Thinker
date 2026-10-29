@@ -1,0 +1,62 @@
+{
+  "summary": {
+    "model": "gemini-3.5-flash-lite",
+    "when": "2026-10-29T16:14:52.868Z",
+    "runs": 2,
+    "correct": 2,
+    "byKind": {
+      "lookup": "1/1",
+      "outside-document": "1/1"
+    },
+    "citationOk": "100%",
+    "retrievalHit": "100%",
+    "medianMs": 51493,
+    "avgTokens": 909
+  },
+  "results": [
+    {
+      "id": "L1",
+      "kind": "lookup",
+      "run": 1,
+      "mode": "auto",
+      "question": "In what year was the company founded, and where?",
+      "answer": "Harbor Lights Shipping was founded in 1987 in Rotterdam [Page 2].",
+      "intent": "ask",
+      "correct": true,
+      "problems": [],
+      "cited": [
+        2
+      ],
+      "citeOk": true,
+      "retrievedPages": [
+        2,
+        8,
+        9
+      ],
+      "retrievalHit": true,
+      "ms": 36168,
+      "tokens": 1100
+    },
+    {
+      "id": "G2",
+      "kind": "outside-document",
+      "run": 1,
+      "mode": "auto",
+      "question": "What is the capital of France?",
+      "answer": "The capital of France is Paris (though this is general knowledge, as the provided search results were empty).",
+      "intent": "search",
+      "correct": true,
+      "problems": [],
+      "cited": [],
+      "citeOk": null,
+      "retrievedPages": [
+        2,
+        9,
+        11
+      ],
+      "retrievalHit": null,
+      "ms": 51493,
+      "tokens": 717
+    }
+  ]
+}

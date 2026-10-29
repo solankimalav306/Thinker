@@ -523,3 +523,33 @@
     margin: var(--space-1) 0;
   }
 }
+
+/* The page box is a text input, so it must beat the general text-input rules (full width, 36px tall). */
+.page-info input.page-num-input {
+  display: inline-block;
+  width: 3.6ch;
+  min-width: 36px;
+  min-height: 0;
+  height: 26px;
+  padding: 0 4px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.page-info input.page-num-input:hover {
+  border-color: var(--border);
+  background: transparent;
+}
+
+.page-info input.page-num-input:focus {
+  border-color: var(--primary);
+  background: var(--surface);
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 25%, transparent);
+}

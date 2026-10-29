@@ -157,7 +157,7 @@ if (sections.has('docs')) {
       const t0 = Date.now();
       await ev(`window.dispatchEvent(new CustomEvent('navigate-pdf-page', { detail: { page: 300 } }))`);
       await sleep(900);
-      report(await ev(`document.getElementById('page-num').textContent`) === '300', 'jump to page 300 of 300', `${Date.now() - t0}ms`);
+      report(await ev(`document.getElementById('page-num').value`) === '300', 'jump to page 300 of 300', `${Date.now() - t0}ms`);
       await click('#nav-thumbs');
       const t1 = Date.now();
       await sleep(2500);

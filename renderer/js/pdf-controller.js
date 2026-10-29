@@ -1,3 +1,5 @@
+import { mostVisiblePage, anchorFromScroll, scrollFromAnchor, scaleAfterWheel, createWheelTurner } from "./page-geometry.js";
+
 function toPdfSource(path) {
   // Already a URL — pass through untouched
   if (/^https?:\/\//i.test(path) || /^file:\/\//i.test(path) || /^\.\//.test(path)) {
@@ -81,11 +83,26 @@ export class PdfController {
     this.pageNumPending = null;
     this.scrollPageNodes = new Map();
     this.scrollCacheKey = "";
+    this.scrollCards = [];
+    this.renderGen = 0;
+    this.cardQueue = Promise.resolve();
+    this.cardObserver = null;
+    this.pendingAnchor = null;
+    this.pendingRatio = null;
+    this.afterRenderScroll = null;
+    this.lastRenderedPage = 0;
+    this.pinchTarget = null;
+    this.wheelTurner = createWheelTurner();
+    this.wheelLocked = false;
+    this.lastWheelAt = 0;
+    this.onPageReleased = options.onPageReleased;
+    this.onSurfacesReset = options.onSurfacesReset;
 
     if (this.fitModeSelect) {
       this.fitMode = this.fitModeSelect.value || "auto";
       this.fitModeSelect.addEventListener("change", () => {
         this.fitMode = this.fitModeSelect.value || "auto";
+        this.captureViewPosition();
         this.scrollCacheKey = "";
         this.queueRender(this.pageNum);
       });
@@ -171,6 +188,12 @@ export class PdfController {
     try {
       const task = pdfjsLib.getDocument({ url: toPdfSource(path), password: options.password });
       this.pdfDoc = await task.promise;
+      this.teardownCards();
+      this.scrollPageNodes.clear();
+      this.scrollCards = [];
+      this.pendingAnchor = null;
+      this.pendingRatio = null;
+      this.lastRenderedPage = 0;
       this.currentPath = path;
 
       const nextPage = viewState?.pageNum || 1;
@@ -238,6 +261,7 @@ export class PdfController {
   // Re-fits the page when the available space changes (window resized, panels opened, or the
   // reader becoming visible after the document loaded).
   observeStage() {
+    this.bindViewerInput();
     if (this.stageObserver || !this.stageElement || typeof ResizeObserver === "undefined") return;
     let timer = null;
     this.stageObserver = new ResizeObserver(() => {
@@ -245,6 +269,7 @@ export class PdfController {
       if (!this.pdfDoc || width === 0 || this.fitMode === "actual") return;
       if (Math.abs(width - (this.renderedStageWidth || 0)) < 8) return;
       clearTimeout(timer);
+      this.captureViewPosition();
       timer = setTimeout(() => this.queueRender(this.pageNum), 120);
     });
     this.stageObserver.observe(this.stageElement);
@@ -269,7 +294,7 @@ export class PdfController {
     this.pageNum = target;
 
     if (this.viewMode === "scroll" && this.scrollPageNodes.has(target)) {
-      this.scrollPageNodes.get(target).scrollIntoView({ behavior: "smooth", block: "start" });
+      this.scrollToCard(target);
       this.updateControls();
       this.highlightThumb(target);
       return;
@@ -279,7 +304,12 @@ export class PdfController {
   }
 
   updateControls() {
-    this.pageNumEl.textContent = String(this.pdfDoc ? this.pageNum : 0);
+    const shownPage = String(this.pdfDoc ? this.pageNum : 0);
+    if ("value" in this.pageNumEl) {
+      if (document.activeElement !== this.pageNumEl) this.pageNumEl.value = shownPage;
+    } else {
+      this.pageNumEl.textContent = shownPage;
+    }
     this.pageCountEl.textContent = String(this.pdfDoc ? this.pdfDoc.numPages : 0);
     // In the fit modes the page is sized to the window, so show the zoom that is really in use.
     const shownScale = this.fitMode !== "actual" && this.lastFit ? this.lastFit : this.scale;
@@ -506,6 +536,7 @@ export class PdfController {
       this.fitModeSelect.value = "actual";
       this.fitMode = "actual";
     }
+    this.captureViewPosition();
     this.scrollCacheKey = "";
     this.updateControls();
     this.queueRender(this.pageNum);
@@ -517,7 +548,9 @@ export class PdfController {
     }
 
     this.renderedStageWidth = this.stageElement.clientWidth;
-    const stageWidth = Math.max(320, this.stageElement.clientWidth - 36);
+    const style = getComputedStyle(this.stageElement);
+    const padding = (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0);
+    const stageWidth = Math.max(320, this.stageElement.clientWidth - padding - 2);
     const baseViewport = page.getViewport({ scale: 1 });
 
     if (this.viewMode === "two") {
@@ -570,6 +603,8 @@ export class PdfController {
 
     this.updateControls();
     this.highlightThumb(this.pageNum);
+    this.restoreViewPosition(this.pageNum !== this.lastRenderedPage);
+    this.lastRenderedPage = this.pageNum;
 
     this.pageRendering = false;
     if (this.pageNumPending !== null) {
@@ -620,8 +655,10 @@ export class PdfController {
 
   async renderTwo(num) {
     this.setSingleModeDisplay(false);
+    this.teardownCards();
     this.multiView.className = "pdf-multi-view multi-view-two";
     this.multiView.innerHTML = "";
+    const gen = ++this.renderGen;
 
     const leftPage = Math.max(1, Math.min(num, this.pdfDoc.numPages));
     this.pageNum = leftPage;
@@ -631,95 +668,313 @@ export class PdfController {
       pages.push(leftPage + 1);
     }
 
-    let renderScale = this.scale;
     const firstPage = await this.pdfDoc.getPage(leftPage);
-    renderScale = this.getFittedScale(firstPage, this.fitMode === "auto" ? "width" : this.fitMode);
+    const renderScale = this.getFittedScale(firstPage, this.fitMode === "auto" ? "width" : this.fitMode);
 
     for (const pageNum of pages) {
-      const card = await this.renderStandalonePage(pageNum, renderScale);
+      const page = await this.pdfDoc.getPage(pageNum);
+      const card = this.makeCard(pageNum, page.getViewport({ scale: renderScale }));
       this.multiView.appendChild(card);
+      await this.fillCard(card, gen);
     }
 
-    this.onRendered({ annotationSupported: false, mode: "two", pageNum: this.pageNum });
+    this.onRendered({ annotationSupported: true, mode: "two", pageNum: this.pageNum });
   }
 
   async renderScroll(num) {
     this.setSingleModeDisplay(false);
     this.multiView.className = "pdf-multi-view multi-view-scroll";
 
-    const base = this.fitMode === "actual" ? this.scale : 1;
-    const key = `${this.currentPath}|${base.toFixed(2)}|scroll|${this.fitMode}`;
-    if (this.scrollCacheKey !== key) {
-      this.multiView.innerHTML = "";
-      this.scrollPageNodes.clear();
-
-      for (let p = 1; p <= this.pdfDoc.numPages; p += 1) {
-        const page = await this.pdfDoc.getPage(p);
-        const renderScale = this.getFittedScale(page, this.fitMode === "auto" ? "width" : this.fitMode) * 0.95;
-        const card = await this.renderStandalonePage(p, renderScale);
-        card.dataset.page = String(p);
-        this.multiView.appendChild(card);
-        this.scrollPageNodes.set(p, card);
-      }
-
+    const key = `${this.currentPath}|${this.scale.toFixed(3)}|scroll|${this.fitMode}|${this.stageElement?.clientWidth || 0}`;
+    if (this.scrollCacheKey !== key || this.scrollPageNodes.size === 0) {
+      const built = await this.buildScrollSkeleton();
+      if (!built) return; // a newer render replaced this one
       this.scrollCacheKey = key;
-
-      this.multiView.onscroll = null;
     }
 
     const target = Math.max(1, Math.min(num, this.pdfDoc.numPages));
-    this.pageNum = target;
-    const node = this.scrollPageNodes.get(target);
-    if (node) {
-      node.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (this.pendingAnchor) {
+      this.stageElement.scrollTop = scrollFromAnchor(this.scrollCards, this.pendingAnchor);
+      this.pendingAnchor = null;
+      this.trackScrollPage();
+    } else {
+      this.pageNum = target;
+      this.scrollToCard(target);
     }
 
-    this.onRendered({ annotationSupported: false, mode: "scroll", pageNum: this.pageNum });
+    this.onRendered({ annotationSupported: true, mode: "scroll", pageNum: this.pageNum });
   }
 
-  async renderStandalonePage(pageNum, scale) {
-    const page = await this.pdfDoc.getPage(pageNum);
-    const viewport = page.getViewport({ scale });
+  // Every page gets an empty, correctly sized card straight away so the scrollbar and page numbers are
+  // right; the pictures are drawn only for cards near the window and dropped again when far away.
+  async buildScrollSkeleton() {
+    const gen = ++this.renderGen;
+    this.teardownCards();
+    this.multiView.innerHTML = "";
+    this.scrollPageNodes.clear();
+    this.scrollCards = [];
 
+    const total = this.pdfDoc.numPages;
+    const fitMode = this.fitMode === "auto" ? "width" : this.fitMode;
+    const fragment = document.createDocumentFragment();
+    for (let start = 1; start <= total; start += 25) {
+      const numbers = [];
+      for (let p = start; p < Math.min(total + 1, start + 25); p += 1) numbers.push(p);
+      const pages = await Promise.all(numbers.map((p) => this.pdfDoc.getPage(p)));
+      if (gen !== this.renderGen) return false;
+      pages.forEach((page, i) => {
+        const pageNum = numbers[i];
+        const card = this.makeCard(pageNum, page.getViewport({ scale: this.getFittedScale(page, fitMode) }));
+        fragment.appendChild(card);
+        this.scrollPageNodes.set(pageNum, card);
+      });
+    }
+    this.multiView.appendChild(fragment);
+    this.measureCards();
+    this.observeCards(gen);
+    return true;
+  }
+
+  measureCards() {
+    this.scrollCards = [...this.scrollPageNodes.entries()].map(([page, card]) => ({ page, top: card.offsetTop, height: card.offsetHeight }));
+  }
+
+  observeCards(gen) {
+    this.cardObserver?.disconnect();
+    if (typeof IntersectionObserver === "undefined") {
+      this.scrollPageNodes.forEach((card) => this.queueCardRender(card, gen));
+      return;
+    }
+    this.cardObserver = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        const card = entry.target;
+        card._near = entry.isIntersecting;
+        if (entry.isIntersecting) this.queueCardRender(card, gen);
+        else this.releaseCard(card);
+      }
+    }, { root: this.stageElement, rootMargin: "1400px 0px" });
+    this.scrollPageNodes.forEach((card) => this.cardObserver.observe(card));
+  }
+
+  queueCardRender(card, gen) {
+    if (card.dataset.state === "ready" || card.dataset.state === "rendering") return;
+    card.dataset.state = "queued";
+    this.cardQueue = this.cardQueue.then(async () => {
+      if (gen !== this.renderGen || card.dataset.state !== "queued" || card._near === false) {
+        if (card.dataset.state === "queued") card.dataset.state = "empty";
+        return;
+      }
+      try {
+        await this.fillCard(card, gen);
+      } catch (error) {
+        console.warn("Page render failed", card.dataset.page, error);
+        card.dataset.state = "empty";
+      }
+      if (card._near === false) this.releaseCard(card);
+    });
+  }
+
+  makeCard(pageNum, viewport) {
     const card = document.createElement("div");
     card.className = "pdf-page-card";
     card.dataset.page = String(pageNum);
-    card.style.width = `${viewport.width}px`;
-    card.style.height = `${viewport.height}px`;
+    card.dataset.state = "empty";
+    card.dataset.scale = String(viewport.scale);
+    card.style.width = `${Math.floor(viewport.width)}px`;
+    card.style.height = `${Math.floor(viewport.height)}px`;
+    return card;
+  }
+
+  async fillCard(card, gen) {
+    const pageNum = Number(card.dataset.page);
+    const scale = Number(card.dataset.scale);
+    card.dataset.state = "rendering";
+    const page = await this.pdfDoc.getPage(pageNum);
+    const viewport = page.getViewport({ scale });
 
     const canvas = document.createElement("canvas");
     canvas.width = Math.floor(viewport.width);
     canvas.height = Math.floor(viewport.height);
-    card.appendChild(canvas);
-
-    const cardCtx = canvas.getContext("2d");
-    await page.render({ canvasContext: cardCtx, viewport }).promise;
+    await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+    if (gen !== this.renderGen || !card.isConnected) return;
 
     const textLayer = document.createElement("div");
     textLayer.className = "textLayer pdf-page-text-layer";
-    card.appendChild(textLayer);
-
     textLayer.style.setProperty("--scale-factor", viewport.scale);
     const textContent = await page.getTextContent();
+    await pdfjsLib.renderTextLayer({ textContent, container: textLayer, viewport, textDivs: [] }).promise;
+    if (gen !== this.renderGen || !card.isConnected) return;
 
-    await pdfjsLib.renderTextLayer({
-      textContent,
-      container: textLayer,
-      viewport,
-      textDivs: []
-    }).promise;
-
+    card.replaceChildren(canvas, textLayer);
+    card.dataset.state = "ready";
     this.applyHighlightsToLayer(textLayer, pageNum);
+    this.onPageRendered?.({ card, pageNum, viewport, mode: this.viewMode });
+  }
 
-    if (typeof this.onPageRendered === "function") {
-      try {
-        this.onPageRendered({ card, pageNum, viewport, mode: this.viewMode });
-      } catch (e) {
-        console.warn("onPageRendered failed", e);
-      }
+  releaseCard(card) {
+    if (card.dataset.state !== "ready") {
+      if (card.dataset.state === "queued") card.dataset.state = "empty";
+      return;
+    }
+    this.onPageReleased?.({ card, pageNum: Number(card.dataset.page) });
+    card.replaceChildren();
+    card.dataset.state = "empty";
+  }
+
+  teardownCards() {
+    this.cardObserver?.disconnect();
+    this.cardObserver = null;
+    this.cardQueue = Promise.resolve();
+    this.onSurfacesReset?.();
+  }
+
+  scrollToCard(pageNum) {
+    const card = this.scrollPageNodes.get(pageNum);
+    if (card && this.stageElement) this.stageElement.scrollTop = card.offsetTop - 8;
+  }
+
+  // The page number follows the scrollbar in continuous view.
+  trackScrollPage() {
+    if (this.viewMode !== "scroll" || !this.scrollCards?.length || !this.stageElement) return;
+    const page = mostVisiblePage(this.scrollCards, this.stageElement.scrollTop, this.stageElement.clientHeight);
+    if (page && page !== this.pageNum) {
+      this.pageNum = page;
+      this.updateControls();
+      this.highlightThumb(page);
+    }
+  }
+
+  // ---- keeping your place -------------------------------------------------------------------------
+
+  captureViewPosition() {
+    const el = this.stageElement;
+    if (!el) return;
+    if (this.viewMode === "scroll" && this.scrollCards?.length) {
+      this.pendingAnchor = anchorFromScroll(this.scrollCards, el.scrollTop);
+    } else {
+      this.pendingRatio = { x: el.scrollLeft / Math.max(1, el.scrollWidth), y: el.scrollTop / Math.max(1, el.scrollHeight) };
+    }
+  }
+
+  restoreViewPosition(pageChanged) {
+    const el = this.stageElement;
+    if (!el || this.viewMode === "scroll") return;
+    if (this.pendingRatio) {
+      el.scrollLeft = this.pendingRatio.x * el.scrollWidth;
+      el.scrollTop = this.pendingRatio.y * el.scrollHeight;
+      this.pendingRatio = null;
+    } else if (pageChanged) {
+      el.scrollTop = this.afterRenderScroll === "bottom" ? el.scrollHeight : 0;
+      el.scrollLeft = 0;
+    }
+    this.afterRenderScroll = null;
+  }
+
+  // ---- wheel, trackpad and keyboard scrolling -----------------------------------------------------
+
+  bindViewerInput() {
+    if (this.inputBound || !this.stageElement) return;
+    this.inputBound = true;
+
+    let frame = 0;
+    this.stageElement.addEventListener("scroll", () => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        this.trackScrollPage();
+      });
+    }, { passive: true });
+
+    this.stageElement.addEventListener("wheel", (event) => this.handleWheel(event), { passive: false });
+  }
+
+  currentScale() {
+    return this.fitMode !== "actual" && this.lastFit ? this.lastFit : this.scale;
+  }
+
+  handleWheel(event) {
+    if (!this.pdfDoc || !this.stageElement) return;
+
+    // Trackpad pinch arrives as Ctrl + wheel; so does Ctrl + mouse wheel.
+    if (event.ctrlKey || event.metaKey) {
+      event.preventDefault();
+      this.pinchTarget = scaleAfterWheel(this.pinchTarget ?? this.currentScale(), event.deltaY);
+      this.zoomInput.value = `${Math.round(this.pinchTarget * 100)}%`;
+      clearTimeout(this.pinchTimer);
+      this.pinchTimer = setTimeout(() => {
+        const target = this.pinchTarget;
+        this.pinchTarget = null;
+        if (target) this.setScale(target);
+      }, 90);
+      return;
     }
 
-    return card;
+    // In single and two-page view, a deliberate push past the end of the page turns it.
+    if (this.viewMode === "scroll" || event.shiftKey || Math.abs(event.deltaY) < Math.abs(event.deltaX)) return;
+    // After a page turn the trackpad keeps sending momentum; swallow it so the new page starts at its edge.
+    const now = performance.now();
+    if (this.wheelLocked) {
+      const quiet = now - this.lastWheelAt >= 160;
+      this.lastWheelAt = now;
+      if (!quiet) {
+        event.preventDefault();
+        return;
+      }
+      this.wheelLocked = false;
+    }
+    this.lastWheelAt = now;
+    const el = this.stageElement;
+    const action = this.wheelTurner({
+      deltaY: event.deltaY,
+      atTop: el.scrollTop <= 1,
+      atBottom: el.scrollTop + el.clientHeight >= el.scrollHeight - 2,
+      now: performance.now()
+    });
+    if (action === "next" && !this.nextBtn.disabled) {
+      this.wheelLocked = true;
+      this.afterRenderScroll = "top";
+      this.nextPage();
+    } else if (action === "prev" && !this.prevBtn.disabled) {
+      this.wheelLocked = true;
+      this.afterRenderScroll = "bottom";
+      this.prevPage();
+    }
+  }
+
+  // PageDown / Space: scroll a screenful, and turn the page when already at the end of it.
+  scrollByScreen(direction) {
+    const el = this.stageElement;
+    if (!el || !this.pdfDoc) return;
+    if (this.viewMode === "scroll") {
+      el.scrollBy({ top: direction * el.clientHeight * 0.9, behavior: "smooth" });
+      return;
+    }
+    const atEdge = direction > 0 ? el.scrollTop + el.clientHeight >= el.scrollHeight - 2 : el.scrollTop <= 1;
+    if (!atEdge) {
+      el.scrollBy({ top: direction * el.clientHeight * 0.9, behavior: "smooth" });
+    } else if (direction > 0 && !this.nextBtn.disabled) {
+      this.afterRenderScroll = "top";
+      this.nextPage();
+    } else if (direction < 0 && !this.prevBtn.disabled) {
+      this.afterRenderScroll = "bottom";
+      this.prevPage();
+    }
+  }
+
+  scrollByLine(direction) {
+    this.stageElement?.scrollBy({ top: direction * 56, behavior: "auto" });
+  }
+
+  zoomBy(factor) {
+    this.setScale(this.currentScale() * factor);
+  }
+
+  fitToWidth() {
+    if (this.fitModeSelect) this.fitModeSelect.value = "auto";
+    this.fitMode = "auto";
+    this.captureViewPosition();
+    this.scrollCacheKey = "";
+    this.queueRender(this.pageNum);
   }
 
   async collectHighlightBoxesByPage() {

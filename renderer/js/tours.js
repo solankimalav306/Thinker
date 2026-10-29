@@ -46,7 +46,7 @@ export function buildTours(ctx) {
       id: "move",
       target: ".toolbar-center .tool-group:first-child",
       title: "Move around",
-      body: "Use the arrows to turn pages, or type a zoom. Your page and zoom are remembered the next time you open this file.",
+      body: "Use the arrows or your keyboard to turn pages, type a page number or zoom, or pinch on a trackpad. Your page and zoom are remembered the next time you open this file.",
       placement: "bottom",
       before: () => ctx.goReader()
     },

@@ -127,9 +127,19 @@ export const SHORTCUTS = [
   { keys: ["Ctrl", "O"], does: "Open a PDF" },
   { keys: ["Ctrl", "F"], does: "Search inside the open document" },
   { keys: ["Enter"], does: "Next search match, or send your chat message" },
-  { keys: ["Shift", "Enter"], does: "Previous search match" },
+  { keys: ["Shift", "Enter"], does: "Previous search match, or a new line in the chat box" },
   { keys: ["Esc"], does: "Switch off the active tool, close search, a dialog or a menu" },
-  { keys: ["←", "→"], does: "Previous and next step while a tour is open" },
+  { keys: ["←", "→"], does: "Previous and next page (and previous and next step in a tour)" },
+  { keys: ["PgDn", "PgUp"], does: "Scroll a screen, and turn the page at the end of it" },
+  { keys: ["Space"], does: "Scroll down a screen (Shift + Space scrolls up)" },
+  { keys: ["Home", "End"], does: "First and last page" },
+  { keys: ["Ctrl", "+", "-"], does: "Zoom in and out (a trackpad pinch works too)" },
+  { keys: ["Ctrl", "0"], does: "Fit the page to the window" },
+  { keys: ["Ctrl", "G"], does: "Go to a page: type its number and press Enter" },
+  { keys: ["Ctrl", "Z"], does: "Undo your last mark; Ctrl + Y brings it back" },
+  { keys: ["Ctrl", "S"], does: "Save your marks into a new PDF" },
+  { keys: ["Ctrl", "W"], does: "Close the current tab (middle-click on a tab works too)" },
+  { keys: ["Ctrl", "Tab"], does: "Switch to the next tab" },
   { keys: ["Tab"], does: "Move between buttons and fields, with a visible focus ring" }
 ];
 

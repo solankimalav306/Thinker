@@ -1,0 +1,62 @@
+{
+  "summary": {
+    "model": "gemini-3.5-flash-lite",
+    "when": "2026-10-29T16:12:49.716Z",
+    "runs": 2,
+    "correct": 0,
+    "byKind": {
+      "lookup": "0/1",
+      "outside-document": "0/1"
+    },
+    "citationOk": "n/a",
+    "retrievalHit": "100%",
+    "medianMs": null,
+    "avgTokens": 0
+  },
+  "results": [
+    {
+      "id": "L1",
+      "kind": "lookup",
+      "run": 1,
+      "mode": "auto",
+      "question": "In what year was the company founded, and where?",
+      "answer": "",
+      "correct": false,
+      "problems": [
+        "request failed: Your saved API key could not be unlocked on this computer. Open Settings and enter it again."
+      ],
+      "cited": [],
+      "citeOk": null,
+      "retrievedPages": [
+        2,
+        8,
+        9
+      ],
+      "retrievalHit": true,
+      "ms": null,
+      "tokens": null
+    },
+    {
+      "id": "G2",
+      "kind": "outside-document",
+      "run": 1,
+      "mode": "auto",
+      "question": "What is the capital of France?",
+      "answer": "",
+      "correct": false,
+      "problems": [
+        "request failed: Your saved API key could not be unlocked on this computer. Open Settings and enter it again."
+      ],
+      "cited": [],
+      "citeOk": null,
+      "retrievedPages": [
+        2,
+        9,
+        11
+      ],
+      "retrievalHit": null,
+      "ms": null,
+      "tokens": null
+    }
+  ]
+}

@@ -1,0 +1,185 @@
+{
+  "summary": {
+    "model": "gemini-3.5-flash-lite",
+    "when": "2026-10-29T16:49:00.316Z",
+    "runs": 7,
+    "correct": 6,
+    "byKind": {
+      "lookup": "5/5",
+      "numeric": "1/1",
+      "summary": "0/1"
+    },
+    "citationOk": "83%",
+    "retrievalHit": "100%",
+    "medianMs": 38099,
+    "avgTokens": 864
+  },
+  "results": [
+    {
+      "id": "L3",
+      "kind": "lookup",
+      "run": 1,
+      "mode": "auto",
+      "question": "How quickly must crew reach their muster station after the alarm?",
+      "answer": "Crew must reach their muster station within 8 minutes of the alarm [Page 3]. The muster time limit remains unchanged by later revisions [Page 11].",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [
+        3,
+        11
+      ],
+      "citeOk": true,
+      "retrievedPages": [
+        3,
+        11,
+        9
+      ],
+      "retrievalHit": true,
+      "ms": 37458,
+      "tokens": 1101
+    },
+    {
+      "id": "L6",
+      "kind": "lookup",
+      "run": 1,
+      "mode": "auto",
+      "question": "How many sea-days does a Class A captain certificate require?",
+      "answer": "A Class A captain certificate requires at least 3,000 sea-days, of which 800 must be as chief officer [Page 4].",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [
+        4
+      ],
+      "citeOk": true,
+      "retrievedPages": [
+        4,
+        9,
+        11
+      ],
+      "retrievalHit": true,
+      "ms": 34545,
+      "tokens": 1125
+    },
+    {
+      "id": "L7",
+      "kind": "lookup",
+      "run": 1,
+      "mode": "auto",
+      "question": "What is the port fee at Singapore?",
+      "answer": "The standard port fee for a container ship at Singapore is 9,800 USD [Page 6].",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [
+        6
+      ],
+      "citeOk": true,
+      "retrievedPages": [
+        6,
+        9,
+        5
+      ],
+      "retrievalHit": true,
+      "ms": 35885,
+      "tokens": 1073
+    },
+    {
+      "id": "L8",
+      "kind": "lookup",
+      "run": 1,
+      "mode": "auto",
+      "question": "Within how many minutes must the coast authority be told about a Level 3 incident?",
+      "answer": "The coast authority must be notified within 15 minutes of a Level 3 incident [Page 7].",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [
+        7
+      ],
+      "citeOk": true,
+      "retrievedPages": [
+        7,
+        3,
+        11
+      ],
+      "retrievalHit": true,
+      "ms": 38978,
+      "tokens": 1157
+    },
+    {
+      "id": "L11",
+      "kind": "lookup",
+      "run": 1,
+      "mode": "auto",
+      "question": "What does demurrage mean?",
+      "answer": "Definition: In the context of general knowledge and shipping logistics, demurrage is a charge payable to the owner of a chartered ship or container for failing to load or discharge it within the agreed time frame.",
+      "intent": "define",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [],
+      "citeOk": false,
+      "retrievedPages": [
+        12,
+        9,
+        7
+      ],
+      "retrievalHit": true,
+      "ms": 41366,
+      "tokens": 356
+    },
+    {
+      "id": "N2",
+      "kind": "numeric",
+      "run": 1,
+      "mode": "auto",
+      "question": "How much less fuel per day does a container ship burn at 10 knots than at 14 knots?",
+      "answer": "At a speed of 10 knots, the container ship burns 18 tonnes of fuel per day, whereas at 14 knots it burns 42 tonnes per day [Page 5]. This is a difference of **24 tonnes per day** less fuel consumed at 10 knots [Page 5].",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [
+        5,
+        5
+      ],
+      "citeOk": true,
+      "retrievedPages": [
+        5,
+        4,
+        11
+      ],
+      "retrievalHit": true,
+      "ms": 38099,
+      "tokens": 1237
+    },
+    {
+      "id": "S1",
+      "kind": "summary",
+      "run": 1,
+      "mode": "auto",
+      "question": "Give me a short summary of this document.",
+      "error": "504 DEADLINE_EXCEEDED. {'error': {'code': 504, 'message': 'Deadline expired before operation could complete.', 'status': 'DEADLINE_EXCEEDED'}}",
+      "correct": false,
+      "problems": [
+        "request failed: 504 DEADLINE_EXCEEDED. {'error': {'code': 504, 'message': 'Deadline expired before operation could complete.', 'status': 'DEADLINE_EXCEEDED'}}"
+      ],
+      "cited": [],
+      "citeOk": null,
+      "retrievedPages": [
+        11,
+        1,
+        10
+      ],
+      "retrievalHit": null,
+      "ms": 88781,
+      "tokens": null
+    }
+  ]
+}
