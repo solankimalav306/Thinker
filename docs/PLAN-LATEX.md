@@ -11,8 +11,10 @@ Built and verified in the running app against the real compiler and the real mod
 - **Agent**: writes, compiles a copy to check, repairs itself up to three times, then shows a diff to
   Apply (one undo step) or Reject. Lesson learned: LaTeX inside JSON corrupts (`` is a backspace), so the
   agent uses a plain marker format.
-Not done yet: SyncTeX, BibTeX/biber builds, templates beyond the five, an offline-bundle option, the
-installer round trip (the engine is listed for packaging but a packaged build has not been run), and
+**Installer verified (3.0.0):** on a clean profile the installed app finds its bundled compiler, offers the
+one-time setup, completes it (about 3 minutes, 41 MB of packages), compiles (11.7 s the first time, about 1 s
+after), shows the preview, runs the Visual view and the agent, and answers a Thinkspace question.
+Not done yet: SyncTeX, BibTeX/biber builds, templates beyond the five, an offline-bundle option, and
 checking the Thinkspace-PDF sources option against a real Thinkspace.
 
 Thinker today is for **reading**. ThinkerTex makes it a place to **write** too. It is an Overleaf-style

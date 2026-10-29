@@ -9,8 +9,9 @@ Where Thinker is going. v2 is shipped (2.0.0). Each version builds on the one be
 - Test-connection button, Ollama detection, privacy disclosure and a local-only mode.
 
 ## v3: Thinkspaces + ThinkerTex
-*Status: in progress on branch `v3`. Thinkspaces (create, documents, projects) and ThinkerTex (editor,
-visual editor, compile, preview, agent) work; cross-document chat, SyncTeX and packaging remain.*
+*Status: on branch `v3`, installer 3.0.0 built and verified on a clean profile. Thinkspaces (documents, projects,
+chat across documents) and ThinkerTex (editor, visual editor, compile, preview, agent) work. Remaining: shared
+notes/glossary/mind maps, compare view, SyncTeX, BibTeX builds, a smaller installer.*
 Two halves of one release.
 - **Thinkspaces**: projects that group PDFs and the chats, notes, glossary and mind maps around them,
   with questions that span several documents. See `docs/PLAN-THINKSPACES.md`.

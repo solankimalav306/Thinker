@@ -1,7 +1,7 @@
 {
   "name": "thinker",
   "productName": "Thinker",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "AI-Powered PDF Reader",
   "main": "main.js",
   "scripts": {
@@ -33,7 +33,7 @@
       }
     ],
     "productName": "Thinker",
-    "copyright": "Copyright © 2025 Thinker",
+    "copyright": "Copyright Â© 2025 Thinker",
     "directories": {
       "output": "dist"
     },
