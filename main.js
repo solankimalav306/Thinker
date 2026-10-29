@@ -12,6 +12,7 @@ const axios = require('axios');
 const { initStorage, migrateProfileSecrets, getItemSync, setItemSync, removeItemSync, getItemDirect } = require('./app-storage');
 const { openDatabase } = require('./database');
 const { createStore } = require('./store');
+const { createWorkspaces } = require('./workspaces');
 const { importLegacyData } = require('./legacy-import');
 const { handleLLMGenerate } = require('./llm-handler');
 const { resolveSecrets, hasUnresolvedSecret, KEY_UNLOCK_ERROR } = require('./secrets');
@@ -21,6 +22,8 @@ const { writeRealAnnotations } = require('./pdf-annotations');
 // ── Backend process handle (so we can kill it cleanly on exit) ──────────────
 let backendProcess = null;
 let store = null;
+let workspaces = null;
+const spaces = () => (workspaces ||= createWorkspaces(store));
 
 // ── Backend address: random free port + per-launch token, chosen at startup ──
 let BACKEND_PORT = 0;
@@ -356,6 +359,15 @@ function registerIpcHandlers() {
     return canceled ? null : filePaths[0];
   });
 
+  ipcMain.handle('dialog:pickPdfs', async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+      filters: [{ name: 'PDF Files', extensions: ['pdf'] }],
+      properties: ['openFile', 'multiSelections']
+    });
+    return canceled ? [] : filePaths;
+  });
+
   ipcMain.handle('dialog:saveTextFile', async (event, payload) => {
     try {
       const win = BrowserWindow.fromWebContents(event.sender);
@@ -545,6 +557,27 @@ function registerIpcHandlers() {
   });
   ipcMain.handle('conv:messages', (_event, id) => store.getMessages(String(id)));
   ipcMain.handle('conv:append', (_event, id, entry) => store.appendMessage(String(id), entry || {}));
+
+  // Thinkspaces and ThinkerTex projects. Every call validates its arguments; nothing here touches files.
+  const text = (v) => String(v ?? '');
+  const paths = (v) => (Array.isArray(v) ? v.map(text).slice(0, 500) : []);
+  ipcMain.handle('ws:list', () => spaces().listWorkspaces());
+  ipcMain.handle('ws:get', (_e, id) => spaces().getWorkspace(text(id)));
+  ipcMain.handle('ws:create', (_e, fields) => spaces().createWorkspace(fields || {}));
+  ipcMain.handle('ws:update', (_e, id, patch) => spaces().updateWorkspace(text(id), patch || {}));
+  ipcMain.handle('ws:delete', (_e, id) => spaces().deleteWorkspace(text(id)));
+  ipcMain.handle('ws:opened', (_e, id) => { spaces().markOpened(text(id)); return true; });
+  ipcMain.handle('ws:addDocuments', (_e, id, files) => spaces().addDocuments(text(id), paths(files)));
+  ipcMain.handle('ws:removeDocument', (_e, id, docId) => spaces().removeDocument(text(id), text(docId)));
+  ipcMain.handle('ws:reorderDocuments', (_e, id, order) => spaces().reorderDocuments(text(id), paths(order)));
+  ipcMain.handle('ws:forDocument', (_e, docId) => spaces().workspacesForDocument(text(docId)));
+  ipcMain.handle('proj:list', () => spaces().listProjects());
+  ipcMain.handle('proj:get', (_e, id) => spaces().getProject(text(id)));
+  ipcMain.handle('proj:update', (_e, id, patch) => spaces().updateProject(text(id), patch || {}));
+  ipcMain.handle('proj:forget', (_e, id) => spaces().forgetProject(text(id)));
+  ipcMain.handle('proj:link', (_e, workspaceId, projectId) => spaces().linkProject(text(workspaceId), text(projectId)));
+  ipcMain.handle('proj:unlink', (_e, workspaceId, projectId) => spaces().unlinkProject(text(workspaceId), text(projectId)));
+  ipcMain.handle('proj:forProject', (_e, id) => spaces().workspacesForProject(text(id)));
 
   // Custom AI instructions, layered global -> document -> conversation
   ipcMain.handle('ins:list', (_event, scope, scopeId) => store.listInstructions(scope || null, scopeId || null));

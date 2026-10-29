@@ -2,6 +2,26 @@ const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
   openPDF: () => ipcRenderer.invoke('dialog:openPDF'),
+  pickPdfs: () => ipcRenderer.invoke('dialog:pickPdfs'),
+
+  // Thinkspaces and ThinkerTex projects
+  listWorkspaces: () => ipcRenderer.invoke('ws:list'),
+  getWorkspace: (id) => ipcRenderer.invoke('ws:get', id),
+  createWorkspace: (fields) => ipcRenderer.invoke('ws:create', fields),
+  updateWorkspace: (id, patch) => ipcRenderer.invoke('ws:update', id, patch),
+  deleteWorkspace: (id) => ipcRenderer.invoke('ws:delete', id),
+  markWorkspaceOpened: (id) => ipcRenderer.invoke('ws:opened', id),
+  addWorkspaceDocuments: (id, files) => ipcRenderer.invoke('ws:addDocuments', id, files),
+  removeWorkspaceDocument: (id, docId) => ipcRenderer.invoke('ws:removeDocument', id, docId),
+  reorderWorkspaceDocuments: (id, order) => ipcRenderer.invoke('ws:reorderDocuments', id, order),
+  workspacesForDocument: (docId) => ipcRenderer.invoke('ws:forDocument', docId),
+  listProjects: () => ipcRenderer.invoke('proj:list'),
+  getProject: (id) => ipcRenderer.invoke('proj:get', id),
+  updateProject: (id, patch) => ipcRenderer.invoke('proj:update', id, patch),
+  forgetProject: (id) => ipcRenderer.invoke('proj:forget', id),
+  linkProject: (workspaceId, projectId) => ipcRenderer.invoke('proj:link', workspaceId, projectId),
+  unlinkProject: (workspaceId, projectId) => ipcRenderer.invoke('proj:unlink', workspaceId, projectId),
+  workspacesForProject: (id) => ipcRenderer.invoke('proj:forProject', id),
   askLLM: (payload) => ipcRenderer.invoke('llm:generate', payload),
   askGemini: (payload) => ipcRenderer.invoke('llm:generate', payload), // legacy alias
   loadChatHistory: (pdfPath) => ipcRenderer.invoke('chat:loadHistory', pdfPath),

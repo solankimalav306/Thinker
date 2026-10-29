@@ -129,6 +129,42 @@ const MIGRATIONS = [
         data TEXT NOT NULL                -- JSON entry as the renderer reports it
       );
     `
+  },
+  {
+    version: 2,
+    sql: `
+      -- Thinkspaces: a name and look, when it was last used, and a stable order for its documents.
+      ALTER TABLE workspaces ADD COLUMN description TEXT NOT NULL DEFAULT '';
+      ALTER TABLE workspaces ADD COLUMN color TEXT NOT NULL DEFAULT '';
+      ALTER TABLE workspaces ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE workspaces ADD COLUMN last_opened_at INTEGER;
+      ALTER TABLE workspace_documents ADD COLUMN added_at INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE workspace_documents ADD COLUMN position INTEGER NOT NULL DEFAULT 0;
+      UPDATE workspaces SET updated_at = created_at WHERE updated_at = 0;
+
+      -- ThinkerTex projects. A project is a folder of files; it can live anywhere and belongs to no
+      -- Thinkspace unless it is linked to one (or several).
+      CREATE TABLE projects (
+        id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL DEFAULT 'latex',
+        name TEXT NOT NULL,
+        root_path TEXT NOT NULL,          -- the project folder
+        managed INTEGER NOT NULL DEFAULT 0,   -- 1 when Thinker created the folder in its own projects area
+        main_file TEXT NOT NULL DEFAULT 'main.tex',
+        engine TEXT NOT NULL DEFAULT 'tectonic',
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        last_opened_at INTEGER,
+        last_built_at INTEGER
+      );
+      CREATE UNIQUE INDEX projects_root ON projects(root_path);
+      CREATE TABLE workspace_projects (
+        workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        added_at INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (workspace_id, project_id)
+      );
+    `
   }
 ];
 
