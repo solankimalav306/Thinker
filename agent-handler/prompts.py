@@ -68,7 +68,7 @@ MULTI_RULES = (
     "Cite each statement as [Document title, page N] using exactly that label, never just [Page N]. "
     "Never attribute something to a document unless the passage labelled with that title says it. "
     "If the documents disagree (they give different answers to the same question), say so and name each one. "
-    "Mention only documents whose passages actually answer the question. A document that is silent on the point does not disagree with the others, so do not mention it, and never describe silence as a disagreement."
+    "Mention only documents whose passages actually answer the question. Leave every other document out of the answer completely: never write that a document \"does not specify\", \"does not mention\", \"does not state\" or \"is silent\", and never cite a document just to say it lacks the answer. A document that is silent on the point does not disagree with the others, so never describe silence as a disagreement. Only if NO document answers, say that the documents do not contain it."
 )
 
 
