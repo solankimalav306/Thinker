@@ -26,7 +26,7 @@ html, body {
   font-family: system-ui, "Segoe UI", sans-serif;
   font-size: 14.5px;
   line-height: 1.55;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 #root { padding: 16px 18px 20px; }
@@ -48,8 +48,9 @@ details[open] summary { border-bottom: 1px solid var(--tk-border); }
 details > :not(summary) { padding: 0 12px; }
 details > :last-child { padding-bottom: 10px; }
 
-table, .tk-table { width: 100%; border-collapse: collapse; margin: 0.6em 0; font-size: 0.95em; }
-th, td { padding: 8px 10px; border: 1px solid var(--tk-border); text-align: left; vertical-align: top; }
+/* a table that does not fit scrolls sideways instead of crushing its columns */
+table, .tk-table { display: block; width: 100%; max-width: 100%; overflow-x: auto; border-collapse: collapse; margin: 0.6em 0; font-size: 0.95em; }
+th, td { min-width: 9ch; padding: 8px 10px; border: 1px solid var(--tk-border); text-align: left; vertical-align: top; overflow-wrap: normal; }
 th { background: var(--tk-sunken); font-weight: 650; }
 tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--tk-sunken) 45%, transparent); }
 

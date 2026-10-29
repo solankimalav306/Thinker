@@ -149,6 +149,14 @@ export function createArtifactView({ title, html, complete = true, sources, onCi
   if (!complete) box.append(el("p", "art-note", "The reply was cut off, so this may be unfinished."));
   if (checked.invalid) box.append(el("p", "art-note", `${checked.invalid} reference${checked.invalid === 1 ? "" : "s"} could not be checked against the sources and ${checked.invalid === 1 ? "is" : "are"} shown dashed.`));
 
+  const foot = el("div", "art-foot");
+  const bigger = el("button", "art-more");
+  bigger.type = "button";
+  bigger.append(el("i", "fa-solid fa-up-right-and-down-left-from-center"), document.createTextNode(" Open larger"));
+  bigger.addEventListener("click", () => openLarge({ title, checked, onCite }));
+  foot.append(bigger);
+  box.append(foot);
+
   tools.append(
     iconButton("fa-up-right-and-down-left-from-center", "Open larger", () => openLarge({ title, checked, onCite })),
     iconButton("fa-copy", "Copy the HTML", () => navigator.clipboard?.writeText(checked.html).catch(() => {})),

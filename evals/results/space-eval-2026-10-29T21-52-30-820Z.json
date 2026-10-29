@@ -1,0 +1,129 @@
+{
+  "summary": {
+    "model": "gemini-3.5-flash-lite",
+    "when": "2026-10-29T21:52:30.818Z",
+    "runs": 8,
+    "correct": 8,
+    "wrongAttributions": 0,
+    "byKind": {
+      "outside": "1/1",
+      "each-document": "1/1",
+      "compare": "1/1",
+      "no-bleed": "1/1",
+      "unanswerable": "1/1",
+      "artifact-table": "1/1",
+      "artifact-flashcards": "1/1",
+      "artifact-timeline": "1/1"
+    },
+    "medianMs": 6017,
+    "attributionChecked": 3
+  },
+  "results": [
+    {
+      "id": "S8",
+      "kind": "outside",
+      "run": 1,
+      "question": "What is the capital of France?",
+      "answer": "I couldn't find that in these documents.",
+      "correct": true,
+      "problems": [],
+      "cited": [],
+      "wrongAttribution": false,
+      "ms": 4984
+    },
+    {
+      "id": "S9",
+      "kind": "each-document",
+      "run": 1,
+      "question": "Summarise each document in one sentence.",
+      "answer": "Here is a one-sentence summary for each document:\n\n* **Operations Manual 2023:** Published in January 2023 by Harbor Lights Shipping, this internal manual covers drills, fuel planning, and crew rules for their 14-vessel fleet [Operations Manual 2023, page 1].\n* **Safety Bulletin 2024:** Issued in March 2024 to all Harbor Lights vessels, this bulletin updates certain safety rules originally established in the 2023 operations manual [Safety Bulletin 2024, page 1].\n* **Port Authority Handbook:** This handbook outlines the rules for vessels calling at the port of Rotterdam, published by the Port Authority [Port Authority Handbook, page 1].",
+      "correct": true,
+      "problems": [],
+      "cited": [
+        "Operations Manual 2023",
+        "Safety Bulletin 2024",
+        "Port Authority Handbook"
+      ],
+      "wrongAttribution": false,
+      "ms": 7282
+    },
+    {
+      "id": "S10",
+      "kind": "compare",
+      "run": 1,
+      "question": "Where do the Operations Manual and the Safety Bulletin disagree?",
+      "answer": "The Operations Manual 2023 and Safety Bulletin 2024 disagree on the frequency of lifeboat drills and fire extinguisher inspections, with the Safety Bulletin updating the rules originally set in the Operations Manual [Operations Manual 2023, page 2] [Safety Bulletin 2024, page 1, 2]. \n\nSpecifically:\n* **Lifeboat drills:** The Operations Manual 2023 specifies they are held every 30 days [Operations Manual 2023, page 2], whereas the Safety Bulletin 2024 requires them every 14 days starting 1 March 2024 [Safety Bulletin 2024, page 2].\n* **Fire extinguisher inspections:** The Operations Manual 2023 states they are inspected every 6 months [Operations Manual 2023, page 2], while the Safety Bulletin 2024 changes this requirement to every month [Safety Bulletin 2024, page 2].",
+      "correct": true,
+      "problems": [],
+      "cited": [
+        "Operations Manual 2023",
+        "Safety Bulletin 2024"
+      ],
+      "wrongAttribution": false,
+      "ms": 5579
+    },
+    {
+      "id": "S11",
+      "kind": "no-bleed",
+      "run": 1,
+      "question": "How often are fire extinguishers inspected now?",
+      "answer": "According to the Operations Manual 2023, fire extinguishers are inspected every 6 months [Operations Manual 2023, page 2], whereas the Safety Bulletin 2024 states that they are now inspected every month [Safety Bulletin 2024, page 2].",
+      "correct": true,
+      "problems": [],
+      "cited": [
+        "Operations Manual 2023",
+        "Safety Bulletin 2024"
+      ],
+      "wrongAttribution": false,
+      "ms": 5538
+    },
+    {
+      "id": "S12",
+      "kind": "unanswerable",
+      "run": 1,
+      "question": "What is the port fee at Singapore?",
+      "answer": "I couldn't find that in these documents.",
+      "correct": true,
+      "problems": [],
+      "cited": [],
+      "wrongAttribution": false,
+      "ms": 5488
+    },
+    {
+      "id": "S13",
+      "kind": "artifact-table",
+      "run": 1,
+      "question": "Make a comparison table of the lifeboat drill and muster rules in each document.",
+      "answer": "Here is a comparison table of the lifeboat drill and muster rules from the documents.\n\n<artifact title=\"Lifeboat Drill and Muster Rules Comparison\">\n<table class=\"tk-table\">\n  <thead>\n    <tr>\n      <th>Rule / Topic</th>\n      <th>Operations Manual 2023</th>\n      <th>Safety Bulletin 2024</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <td><strong>Lifeboat Drill Frequency</strong></td>\n      <td>Held every 30 days on every vessel <a class=\"tk-cite\" data-cite=\"Operations Manual 2023|2\">Operations Manual 2023, page 2</a></td>\n      <td>Held every 14 days (effective 1 March 2024) <a class=\"tk-cite\" data-cite=\"Safety Bulletin 2024|2\">Safety Bulletin 2024, page 2</a></td>\n    </tr>\n    <tr>\n      <td><strong>Muster Station Definition</strong></td>\n      <td>Where crew assemble in an emergency <a class=\"tk-cite\" data-cite=\"Operations Manual 2023|2\">Operations Manual 2023, page 2</a></td>\n      <td><span class=\"tk-muted\">Not specified</span></td>\n    </tr>\n    <tr>\n      <td><strong>Muster Time Limit</strong></td>\n      <td><span class=\"tk-muted\">Not specified</span></td>\n      <td>All crew must reach their muster station within 8 minutes of the alarm <a class=\"tk-cite\" data-cite=\"Safety Bulletin 2024|2\">Safety Bulletin 2024, page 2</a></td>\n    </tr>\n  </tbody>\n</table>\n</artifact>",
+      "correct": true,
+      "problems": [],
+      "cited": [],
+      "wrongAttribution": false,
+      "ms": 6017
+    },
+    {
+      "id": "S14",
+      "kind": "artifact-flashcards",
+      "run": 1,
+      "question": "Create flashcards from the Safety Bulletin 2024.",
+      "answer": "Here are flashcards created from the Safety Bulletin 2024.\n\n<artifact title=\"Safety Bulletin 2024 Flashcards\">\n<style>\n.flashcard-container { display: flex; flex-direction: column; gap: 12px; }\ndetails { background: var(--tk-bg-card, #f8f9fa); border: 1px solid var(--tk-border, #e9ecef); border-radius: 8px; padding: 12px; }\nsummary { font-weight: 600; cursor: pointer; }\ndetails p { margin-top: 8px; margin-bottom: 0; }\n</style>\n<div class=\"flashcard-container\">\n  <details>\n    <summary>When was the Safety Bulletin 2024 issued and who received it?</summary>\n    <p>It was issued in March 2024 to all Harbor Lights vessels <a class=\"tk-cite\" data-cite=\"Safety Bulletin 2024|1\">Safety Bulletin 2024, page 1</a>.</p>\n  </details>\n  <details>\n    <summary>How frequently are lifeboat drills held starting 1 March 2024?</summary>\n    <p>Every 14 days <a class=\"tk-cite\" data-cite=\"Safety Bulletin 2024|2\">Safety Bulletin 2024, page 2</a>.</p>\n  </details>\n  <details>\n    <summary>What is the time limit for all crew to reach their muster station after the alarm?</summary>\n    <p>Within 8 minutes <a class=\"tk-cite\" data-cite=\"Safety Bulletin 2024|2\">Safety Bulletin 2024, page 2</a>.</p>\n  </details>\n  <details>\n    <summary>How often must fire extinguishers be inspected according to the 2024 bulletin?</summary>\n    <p>Every month <a class=\"tk-cite\" data-cite=\"Safety Bulletin 2024|2\">Safety Bulletin 2024, page 2</a>.</p>\n  </details>\n</div>\n</artifact>",
+      "correct": true,
+      "problems": [],
+      "cited": [],
+      "wrongAttribution": false,
+      "ms": 6575
+    },
+    {
+      "id": "S15",
+      "kind": "artifact-timeline",
+      "run": 1,
+      "question": "Make a timeline of what changed between the Operations Manual 2023 and the Safety Bulletin 2024.",
+      "answer": "Here is a timeline showing the changes between the Operations Manual 2023 and the Safety Bulletin 2024.\n\n<artifact title=\"Timeline of Safety & Operations Changes\">\n<style>\n.tk-timeline { padding: 8px 0; }\n</style>\n<div class=\"tk-card\">\n  <h3>Chronological Changes</h3>\n  <div class=\"tk-timeline\">\n    <div class=\"tk-event\">\n      <strong>January 2023</strong>\n      <p>Operations Manual 2023 issued, setting baseline procedures for the fleet <a class=\"tk-cite\" data-cite=\"Operations Manual 2023|1\">Operations Manual 2023, page 1</a>.</p>\n    </div>\n    <div class=\"tk-event\">\n      <strong>March 2023 (Baseline Rules)</strong>\n      <p>Lifeboat drills held every 30 days <a class=\"tk-cite\" data-cite=\"Operations Manual 2023|2\">Operations Manual 2023, page 2</a>.</p>\n      <p>Fire extinguishers inspected every 6 months <a class=\"tk-cite\" data-cite=\"Operations Manual 2023|2\">Operations Manual 2023, page 2</a>.</p>\n    </div>\n    <div class=\"tk-event\">\n      <strong>March 1, 2024 (Updated Rules)</strong>\n      <p>Lifeboat drills changed to every 14 days <a class=\"tk-cite\" data-cite=\"Safety Bulletin 2024|2\">Safety Bulletin 2024, page 2</a>.</p>\n      <p>Muster station time limit set to within 8 minutes of the alarm <a class=\"tk-cite\" data-cite=\"Safety Bulletin 2024|2\">Safety Bulletin 2024, page 2</a>.</p>\n      <p>Fire extinguisher inspections increased to every month <a class=\"tk-cite\" data-cite=\"Safety Bulletin 2024|2\">Safety Bulletin 2024, page 2</a>.</p>\n    </div>\n  </div>\n</div>\n</artifact>",
+      "correct": true,
+      "problems": [],
+      "cited": [],
+      "wrongAttribution": false,
+      "ms": 7306
+    }
+  ]
+}

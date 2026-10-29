@@ -1,0 +1,135 @@
+{
+  "summary": {
+    "model": "gemini-3.5-flash-lite",
+    "when": "2026-10-29T21:51:13.712Z",
+    "runs": 8,
+    "correct": 0,
+    "wrongAttributions": 0,
+    "byKind": {
+      "outside": "0/1",
+      "each-document": "0/1",
+      "compare": "0/1",
+      "no-bleed": "0/1",
+      "unanswerable": "0/1",
+      "artifact-table": "0/1",
+      "artifact-flashcards": "0/1",
+      "artifact-timeline": "0/1"
+    },
+    "medianMs": 704,
+    "attributionChecked": 0
+  },
+  "results": [
+    {
+      "id": "S8",
+      "kind": "outside",
+      "run": 1,
+      "question": "What is the capital of France?",
+      "answer": "",
+      "correct": false,
+      "problems": [
+        "request failed: [Errno 11001] getaddrinfo failed"
+      ],
+      "cited": [],
+      "wrongAttribution": false,
+      "ms": 829
+    },
+    {
+      "id": "S9",
+      "kind": "each-document",
+      "run": 1,
+      "question": "Summarise each document in one sentence.",
+      "answer": "",
+      "correct": false,
+      "problems": [
+        "request failed: [Errno 11001] getaddrinfo failed"
+      ],
+      "cited": [],
+      "wrongAttribution": false,
+      "ms": 952
+    },
+    {
+      "id": "S10",
+      "kind": "compare",
+      "run": 1,
+      "question": "Where do the Operations Manual and the Safety Bulletin disagree?",
+      "answer": "",
+      "correct": false,
+      "problems": [
+        "request failed: [Errno 11001] getaddrinfo failed"
+      ],
+      "cited": [],
+      "wrongAttribution": false,
+      "ms": 736
+    },
+    {
+      "id": "S11",
+      "kind": "no-bleed",
+      "run": 1,
+      "question": "How often are fire extinguishers inspected now?",
+      "answer": "",
+      "correct": false,
+      "problems": [
+        "request failed: [Errno 11001] getaddrinfo failed"
+      ],
+      "cited": [],
+      "wrongAttribution": false,
+      "ms": 677
+    },
+    {
+      "id": "S12",
+      "kind": "unanswerable",
+      "run": 1,
+      "question": "What is the port fee at Singapore?",
+      "answer": "",
+      "correct": false,
+      "problems": [
+        "request failed: [Errno 11001] getaddrinfo failed"
+      ],
+      "cited": [],
+      "wrongAttribution": false,
+      "ms": 692
+    },
+    {
+      "id": "S13",
+      "kind": "artifact-table",
+      "run": 1,
+      "question": "Make a comparison table of the lifeboat drill and muster rules in each document.",
+      "answer": "",
+      "correct": false,
+      "problems": [
+        "request failed: [Errno 11001] getaddrinfo failed"
+      ],
+      "cited": [],
+      "wrongAttribution": false,
+      "ms": 686
+    },
+    {
+      "id": "S14",
+      "kind": "artifact-flashcards",
+      "run": 1,
+      "question": "Create flashcards from the Safety Bulletin 2024.",
+      "answer": "",
+      "correct": false,
+      "problems": [
+        "request failed: [Errno 11001] getaddrinfo failed"
+      ],
+      "cited": [],
+      "wrongAttribution": false,
+      "ms": 683
+    },
+    {
+      "id": "S15",
+      "kind": "artifact-timeline",
+      "run": 1,
+      "question": "Make a timeline of what changed between the Operations Manual 2023 and the Safety Bulletin 2024.",
+      "answer": "",
+      "correct": false,
+      "problems": [
+        "request failed: [Errno 11001] getaddrinfo failed"
+      ],
+      "cited": [],
+      "wrongAttribution": false,
+      "ms": 704
+    }
+  ]
+}

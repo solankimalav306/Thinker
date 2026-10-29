@@ -31,7 +31,9 @@ export const GUIDES = [
       "Click Spaces on the left, then New Thinkspace. Give it a name; click the name any time to change it.",
       "Choose Add PDFs, or drop PDF files onto the page. Use the arrows to put them in the order you want.",
       "Open adds a document to the reader. Remove takes it out of the Thinkspace only; the file is never deleted.",
-      "A document can be in several Thinkspaces, and a Thinkspace can have ThinkerTex writing projects too."
+      "A document can be in several Thinkspaces, and a Thinkspace can have ThinkerTex writing projects too.",
+      "Ask the chat beside the documents anything across all of them. Citations such as [Safety Bulletin, p. 2] are buttons that open that PDF at that page.",
+      "Ask for a table, timeline, flashcards or a study guide and the answer appears as a styled card. Open it larger, copy it, or save it as an HTML file. A dashed reference means it could not be checked against the sources."
     ],
     tip: "Deleting a Thinkspace never deletes your PDFs or your writing."
   },

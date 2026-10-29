@@ -143,7 +143,7 @@ export function createSpaceChat(root, { api = window.electronAPI, space, openPdf
   }
 
   function renderEntry(entry) {
-    if (entry.role === "assistant" && /<artifact/i.test(entry.text)) {
+    if (entry.role === "assistant" && /<artifact\b/i.test(entry.text)) {
       // a reply may mix plain text with one or more artifacts, shown in order
       const wrap = el("div", "sc-artifact-reply");
       for (const part of splitArtifacts(entry.text)) {
