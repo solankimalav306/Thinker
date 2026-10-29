@@ -3,6 +3,8 @@
 import { getApiProfiles, getActiveApiProfileId } from "./state.js";
 import { friendlyAgentError, timeAgo, splitCitations } from "./chat-groups.js";
 import { ensureIndexed } from "./doc-index.js";
+import { splitArtifacts } from "./artifact-html.js";
+import { createArtifactView } from "./artifact-view.js";
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -103,7 +105,7 @@ export function createSpaceChat(root, { api = window.electronAPI, space, openPdf
   async function openConversation(id) {
     conversationId = id;
     const rows = await api.getConversationMessages(id);
-    entries = rows.map((r) => ({ role: r.role === "assistant" ? "assistant" : "user", text: r.text, ts: r.ts }));
+    entries = rows.map((r) => ({ role: r.role === "assistant" ? "assistant" : "user", text: r.text, ts: r.ts, sources: Array.isArray(r.sources) ? r.sources : [] }));
     renderAll();
     convoSelect.value = id;
   }
@@ -128,7 +130,7 @@ export function createSpaceChat(root, { api = window.electronAPI, space, openPdf
         : "Add PDFs to this Thinkspace, then ask questions that span them."));
       if (docs.length) {
         const ideas = el("div", "sc-ideas");
-        ["Summarise each document in one sentence.", "Where do these documents disagree?", "Which document covers this topic best?"].forEach((q) => {
+        ["Summarise each document in one sentence.", "Make a comparison table of the rules in each document.", "Where do these documents disagree?"].forEach((q) => {
           ideas.append(button(q, "ta-chip", "", () => { input.value = q; form.requestSubmit(); }));
         });
         box.append(ideas);
@@ -141,17 +143,39 @@ export function createSpaceChat(root, { api = window.electronAPI, space, openPdf
   }
 
   function renderEntry(entry) {
-    const bubble = el("div", `sc-msg ${entry.role}`);
-    if (entry.role === "assistant") {
-      for (const part of splitCitations(entry.text, docs)) {
-        if (part.cite) {
-          const chip = button(part.cite.label, "sc-cite", "", () => openPdfAt(part.cite.doc.path, part.cite.page), `Open ${part.cite.doc.title} at page ${part.cite.page}`);
-          bubble.append(chip);
-        } else appendFormatted(bubble, part.text);
+    if (entry.role === "assistant" && /<artifact/i.test(entry.text)) {
+      // a reply may mix plain text with one or more artifacts, shown in order
+      const wrap = el("div", "sc-artifact-reply");
+      for (const part of splitArtifacts(entry.text)) {
+        if (part.type === "artifact") {
+          wrap.append(createArtifactView({
+            title: part.title, html: part.html, complete: part.complete, sources: entry.sources || [],
+            onCite: ({ doc, page }) => { const d = docs.find((x) => x.title.toLowerCase() === doc.toLowerCase()); if (d) openPdfAt(d.path, page); },
+            onSave: (file) => api.saveTextFile({ defaultPath: `${file.title.replace(/[\\/:*?"<>|]+/g, "-")}.html`, content: file.content, filters: [{ name: "HTML page", extensions: ["html"] }] })
+          }));
+        } else {
+          const text = el("div", "sc-msg assistant");
+          renderText(text, part.text);
+          wrap.append(text);
+        }
       }
-    } else bubble.textContent = entry.text;
+      messages.append(wrap);
+      return wrap;
+    }
+    const bubble = el("div", `sc-msg ${entry.role}`);
+    if (entry.role === "assistant") renderText(bubble, entry.text);
+    else bubble.textContent = entry.text;
     messages.append(bubble);
     return bubble;
+  }
+
+  function renderText(bubble, text) {
+    for (const part of splitCitations(text, docs)) {
+      if (part.cite) {
+        const chip = button(part.cite.label, "sc-cite", "", () => openPdfAt(part.cite.doc.path, part.cite.page), `Open ${part.cite.doc.title} at page ${part.cite.page}`);
+        bubble.append(chip);
+      } else appendFormatted(bubble, part.text);
+    }
   }
 
   // ---- asking --------------------------------------------------------------------------------------
@@ -215,7 +239,7 @@ export function createSpaceChat(root, { api = window.electronAPI, space, openPdf
       const result = await api.invokeAgent({
         requestId, query: question, pdfId: key, storagePath,
         apiKey: p.key || "", apiFormat: p.format || "gemini", apiUrl: p.url || "", model: p.model, profile: p,
-        conversationId, mode, instructions, context: "", messages: entries.slice(-11, -1), parts: [], docs: ready.map((d) => ({ pdfId: d.pdfId, title: d.title }))
+        conversationId, mode, instructions, context: "", messages: entries.slice(-11, -1), parts: [], artifacts: true, docs: ready.map((d) => ({ pdfId: d.pdfId, title: d.title }))
       });
       waiting.remove();
       if (result.cancelled) { setStatus("Stopped."); return; }
@@ -223,7 +247,7 @@ export function createSpaceChat(root, { api = window.electronAPI, space, openPdf
       if (result.result?.error) throw new Error(result.result.error);
       const answer = result.result?.response_text || "";
       if (!answer.trim()) throw new Error("The AI did not send an answer.");
-      const reply = { role: "assistant", text: answer, ts: Date.now() };
+      const reply = { role: "assistant", text: answer, ts: Date.now(), sources: (result.result?.sources || []).map((s) => ({ doc: s.doc, page: s.page })) };
       entries.push(reply);
       renderEntry(reply);
       await api.appendConversationMessage(conversationId, reply);

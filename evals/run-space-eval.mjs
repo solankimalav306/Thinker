@@ -63,7 +63,7 @@ const ask = (q, mode) => ev(`(async () => {
     requestId: crypto.randomUUID(), query: ${JSON.stringify(q)}, pdfId: ${JSON.stringify(key)}, storagePath: ${JSON.stringify(setup.storagePath)},
     apiKey: ${JSON.stringify(setup.profile.key || '')}, apiFormat: ${JSON.stringify(setup.profile.format || 'gemini')}, apiUrl: ${JSON.stringify(setup.profile.url || '')},
     model: ${JSON.stringify(setup.profile.model)}, profile: ${JSON.stringify(setup.profile)}, conversationId: 'space-eval-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
-    mode: ${JSON.stringify(mode)}, instructions: [], context: '', messages: [], parts: [], docs: ${JSON.stringify(setup.docs)}
+    mode: ${JSON.stringify(mode)}, instructions: [], context: '', messages: [], parts: [], artifacts: true, docs: ${JSON.stringify(setup.docs)}
   });
   return { ...res, ms: Math.round(performance.now() - t0) };
 })()`);
@@ -84,12 +84,37 @@ function citedDocs(text) {
   return found;
 }
 
-function grade(q, text) {
+// Artifacts: asked-for ones must be there and well formed; plain questions must not turn into artifacts;
+// every citation inside must be one the answer was really given.
+function gradeArtifact(q, text, sources) {
   const problems = [];
+  const has = /<artifact\b/i.test(text);
+  if (q.expectArtifact && !has) problems.push('should have made an artifact');
+  if (!q.expectArtifact && has) problems.push('made an artifact for a plain question');
+  if (has) {
+    if (/<script\b/i.test(text)) problems.push('artifact contains a script');
+    if (/<(form|iframe|object|embed|link|meta)\b/i.test(text)) problems.push('artifact contains a forbidden element');
+    if (/https?:\/\//i.test(text.replace(/<artifact[^>]*>/i, ''))) problems.push('artifact points at an outside address');
+    const allowed = new Set((sources || []).map((s) => `${String(s.doc).toLowerCase()}|${s.page}`));
+    let cites = 0;
+    for (const m of text.matchAll(/data-cite="([^"]*)"/g)) {
+      cites += 1;
+      const at = m[1].lastIndexOf('|');
+      const key = at === -1 ? '' : `${m[1].slice(0, at).trim().toLowerCase()}|${parseInt(m[1].slice(at + 1), 10)}`;
+      if (!allowed.has(key)) problems.push(`invented citation: ${m[1]}`);
+    }
+    if (q.expectArtifact && cites === 0) problems.push('artifact has no citations');
+    if (q.artifactMatch && !new RegExp(q.artifactMatch, 'i').test(text)) problems.push(`artifact lacks /${q.artifactMatch}/`);
+  }
+  return problems;
+}
+
+function grade(q, text, sources) {
+  const problems = gradeArtifact(q, text, sources);
   for (const rx of q.must || []) if (!new RegExp(rx, 'i').test(text)) problems.push(`missing /${rx}/`);
   for (const rx of q.mustNot || []) if (new RegExp(rx, 'im').test(text)) problems.push(`forbidden /${rx}/`);
   if (q.refuse && !REFUSAL.test(text)) problems.push('should say the documents do not contain this');
-  const cited = citedDocs(text);
+  const cited = /<artifact\b/i.test(text) ? new Set() : citedDocs(text);
   for (const title of q.cites || []) if (!cited.has(title)) problems.push(`does not cite ${title}`);
   const wrong = q.onlyCites ? [...cited].filter((t) => !q.onlyCites.includes(t)) : [];
   if (wrong.length) problems.push(`cites the wrong document: ${wrong.join(', ')}`);
@@ -104,7 +129,7 @@ for (const q of spec.questions.filter((x) => !only || only.has(x.id))) {
     try { reply = await ask(q.q, mode); } catch (e) { reply = { ok: false, error: String(e.message || e) }; }
     const error = reply.ok ? reply.result?.error : reply.error;
     const text = reply.ok && !error ? reply.result.response_text || '' : '';
-    const g = error ? { correct: false, problems: [`request failed: ${error}`], cited: [], wrongAttribution: false } : grade(q, text);
+    const g = error ? { correct: false, problems: [`request failed: ${error}`], cited: [], wrongAttribution: false } : grade(q, text, reply.ok ? reply.result?.sources : []);
     results.push({ id: q.id, kind: q.kind, run, question: q.q, answer: text, ...g, ms: reply.ms });
     fs.mkdirSync(outDir, { recursive: true });
     fs.writeFileSync(path.join(outDir, 'space-eval-partial.json'), JSON.stringify({ results }, null, 2));

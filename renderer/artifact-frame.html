@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- Nothing here can reach the network or the app: no connections, no frames, no forms, images only as data. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src thinker-artifact:; style-src 'unsafe-inline'; img-src data:; font-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Artifact</title>
+</head>
+<body>
+<div id="root"></div>
+<script src="purify.min.js"></script>
+<script src="artifact-bridge.js"></script>
+</body>
+</html>

@@ -93,3 +93,17 @@ def test_the_prompt_asks_for_titled_citations_and_names_the_documents_in_refusal
     single = build_ask_prompt(context="[Page 3] text", question="q?", mode="document")
     assert "SEVERAL" not in single
     assert "in this document" in single
+
+
+def test_artifact_rules_only_appear_when_asked_for():
+    on = build_ask_prompt(context="c", question="q", artifacts=True, multi=True)
+    off = build_ask_prompt(context="c", question="q", multi=True)
+    assert "<artifact title=" in on and "data-cite" in on and "No <script>" in on
+    assert "<artifact" not in off
+
+
+def test_sources_list_what_may_be_cited_without_repeats():
+    from utils.sources import sources_from_hits
+    hits = [{"doc": "Manual", "page": 2}, {"doc": "Manual", "page": 2}, {"doc": "Bulletin", "page": "1"}, {"page": 5}, {"doc": "x", "page": "bad"}, None]
+    assert sources_from_hits(hits) == [{"doc": "Manual", "page": 2}, {"doc": "Bulletin", "page": 1}, {"doc": "", "page": 5}]
+    assert sources_from_hits(None) == []

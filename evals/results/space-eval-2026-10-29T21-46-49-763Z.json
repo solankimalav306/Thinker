@@ -1,0 +1,239 @@
+{
+  "summary": {
+    "model": "gemini-3.5-flash-lite",
+    "when": "2026-10-29T21:46:49.762Z",
+    "runs": 15,
+    "correct": 6,
+    "wrongAttributions": 1,
+    "byKind": {
+      "one-document": "1/2",
+      "only-in-one": "1/1",
+      "conflict": "0/1",
+      "which-document": "1/1",
+      "no-bleed": "1/2",
+      "unanswerable": "1/2",
+      "outside": "1/1",
+      "each-document": "0/1",
+      "compare": "0/1",
+      "artifact-table": "0/1",
+      "artifact-flashcards": "0/1",
+      "artifact-timeline": "0/1"
+    },
+    "medianMs": 5149,
+    "attributionChecked": 6
+  },
+  "results": [
+    {
+      "id": "S1",
+      "kind": "one-document",
+      "run": 1,
+      "question": "What is the muster time limit?",
+      "answer": "The documents disagree on the muster time limit: *Operations Manual 2023* does not specify a time limit, while *Safety Bulletin 2024* states that all crew must reach their muster station within 8 minutes of the alarm [Operations Manual 2023, page 2, Safety Bulletin 2024, page 2].",
+      "correct": false,
+      "problems": [
+        "forbidden /disagree|conflict|contradict/",
+        "does not cite Safety Bulletin 2024",
+        "cites the wrong document: Operations Manual 2023"
+      ],
+      "cited": [
+        "Operations Manual 2023"
+      ],
+      "wrongAttribution": true,
+      "ms": 5788
+    },
+    {
+      "id": "S2",
+      "kind": "only-in-one",
+      "run": 1,
+      "question": "Is a pilot required for a 180 metre vessel?",
+      "answer": "Yes, pilotage is mandatory for a 180-metre vessel because it is required for every vessel longer than 150 metres [Port Authority Handbook, page 2].",
+      "correct": true,
+      "problems": [],
+      "cited": [
+        "Port Authority Handbook"
+      ],
+      "wrongAttribution": false,
+      "ms": 5681
+    },
+    {
+      "id": "S3",
+      "kind": "conflict",
+      "run": 1,
+      "question": "How often are lifeboat drills held according to each document?",
+      "answer": "Here is a comparison of how often lifeboat drills are held according to each document.\n\n<artifact title=\"Lifeboat Drill Frequencies\">\n<div class=\"tk-card\">\n  <table class=\"tk-table\">\n    <thead>\n      <tr>\n        <th>Document</th>\n        <th>Lifeboat Drill Frequency</th>\n      </tr>\n    </thead>\n    <tbody>\n      <tr>\n        <td>Safety Bulletin 2024</td>\n        <td>Every 14 days <a class=\"tk-cite\" data-cite=\"Safety Bulletin 2024|2\">Safety Bulletin 2024, page 2</a></td>\n      </tr>\n      <tr>\n        <td>Operations Manual 2023</td>\n        <td>Every 30 days <a class=\"tk-cite\" data-cite=\"Operations Manual 2023|2\">Operations Manual 2023, page 2</a></td>\n      </tr>\n    </tbody>\n  </table>\n</div>\n</artifact>",
+      "correct": false,
+      "problems": [
+        "made an artifact for a plain question",
+        "does not cite Operations Manual 2023",
+        "does not cite Safety Bulletin 2024"
+      ],
+      "cited": [],
+      "wrongAttribution": false,
+      "ms": 5794
+    },
+    {
+      "id": "S4",
+      "kind": "which-document",
+      "run": 1,
+      "question": "Which document mentions pilotage?",
+      "answer": "Pilotage is mentioned in the Port Authority Handbook [Port Authority Handbook, page 2].",
+      "correct": true,
+      "problems": [],
+      "cited": [
+        "Port Authority Handbook"
+      ],
+      "wrongAttribution": false,
+      "ms": 6008
+    },
+    {
+      "id": "S5",
+      "kind": "one-document",
+      "run": 1,
+      "question": "What is the port fee for a container ship, and where does it come from?",
+      "answer": "The port fee for a container ship is 12,400 EUR per call [Port Authority Handbook, page 2], and this information comes from the Port Authority Handbook [Port Authority Handbook, page 1].",
+      "correct": true,
+      "problems": [],
+      "cited": [
+        "Port Authority Handbook"
+      ],
+      "wrongAttribution": false,
+      "ms": 5798
+    },
+    {
+      "id": "S6",
+      "kind": "no-bleed",
+      "run": 1,
+      "question": "How many tonnes of fuel does a container ship burn per day at 14 knots?",
+      "answer": "At 14 knots, a container ship burns 42 tonnes of fuel per day [Operations Manual 2023, page 3].",
+      "correct": true,
+      "problems": [],
+      "cited": [
+        "Operations Manual 2023"
+      ],
+      "wrongAttribution": false,
+      "ms": 5764
+    },
+    {
+      "id": "S7",
+      "kind": "unanswerable",
+      "run": 1,
+      "question": "What do the documents say about ballast water treatment?",
+      "answer": "I couldn't find that in these documents.",
+      "correct": true,
+      "problems": [],
+      "cited": [],
+      "wrongAttribution": false,
+      "ms": 5562
+    },
+    {
+      "id": "S8",
+      "kind": "outside",
+      "run": 1,
+      "question": "What is the capital of France?",
+      "answer": "I couldn't find that in these documents.",
+      "correct": true,
+      "problems": [],
+      "cited": [],
+      "wrongAttribution": false,
+      "ms": 5149
+    },
+    {
+      "id": "S9",
+      "kind": "each-document",
+      "run": 1,
+      "question": "Summarise each document in one sentence.",
+      "answer": "",
+      "correct": false,
+      "problems": [
+        "request failed: Error calling model 'gemini-3.5-flash-lite' (RESOURCE_EXHAUSTED): 429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 15, model: gemini-3.5-flash-lite, description: Generate content requests per minute limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.\\nPlease retry in 23.540177385s.', 'status': 'RESOURCE_EXHAUSTED', 'details': [{'@type': 'type.googleapis.com/google.rpc.Help', 'links': [{'description': 'Learn more about Gemini API quotas', 'url': 'https://ai.google.dev/gemini-api/docs/rate-limits'}]}, {'@type': 'type.googleapis.com/google.rpc.QuotaFailure', 'violations': [{'description': 'Generate content requests per minute limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.', 'quotaMetric': 'generativelanguage.googleapis.com/generate_content_free_tier_requests', 'quotaId': 'GenerateRequestsPerMinutePerProjectPerModel-FreeTier', 'quotaDimensions': {'location': 'global', 'model': 'gemini-3.5-flash-lite'}, 'quotaValue': '15'}]}, {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '23s'}]}}"
+      ],
+      "cited": [],
+      "wrongAttribution": false,
+      "ms": 2296
+    },
+    {
+      "id": "S10",
+      "kind": "compare",
+      "run": 1,
+      "question": "Where do the Operations Manual and the Safety Bulletin disagree?",
+      "answer": "",
+      "correct": false,
+      "problems": [
+        "request failed: Error calling model 'gemini-3.5-flash-lite' (RESOURCE_EXHAUSTED): 429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 15, model: gemini-3.5-flash-lite, description: Generate content requests per minute limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.\\nPlease retry in 21.482796975s.', 'status': 'RESOURCE_EXHAUSTED', 'details': [{'@type': 'type.googleapis.com/google.rpc.Help', 'links': [{'description': 'Learn more about Gemini API quotas', 'url': 'https://ai.google.dev/gemini-api/docs/rate-limits'}]}, {'@type': 'type.googleapis.com/google.rpc.QuotaFailure', 'violations': [{'description': 'Generate content requests per minute limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.', 'quotaMetric': 'generativelanguage.googleapis.com/generate_content_free_tier_requests', 'quotaId': 'GenerateRequestsPerMinutePerProjectPerModel-FreeTier', 'quotaDimensions': {'location': 'global', 'model': 'gemini-3.5-flash-lite'}, 'quotaValue': '15'}]}, {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '21s'}]}}"
+      ],
+      "cited": [],
+      "wrongAttribution": false,
+      "ms": 2054
+    },
+    {
+      "id": "S11",
+      "kind": "no-bleed",
+      "run": 1,
+      "question": "How often are fire extinguishers inspected now?",
+      "answer": "",
+      "correct": false,
+      "problems": [
+        "request failed: Error calling model 'gemini-3.5-flash-lite' (RESOURCE_EXHAUSTED): 429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 15, model: gemini-3.5-flash-lite, description: Generate content requests per minute limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.\\nPlease retry in 19.422051332s.', 'status': 'RESOURCE_EXHAUSTED', 'details': [{'@type': 'type.googleapis.com/google.rpc.Help', 'links': [{'description': 'Learn more about Gemini API quotas', 'url': 'https://ai.google.dev/gemini-api/docs/rate-limits'}]}, {'@type': 'type.googleapis.com/google.rpc.QuotaFailure', 'violations': [{'description': 'Generate content requests per minute limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.', 'quotaMetric': 'generativelanguage.googleapis.com/generate_content_free_tier_requests', 'quotaId': 'GenerateRequestsPerMinutePerProjectPerModel-FreeTier', 'quotaDimensions': {'location': 'global', 'model': 'gemini-3.5-flash-lite'}, 'quotaValue': '15'}]}, {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '19s'}]}}"
+      ],
+      "cited": [],
+      "wrongAttribution": false,
+      "ms": 2060
+    },
+    {
+      "id": "S12",
+      "kind": "unanswerable",
+      "run": 1,
+      "question": "What is the port fee at Singapore?",
+      "answer": "",
+      "correct": false,
+      "problems": [
+        "request failed: Error calling model 'gemini-3.5-flash-lite' (RESOURCE_EXHAUSTED): 429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 15, model: gemini-3.5-flash-lite, description: Generate content requests per minute limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.\\nPlease retry in 17.110458879s.', 'status': 'RESOURCE_EXHAUSTED', 'details': [{'@type': 'type.googleapis.com/google.rpc.Help', 'links': [{'description': 'Learn more about Gemini API quotas', 'url': 'https://ai.google.dev/gemini-api/docs/rate-limits'}]}, {'@type': 'type.googleapis.com/google.rpc.QuotaFailure', 'violations': [{'description': 'Generate content requests per minute limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.', 'quotaMetric': 'generativelanguage.googleapis.com/generate_content_free_tier_requests', 'quotaId': 'GenerateRequestsPerMinutePerProjectPerModel-FreeTier', 'quotaDimensions': {'location': 'global', 'model': 'gemini-3.5-flash-lite'}, 'quotaValue': '15'}]}, {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '17s'}]}}"
+      ],
+      "cited": [],
+      "wrongAttribution": false,
+      "ms": 2316
+    },
+    {
+      "id": "S13",
+      "kind": "artifact-table",
+      "run": 1,
+      "question": "Make a comparison table of the lifeboat drill and muster rules in each document.",
+      "answer": "",
+      "correct": false,
+      "problems": [
+        "request failed: Error calling model 'gemini-3.5-flash-lite' (RESOURCE_EXHAUSTED): 429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 15, model: gemini-3.5-flash-lite, description: Generate content requests per minute limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.\\nPlease retry in 14.997044076s.', 'status': 'RESOURCE_EXHAUSTED', 'details': [{'@type': 'type.googleapis.com/google.rpc.Help', 'links': [{'description': 'Learn more about Gemini API quotas', 'url': 'https://ai.google.dev/gemini-api/docs/rate-limits'}]}, {'@type': 'type.googleapis.com/google.rpc.QuotaFailure', 'violations': [{'description': 'Generate content requests per minute limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.', 'quotaMetric': 'generativelanguage.googleapis.com/generate_content_free_tier_requests', 'quotaId': 'GenerateRequestsPerMinutePerProjectPerModel-FreeTier', 'quotaDimensions': {'location': 'global', 'model': 'gemini-3.5-flash-lite'}, 'quotaValue': '15'}]}, {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '14s'}]}}"
+      ],
+      "cited": [],
+      "wrongAttribution": false,
+      "ms": 2107
+    },
+    {
+      "id": "S14",
+      "kind": "artifact-flashcards",
+      "run": 1,
+      "question": "Create flashcards from the Safety Bulletin 2024.",
+      "answer": "",
+      "correct": false,
+      "problems": [
+        "request failed: Error calling model 'gemini-3.5-flash-lite' (RESOURCE_EXHAUSTED): 429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 15, model: gemini-3.5-flash-lite, description: Generate content requests per minute limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.\\nPlease retry in 12.993413116s.', 'status': 'RESOURCE_EXHAUSTED', 'details': [{'@type': 'type.googleapis.com/google.rpc.Help', 'links': [{'description': 'Learn more about Gemini API quotas', 'url': 'https://ai.google.dev/gemini-api/docs/rate-limits'}]}, {'@type': 'type.googleapis.com/google.rpc.QuotaFailure', 'violations': [{'description': 'Generate content requests per minute limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.', 'quotaMetric': 'generativelanguage.googleapis.com/generate_content_free_tier_requests', 'quotaId': 'GenerateRequestsPerMinutePerProjectPerModel-FreeTier', 'quotaDimensions': {'location': 'global', 'model': 'gemini-3.5-flash-lite'}, 'quotaValue': '15'}]}, {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '12s'}]}}"
+      ],
+      "cited": [],
+      "wrongAttribution": false,
+      "ms": 1999
+    },
+    {
+      "id": "S15",
+      "kind": "artifact-timeline",
+      "run": 1,
+      "question": "Make a timeline of what changed between the Operations Manual 2023 and the Safety Bulletin 2024.",
+      "answer": "",
+      "correct": false,
+      "problems": [
+        "request failed: Error calling model 'gemini-3.5-flash-lite' (RESOURCE_EXHAUSTED): 429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 15, model: gemini-3.5-flash-lite, description: Generate content requests per minute limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.\\nPlease retry in 10.601273926s.', 'status': 'RESOURCE_EXHAUSTED', 'details': [{'@type': 'type.googleapis.com/google.rpc.Help', 'links': [{'description': 'Learn more about Gemini API quotas', 'url': 'https://ai.google.dev/gemini-api/docs/rate-limits'}]}, {'@type': 'type.googleapis.com/google.rpc.QuotaFailure', 'violations': [{'description': 'Generate content requests per minute limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.', 'quotaMetric': 'generativelanguage.googleapis.com/generate_content_free_tier_requests', 'quotaId': 'GenerateRequestsPerMinutePerProjectPerModel-FreeTier', 'quotaDimensions': {'location': 'global', 'model': 'gemini-3.5-flash-lite'}, 'quotaValue': '15'}]}, {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '10s'}]}}"
+      ],
+      "cited": [],
+      "wrongAttribution": false,
+      "ms": 2425
+    }
+  ]
+}

@@ -48,6 +48,7 @@
       "workspaces.js",
       "tex-log.js",
       "tex-compile.js",
+      "artifact-protocol.js",
       "tex-service.js",
       "tex-projects.js",
       "tex-templates.js",

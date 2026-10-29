@@ -10,6 +10,7 @@ from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 from services.retrieval import retrieval_service, pages_service, retrieval_multi
 from utils.page_refs import extract_page_refs
 from utils.intents import constrain_intent
+from utils.sources import sources_from_hits
 from services.dictionary import dictionary_service
 from duckduckgo_search import DDGS
 import concurrent.futures
@@ -153,6 +154,7 @@ class AgentState(TypedDict):
     mode: str          # "auto" | "document"
     instructions: List[Dict]   # layered user instructions
     docs: List[Dict]   # a Thinkspace chat: [{pdfId, title}] searched together
+    artifacts: bool    # the reply may be a styled HTML artifact
 
 # Per-request token accumulator (reset at start of invoke_agent)
 _token_session = {"calls": [], "totals": {"input": 0, "output": 0, "context": 0, "history": 0, "selected_text": 0, "prompt": 0}}
@@ -609,6 +611,7 @@ def ask_node(state: AgentState):
         mode=state.get("mode"),
         instructions=state.get("instructions"),
         multi=bool(state.get("docs")),
+        artifacts=bool(state.get("artifacts")),
     )
     
     content = [{"type": "text", "text": prompt}]
@@ -1322,6 +1325,7 @@ def invoke_agent(query_data: dict):
         "mode": normalize_mode(query_data.get("mode")),
         "instructions": query_data.get("instructions") or [],
         "docs": [d for d in (query_data.get("docs") or []) if isinstance(d, dict) and d.get("pdfId")][:12],
+        "artifacts": bool(query_data.get("artifacts")),
     }
 
     print(f"[invoke_agent] Provider: format={api_format}, url={api_url or '(default)'}, model={model}", flush=True)
@@ -1342,6 +1346,7 @@ def invoke_agent(query_data: dict):
         "actions": final_state["actions"],
         "glossary_terms": final_state["glossary_terms"],
         "evaluation": final_state.get("evaluation", {}),
+        "sources": sources_from_hits(final_state.get("rag_hits")),
         "cache_summary": final_state.get("cache_summary", ""),
         "usage": {
             "profile_id": profile_id,

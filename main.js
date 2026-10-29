@@ -1,4 +1,6 @@
-const { app, BrowserWindow, ipcMain, dialog, Menu, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, shell, protocol } = require('electron');
+const artifactProtocol = require('./artifact-protocol');
+artifactProtocol.registerScheme(protocol);
 const path = require('path');
 const { pathToFileURL } = require('url');
 const fs = require('fs');
@@ -877,6 +879,7 @@ if (!gotTheLock) {
 
   // ── App startup flow ─────────────────────────────────────────────────────────
   app.whenReady().then(async () => {
+    artifactProtocol.handleScheme(protocol, __dirname);
     // Hide application menu in production to prevent keyboard shortcut DevTools access
     if (app.isPackaged) {
       Menu.setApplicationMenu(null);
