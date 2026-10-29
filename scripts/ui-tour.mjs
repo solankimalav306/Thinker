@@ -5,7 +5,7 @@ import fs from 'fs';
 const [outDir, sizesArg = '1440x900,1280x800,1100x700,960x640', themesArg = 'dark,light', full = ''] = process.argv.slice(2);
 fs.mkdirSync(outDir, { recursive: true });
 
-const targets = await (await fetch('http://127.0.0.1:9222/json')).json();
+const targets = await (await fetch(`http://127.0.0.1:${process.env.CDP_PORT || 9222}/json`)).json();
 const page = targets.find((t) => t.url.includes('index.html'));
 const ws = new WebSocket(page.webSocketDebuggerUrl);
 await new Promise((r) => (ws.onopen = r));

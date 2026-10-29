@@ -27,6 +27,7 @@ if (!page) { console.error('The app window did not appear on port 9222.'); proce
 const baseUrl = page.url.split('?')[0];
 const ws = new WebSocket(page.webSocketDebuggerUrl);
 await new Promise((r) => (ws.onopen = r));
+ws.onclose = () => { console.error('Lost the connection to the app.'); process.exit(3); };
 let id = 0;
 const pending = new Map();
 ws.onmessage = (m) => { const msg = JSON.parse(m.data); if (msg.id && pending.has(msg.id)) { pending.get(msg.id)(msg.result); pending.delete(msg.id); } };
@@ -97,6 +98,8 @@ for (const q of list) {
     const g = reply.ok && !backendError ? grade(q, text) : { correct: false, problems: [`request failed: ${backendError}`], cited: [], citeOk: null };
     const retrievalHit = (q.pages || []).length === 0 || !hits ? null : q.pages.some((p) => hits.includes(p));
     results.push({ id: q.id, kind: q.kind, run, mode, question: q.q, answer: text, intent: reply.result?.intent, error: backendError || null, correct: g.correct, problems: g.problems, cited: g.cited, citeOk: g.citeOk, retrievedPages: hits, retrievalHit, ms: reply.result ? reply.ms : null, tokens: reply.result?.usage?.total_tokens ?? null });
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(path.join(outDir, 'eval-partial.json'), JSON.stringify({ results }, null, 2));
     console.log(`${g.correct ? 'PASS' : 'FAIL'}  ${q.id.padEnd(3)} ${q.kind.padEnd(16)} ${reply.ms ?? ''}ms${g.correct ? '' : '  -> ' + g.problems.join('; ')}`);
   }
 }
@@ -116,5 +119,6 @@ fs.mkdirSync(outDir, { recursive: true });
 const stamp = new Date().toISOString().replace(/[:.]/g, '-');
 fs.writeFileSync(path.join(outDir, `eval-${stamp}.json`), JSON.stringify({ summary, results }, null, 2));
 console.log('\n' + JSON.stringify(summary, null, 2));
+ws.onclose = null;
 ws.close();
 process.exit(0);

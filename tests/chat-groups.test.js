@@ -44,3 +44,15 @@ test('friendly times', async () => {
   assert.strictEqual(messageCountLabel(0), '0 messages');
   assert.strictEqual(messageCountLabel(5), '5 messages');
 });
+
+test('provider errors become one plain sentence with a next step', async () => {
+  const { friendlyAgentError } = await import('../renderer/js/chat-groups.js');
+  assert.match(friendlyAgentError("504 DEADLINE_EXCEEDED. {'error': {'code': 504}}"), /took too long/);
+  assert.match(friendlyAgentError('503 UNAVAILABLE: model overloaded'), /busy/);
+  assert.match(friendlyAgentError('429 RESOURCE_EXHAUSTED quota'), /usage limit/);
+  assert.match(friendlyAgentError('API key not valid. Please pass a valid API key.'), /rejected your key/);
+  assert.match(friendlyAgentError('404 model gemini-2.5-flash-lite is no longer available'), /not available any more/);
+  assert.match(friendlyAgentError('getaddrinfo ENOTFOUND generativelanguage.googleapis.com'), /could not reach/);
+  assert.match(friendlyAgentError(''), /did not send an answer/);
+  assert.match(friendlyAgentError('something odd'), /^The AI request failed: something odd/);
+});

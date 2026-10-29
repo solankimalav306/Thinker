@@ -29,3 +29,14 @@ def retrieval_service(data):
             results.append(metadata[i])
 
     return {"chunks": results}
+
+def pages_service(data):
+    """Chunks of whole pages, for questions that name a page."""
+    pdf_id = data["pdfId"]
+    storage = data["storagePath"]
+    wanted = set(int(p) for p in data.get("pages", []))
+    meta_path = os.path.join(storage, f"{pdf_id}.json")
+    if not wanted or not os.path.exists(meta_path):
+        return {"chunks": []}
+    metadata = load_metadata(meta_path)
+    return {"chunks": [m for m in metadata if m.get("page") in wanted]}

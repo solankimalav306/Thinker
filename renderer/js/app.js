@@ -2065,6 +2065,31 @@ async function boot() {
   elements.pageNumEl.addEventListener("focus", () => elements.pageNumEl.select?.());
   elements.pageNumEl.addEventListener("blur", () => pdf.updateControls());
 
+  // Drop PDF files anywhere on the window to open them.
+  const hasFiles = (event) => Array.from(event.dataTransfer?.types || []).includes("Files");
+  document.addEventListener("dragover", (event) => {
+    if (!hasFiles(event)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    document.body.classList.add("file-drag");
+  });
+  document.addEventListener("dragleave", (event) => {
+    if (!event.relatedTarget) document.body.classList.remove("file-drag");
+  });
+  document.addEventListener("drop", async (event) => {
+    if (!hasFiles(event)) return;
+    event.preventDefault();
+    document.body.classList.remove("file-drag");
+    for (const file of Array.from(event.dataTransfer.files)) {
+      if (!/\.pdf$/i.test(file.name)) {
+        setStatus(`"${file.name}" is not a PDF, so Thinker can't open it.`);
+        continue;
+      }
+      const filePath = window.electronAPI.getPathForFile(file);
+      if (filePath) await openTab(filePath);
+    }
+  });
+
   // Allow dropping on the empty space of the tab container to append
   elements.pdfTabs.addEventListener("dragover", (e) => {
     e.preventDefault();

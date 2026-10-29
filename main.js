@@ -1,5 +1,6 @@
 const { app, BrowserWindow, ipcMain, dialog, Menu, shell } = require('electron');
 const path = require('path');
+const { pathToFileURL } = require('url');
 const fs = require('fs');
 const fsPromises = require('fs/promises');
 const crypto = require('crypto');
@@ -756,6 +757,13 @@ function registerIpcHandlers() {
 
 // Global security lockdown: block DevTools globally in production for all windows
 app.on('web-contents-created', (event, contents) => {
+  // A file dropped on the window, or a stray link, must never replace the app with another page.
+  const appPages = pathToFileURL(path.join(__dirname, 'renderer')).href;
+  contents.on('will-navigate', (navEvent, url) => {
+    if (!url.startsWith(appPages)) navEvent.preventDefault();
+  });
+  contents.setWindowOpenHandler(() => ({ action: 'deny' }));
+
   if (app.isPackaged) {
     contents.on('before-input-event', (e, input) => {
       if (

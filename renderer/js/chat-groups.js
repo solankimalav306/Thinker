@@ -50,3 +50,28 @@ export function messageCountLabel(count) {
   const n = Number(count) || 0;
   return n === 1 ? "1 message" : `${n} messages`;
 }
+
+// Turns what a model provider or the backend threw into one plain sentence, with the next step.
+export function friendlyAgentError(raw) {
+  const text = String(raw || "").trim();
+  if (!text) return "The AI did not send an answer. Please try again.";
+  if (/api key (not valid|could not be unlocked)|API_KEY_INVALID|\b(401|403)\b|permission.?denied|unauthori[sz]ed/i.test(text)) {
+    return "The AI service rejected your key. Open Settings, check the key for this model, and try again.";
+  }
+  if (/\b429\b|RESOURCE_EXHAUSTED|quota|rate.?limit|too many requests/i.test(text)) {
+    return "You have hit the usage limit for this model. Wait a minute, or pick another model in the chat box.";
+  }
+  if (/\b404\b|NOT_FOUND|model.*(not found|does not exist|no longer)/i.test(text)) {
+    return "This model is not available any more. Choose another model in Settings.";
+  }
+  if (/\b(500|502|503)\b|UNAVAILABLE|overloaded|high demand|internal error/i.test(text)) {
+    return "The AI service is busy right now. Please try again in a moment.";
+  }
+  if (/\b504\b|DEADLINE_EXCEEDED|timed? ?out|took too long|ECONNABORTED/i.test(text)) {
+    return "The AI service took too long to answer. Please try again.";
+  }
+  if (/ENOTFOUND|ECONNREFUSED|ECONNRESET|network|offline|fetch failed/i.test(text)) {
+    return "Thinker could not reach the AI service. Check your internet connection, or that your local model is running.";
+  }
+  return `The AI request failed: ${text.slice(0, 200)}`;
+}

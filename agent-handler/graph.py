@@ -7,7 +7,8 @@ from typing import Annotated, Dict, List, TypedDict, Union, Literal
 from langgraph.graph import StateGraph, END
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
-from services.retrieval import retrieval_service
+from services.retrieval import retrieval_service, pages_service
+from utils.page_refs import extract_page_refs
 from services.dictionary import dictionary_service
 from duckduckgo_search import DDGS
 import concurrent.futures
@@ -535,6 +536,17 @@ Return ONLY the intent label (one of: ask, define, highlight, note, mindmap, sea
     })
 
     hits = rag_res.get("chunks", []) if isinstance(rag_res, dict) else []
+
+    # A question that names a page ("summarise page 10") is answered from that page, not from whatever
+    # happens to be closest in meaning.
+    named = extract_page_refs(state["user_query"])
+    if named:
+        named_res = pages_service({"pdfId": state["pdf_id"], "storagePath": state["storage_path"], "pages": named})
+        named_hits = named_res.get("chunks", []) if isinstance(named_res, dict) else []
+        if named_hits:
+            seen = {(h.get("page"), h.get("text")) for h in named_hits}
+            hits = named_hits + [h for h in hits if (h.get("page"), h.get("text")) not in seen]
+
     chunks = []
     for hit in hits:
         page = hit.get("page", "?")

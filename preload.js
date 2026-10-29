@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
   openPDF: () => ipcRenderer.invoke('dialog:openPDF'),
@@ -23,6 +23,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getGlossaryTerms: () => ipcRenderer.invoke('glossary:get'),
 
   openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
+  // The real path of a file dropped onto the window (File.path no longer exists in current Electron).
+  getPathForFile: (file) => { try { return webUtils.getPathForFile(file) || ''; } catch { return ''; } },
   setTitleBarTheme: (theme) => ipcRenderer.invoke('theme:set', theme),
 
   // Settings registry

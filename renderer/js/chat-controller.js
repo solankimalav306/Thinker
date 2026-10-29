@@ -1,6 +1,6 @@
 import { recordTokenUsage, updateTokenTracker } from "./token-usage.js";
 import { escapeHtml, renderMarkdown } from "./safe-html.js";
-import { groupConversations, timeAgo, messageCountLabel } from "./chat-groups.js";
+import { groupConversations, timeAgo, messageCountLabel, friendlyAgentError } from "./chat-groups.js";
 
 const DEFAULT_CHAT_MODEL = "gemini-3.5-flash-lite";
 
@@ -828,6 +828,8 @@ export class ChatController {
       }
 
       const agentRes = res.result;
+      // The backend reports a failed model call as {error: "..."} with a normal status; never show that as an empty answer.
+      if (agentRes?.error) throw new Error(agentRes.error);
       console.debug('Agent result actions:', agentRes.actions);
       console.debug('Agent raw response_text:', agentRes.response_text);
 
@@ -899,7 +901,7 @@ export class ChatController {
       console.error(error);
       clearInterval(ticker);
       document.getElementById(typingId)?.remove();
-      if (stillOpen()) this.appendMessage("Bot", `Agent request failed: ${error?.message || "Unknown error"}`);
+      if (stillOpen()) this.appendMessage("Bot", friendlyAgentError(error?.message));
       this.onStatus("Agent request failed.");
     } finally {
       clearInterval(ticker);

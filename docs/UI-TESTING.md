@@ -37,3 +37,16 @@ It checks that the welcome tour starts by itself once, every step's card stays f
 off its own target, keyboard focus lands on Next, Escape skips, the reader nudge appears once, the
 Get started checklist ticks itself off, and Help renders without sideways scrolling. Run it at the
 normal and the minimum window size (`1280x800` and `960x620`).
+
+## Choosing the app instance, and the other scripts
+
+All scripts in `scripts/` read `CDP_PORT` (default 9222), so two copies of the app can be tested at once,
+for example `CDP_PORT=9223 node scripts/ui-stress.mjs <out> <fixtures>`. Give each copy its own
+`--user-data-dir` and `--remote-debugging-port`.
+
+`evals/` holds the chat accuracy evaluation (`run-eval.mjs`, `questions.json`, and the document it
+asks about, built by `scripts/make-eval-corpus.js`). See `docs/CHAT-EVAL.md`.
+
+The page-viewer behaviours (marks, notes, undo, eraser, selection across pages, snip, page tracking,
+pinch zoom and the keyboard shortcuts in single, two-page and continuous view) were verified with
+scripted mouse, wheel and key events; the pure parts are unit tested in `tests/page-geometry.test.js`.

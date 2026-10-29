@@ -559,3 +559,21 @@
   font-size: var(--text-sm);
   resize: vertical;
 }
+
+/* ---------- Dropping files onto the window ---------- */
+body.file-drag::after {
+  content: "Drop a PDF to open it";
+  position: fixed;
+  inset: var(--space-3);
+  z-index: 7000;
+  display: grid;
+  place-items: center;
+  border: 3px dashed var(--primary);
+  border-radius: var(--radius-xl);
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 700;
+  pointer-events: none;
+}

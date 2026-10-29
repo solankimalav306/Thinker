@@ -9,7 +9,7 @@ fs.mkdirSync(outDir, { recursive: true });
 const sections = new Set(sectionsArg.split(','));
 
 // ------------------------------------------------------------------ connection
-const targets = await (await fetch('http://127.0.0.1:9222/json')).json();
+const targets = await (await fetch(`http://127.0.0.1:${process.env.CDP_PORT || 9222}/json`)).json();
 const page = targets.find((t) => t.url.includes('index.html'));
 const baseUrl = page.url.split('?')[0];
 const ws = new WebSocket(page.webSocketDebuggerUrl);
