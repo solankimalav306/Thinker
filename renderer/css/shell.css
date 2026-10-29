@@ -553,3 +553,14 @@
   outline: none;
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 25%, transparent);
 }
+
+/* Very short windows: icons only, labels stay available as tooltips. */
+@media (max-height: 700px) {
+  .activity-btn {
+    min-height: 36px;
+  }
+
+  .activity-btn span {
+    display: none;
+  }
+}
