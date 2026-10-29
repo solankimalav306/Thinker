@@ -599,3 +599,33 @@
   background: var(--accent-soft);
   color: var(--accent-text);
 }
+
+/* the toolbar is crowded beside an open chat: the Ask button keeps only its icon until there is room */
+@media (max-width: 1700px) {
+  #nav-chat .btn-label {
+    display: none;
+  }
+}
+
+@media (max-width: 1500px) {
+  #save-annotations-btn .btn-label {
+    display: none;
+  }
+
+  .toolbar-center {
+    gap: var(--space-2);
+  }
+
+  .tool-group + .tool-group {
+    padding-left: var(--space-2);
+  }
+
+  .page-info {
+    min-width: 0;
+    padding: 0 var(--space-1);
+  }
+
+  #zoom-percent {
+    width: 56px;
+  }
+}

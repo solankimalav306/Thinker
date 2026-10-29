@@ -33,9 +33,23 @@ export const GUIDES = [
       "Open adds a document to the reader. Remove takes it out of the Thinkspace only; the file is never deleted.",
       "A document can be in several Thinkspaces, and a Thinkspace can have ThinkerTex writing projects too.",
       "Ask the chat beside the documents anything across all of them. Citations such as [Safety Bulletin, p. 2] are buttons that open that PDF at that page.",
-      "Ask for a table, timeline, flashcards or a study guide and the answer appears as a styled card. Open it larger, copy it, or save it as an HTML file. A dashed reference means it could not be checked against the sources."
+      "Ask for a table, timeline, flashcards or a study guide and the answer appears as a styled card. Open it larger, copy it, or export it. A dashed reference means it could not be checked against the sources."
     ],
     tip: "Deleting a Thinkspace never deletes your PDFs or your writing."
+  },
+  {
+    id: "artifacts",
+    icon: "fa-shapes",
+    title: "Keep tables, charts and slides as Artifacts",
+    summary: "Ask in a chat for a table, chart, timeline, flashcards, slides or a one-page summary, then keep it and take it with you.",
+    steps: [
+      "Ask for it by name in the reader chat or in a Thinkspace chat, for example: Make a comparison table, or Make slides from this.",
+      "The answer appears as a card marked AI-generated. Citations on it open the PDF at that page.",
+      "Press the bookmark on the card to keep it. Kept artifacts live under Artifacts on the left, apart from the chat they came from.",
+      "There you can search, filter by kind, rename, link to a Thinkspace, or delete.",
+      "Press the download icon to export as an HTML page, PDF, PNG image, Word document or PowerPoint. A deck also has a Present button: arrow keys move between slides and Escape ends it."
+    ],
+    tip: "Charts and slides are drawn from the document, but check the numbers: a model can still get one wrong."
   },
   {
     id: "tex",

@@ -1,7 +1,7 @@
 {
   "name": "thinker",
   "productName": "Thinker",
-  "version": "3.0.1",
+  "version": "3.1.0",
   "description": "AI-Powered PDF Reader",
   "main": "main.js",
   "scripts": {
@@ -59,8 +59,7 @@
       "llm-handler.js",
       "renderer/**/*",
       "!renderer/sample.pdf",
-      "!renderer/sample2.pdf",
-      "node_modules/**/*"
+      "!renderer/sample2.pdf"
     ],
     "extraResources": [
       {
@@ -95,11 +94,6 @@
     }
   },
   "devDependencies": {
-    "electron": "^36.2.1",
-    "electron-builder": "^26.0.12",
-    "esbuild": "^0.28.2"
-  },
-  "dependencies": {
     "@codemirror/autocomplete": "^6.20.4",
     "@codemirror/commands": "^6.11.1",
     "@codemirror/language": "^6.13.1",
@@ -113,16 +107,21 @@
     "@fontsource/space-grotesk": "^5.3.0",
     "@fortawesome/fontawesome-free": "^7.3.1",
     "@lezer/highlight": "^1.2.5",
-    "axios": "^1.15.2",
     "d3": "^7.8.5",
-    "docx": "^9.5.1",
     "dompurify": "^3.4.17",
+    "electron": "^36.2.1",
+    "electron-builder": "^26.0.12",
+    "esbuild": "^0.28.2",
     "katex": "^0.19.1",
     "marked": "^11.1.1",
     "markmap-view": "^0.16.0",
     "mermaid": "^11.14.0",
+    "pdfjs-dist": "^3.11.174"
+  },
+  "dependencies": {
+    "axios": "^1.15.2",
+    "docx": "^9.5.1",
     "pdf-lib": "^1.17.1",
-    "pdfjs-dist": "^3.11.174",
     "pptxgenjs": "^3.12.0"
   }
 }

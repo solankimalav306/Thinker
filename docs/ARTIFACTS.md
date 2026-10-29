@@ -4,8 +4,7 @@ When you ask for a table, timeline, flashcards, study guide or diagram, the agen
 styled document (an **artifact**) instead of plain text. It is written as HTML and CSS, shown in the chat,
 can be opened larger, copied or saved as an HTML file, and every citation in it is checked.
 
-Phase 1 is in the **Thinkspace chat**. The single-PDF chat, saving artifacts into a Thinkspace, printing
-them to PDF and interactive artifacts come later.
+Artifacts work in the **Thinkspace chat** and the **single-PDF chat**. Interactive artifacts and saving an artifact into a Thinkspace as a PDF document come later.
 
 ## The Artifacts library (phase 2)
 - **Keep what you like**: the bookmark on a chat card saves the artifact on its own, apart from the chat, with the sources it
@@ -16,7 +15,11 @@ them to PDF and interactive artifacts come later.
 - **Kinds**: the model labels each artifact (`type="table|chart|slides|document|page"`), or the kind is guessed from the content.
   Charts are inline SVG or `tk-bar` rows, slides are 16:9 `tk-slide` cards, documents use `tk-doc`.
 - Stored in the database (migration 3, table `artifacts`), tests in `tests/artifacts.test.js`.
-- Not built yet: Present mode for slides, and export to PDF, PNG, Word and PowerPoint.
+- **Present** a deck (arrow keys, Escape) and **export** as HTML, PDF, PNG, Word (.docx) or PowerPoint (.pptx). PDF and PNG are drawn in a
+  hidden window with no scripts, no network and no preload. Word and PowerPoint are built in the main process from plain blocks
+  (`artifact-blocks.js` reads the cleaned HTML; `artifact-export.js` writes the file), never from the HTML itself.
+  Charts and any `<svg>` are exported as a picture. Citations are removed from exports.
+- The **single-PDF chat** now supports artifacts too; the open document's name is the title its citations use.
 
 ## Navigation
 The rail holds only the big tools: Home, Reader, Thinkspaces, ThinkerTex, Artifacts, then Help and Settings. The panels that
@@ -67,6 +70,6 @@ shown or hidden with the panel button in the toolbar, and chat is the Ask button
 - The free-tier model key limits roughly 7 questions per minute (each question uses two model calls); the evaluation is paced for that.
 
 ## Next
-1. The single-PDF chat. 2. Save an artifact into the Thinkspace as a document, and print it to PDF so it can be read and
-marked up. 3. "Make this a LaTeX document" and "Make slides from this Thinkspace" (hand an artifact or sources to ThinkerTex).
-4. Interactive artifacts (quizzes, calculators) in a second tier that you allow per message, still with no network.
+1. Save an artifact into the Thinkspace as a PDF document so it can be read and marked up.
+2. "Make this a LaTeX document" and "Make slides from this Thinkspace" (hand an artifact or sources to ThinkerTex).
+3. Interactive artifacts (quizzes, calculators) in a second tier that you allow per message, still with no network.

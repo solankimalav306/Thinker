@@ -152,14 +152,16 @@ if (before) await ev(`document.documentElement.setAttribute('data-theme', ${JSON
 check(light !== dark, 'artifacts follow the light and dark theme', `${light} / ${dark}`);
 
 // save and enlarge
-await ev(`document.querySelector('#art-test .art-btn[title="Save as an HTML file"]').click()`);
+await ev(`document.querySelector('#art-test .art-btn[title="Export"]').click()`);
+await sleep(200);
+await ev(`[...document.querySelectorAll('.art-menu-item')].find((b) => b.textContent.includes('HTML page')).click()`);
 await sleep(600);
-check((await ev(`window.__art.saved.length`)) === 1, 'Save as an HTML file hands over the document');
+check((await ev(`window.__art.saved.length`)) === 1, 'Export as an HTML page hands over the document');
 await ev(`document.querySelector('#art-test .art-btn[title="Open larger"]').click()`);
 await sleep(900);
 check(await ev(`!!document.querySelector('.art-overlay iframe')`), 'Open larger shows it in a big overlay');
 await ev(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
-await sleep(700);
+for (let i = 0; i < 15 && (await ev(`!!document.querySelector('.art-overlay')`)); i += 1) await sleep(200);
 check(!(await ev(`!!document.querySelector('.art-overlay')`)), 'Escape closes the overlay');
 
 await ev(`document.getElementById('art-test')?.remove()`);
