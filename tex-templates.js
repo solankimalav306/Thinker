@@ -10,7 +10,6 @@ const TEMPLATES = {
     files: {
       'main.tex': tex([
         b('documentclass[11pt]{article}'),
-        b('usepackage[utf8]{inputenc}'),
         b('usepackage{amsmath,amssymb}'),
         b('usepackage{booktabs}'),
         b('usepackage{graphicx}'),
@@ -58,7 +57,6 @@ const TEMPLATES = {
     files: {
       'main.tex': tex([
         b('documentclass[11pt]{report}'),
-        b('usepackage[utf8]{inputenc}'),
         b('usepackage{amsmath}'),
         b('usepackage{graphicx}'),
         b('usepackage[hidelinks]{hyperref}'),
@@ -121,7 +119,6 @@ const TEMPLATES = {
     files: {
       'main.tex': tex([
         b('documentclass{letter}'),
-        b('usepackage[utf8]{inputenc}'),
         b('signature{Your name}'),
         b('address{Your address ') + BS + BS + ' City}',
         '',

@@ -27,6 +27,7 @@ import { buildTours } from "./tours.js";
 import { createOnboarding, TASKS, progress, nextTask } from "./onboarding.js";
 import { renderHelp, openGuide } from "./help.js";
 import { createSpaces } from "./spaces.js";
+import { createTexStudio } from "./tex-studio.js";
 import { loadSettings, getSetting, setSetting, onSettingChange } from "./settings-registry.js";
 import { registerAllSettings } from "./settings-definitions.js";
 import { renderPreferences } from "./preferences-panel.js";
@@ -67,6 +68,9 @@ const elements = {
   navHome: document.getElementById("nav-home"),
   navReader: document.getElementById("nav-reader"),
   navSpaces: document.getElementById("nav-spaces"),
+  navTex: document.getElementById("nav-tex"),
+  texScreen: document.getElementById("tex-screen"),
+  texRoot: document.getElementById("tex-root"),
   spacesScreen: document.getElementById("spaces-screen"),
   spacesContent: document.getElementById("spaces-content"),
   spaceRow: document.getElementById("space-row"),
@@ -271,6 +275,7 @@ function syncLayoutToggles() {
   elements.settingsScreen.classList.toggle("visible", currentView === "settings");
   elements.helpScreen.classList.toggle("visible", currentView === "help");
   elements.spacesScreen.classList.toggle("visible", currentView === "spaces");
+  elements.texScreen.classList.toggle("visible", currentView === "tex");
   elements.readerLayout.classList.toggle("visible", isReader);
   elements.readerLayout.classList.toggle("sidebar-hidden", !showSidebar);
   elements.readerSidebar.classList.toggle("hidden", !showSidebar);
@@ -284,6 +289,7 @@ function syncLayoutToggles() {
   elements.navSettings.classList.toggle("active", currentView === "settings");
   elements.navHelp.classList.toggle("active", currentView === "help");
   elements.navSpaces.classList.toggle("active", currentView === "spaces");
+  elements.navTex.classList.toggle("active", currentView === "tex");
   elements.navOutline.classList.toggle("active", showSidebar && sidebarPanel === "outline");
   elements.navThumbs.classList.toggle("active", showSidebar && sidebarPanel === "thumbs");
   elements.navGlossary.classList.toggle("active", showSidebar && sidebarPanel === "glossary");
@@ -327,6 +333,12 @@ function showWelcome() {
   renderTabs();
   window.dispatchEvent(new CustomEvent("thinker:home-shown"));
   refreshTokenDashboard(elements, elements.tokenUsageProfileFilter?.value || "all");
+}
+
+function showTex() {
+  currentView = "tex";
+  syncLayoutToggles();
+  renderTabs();
 }
 
 function showSpaces() {
@@ -1563,13 +1575,18 @@ async function boot() {
   });
   elements.navHelp.addEventListener("click", showHelp);
 
+  // ThinkerTex
+  const texStudio = createTexStudio({ container: elements.texRoot, setStatus, go: showTex });
+  elements.navTex.addEventListener("click", () => texStudio.show());
+  document.addEventListener("visibilitychange", () => { if (document.hidden) texStudio.flush(); });
+
   // Thinkspaces
   const spaces = createSpaces({
     container: elements.spacesContent,
     homeRow: elements.spaceRow,
     openPdf: (path) => openTab(path),
-    openProject: () => setStatus("ThinkerTex projects open here in the next step."),
-    newProject: () => setStatus("ThinkerTex projects open here in the next step."),
+    openProject: (id) => texStudio.openProject(id),
+    newProject: (workspaceId) => texStudio.showNewProject(workspaceId),
     setStatus,
     go: showSpaces
   });

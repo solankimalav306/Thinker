@@ -216,6 +216,10 @@ export function createCodeEditor(parent, options = {}) {
         applyingExternal = false;
       }
     },
+    // Opens a different file: a fresh editor state, so undo can never carry one file's text into another.
+    reset(text) {
+      view.setState(EditorState.create({ doc: text || '', extensions }));
+    },
     getSelection() {
       const { from, to } = view.state.selection.main;
       return { from, to, text: view.state.sliceDoc(from, to) };

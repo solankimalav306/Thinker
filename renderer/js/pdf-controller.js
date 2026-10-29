@@ -186,13 +186,18 @@ export class PdfController {
     this.onStatus("Loading PDF...");
 
     try {
-      const task = pdfjsLib.getDocument({ url: toPdfSource(path), password: options.password });
+      // `options.data` opens a PDF from bytes (a ThinkerTex build), `options.light` skips the outline,
+      // thumbnails and chat indexing that a reading session needs.
+      const source = options.data ? { data: options.data } : { url: toPdfSource(path), password: options.password };
+      const task = pdfjsLib.getDocument(source);
       this.pdfDoc = await task.promise;
       this.teardownCards();
       this.scrollPageNodes.clear();
       this.scrollCards = [];
-      this.pendingAnchor = null;
-      this.pendingRatio = null;
+      if (!options.keepPosition) {
+        this.pendingAnchor = null;
+        this.pendingRatio = null;
+      }
       this.lastRenderedPage = 0;
       this.currentPath = path;
 
@@ -212,9 +217,11 @@ export class PdfController {
       this.updateControls();
       this.queueRender(this.pageNum);
 
-      this.buildOutline();
-      this.buildThumbnails();
-      this.startIndexing();
+      if (!options.light) {
+        this.buildOutline();
+        this.buildThumbnails();
+        this.startIndexing();
+      }
       this.observeStage();
       this.onStatus("PDF loaded.");
       return true;

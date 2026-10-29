@@ -21,6 +21,7 @@
   <link rel="stylesheet" href="css/overlays.css" />
   <link rel="stylesheet" href="css/help.css" />
   <link rel="stylesheet" href="css/spaces.css" />
+  <link rel="stylesheet" href="css/tex.css" />
   <link rel="stylesheet" href="css/pdf.css" />
   <link rel="stylesheet" href="vendor/pdfjs/pdf_viewer.min.css" />
   <script src="vendor/d3/d3.min.js"></script>
@@ -40,6 +41,7 @@
     <nav class="activity-bar" aria-label="Primary navigation">
       <button class="activity-btn active" id="nav-home" title="Home" aria-label="Home"><i class="fa-solid fa-house"></i><span>Home</span></button>
       <button class="activity-btn" id="nav-reader" title="Back to your document" aria-label="Reader"><i class="fa-solid fa-book-open"></i><span>Reader</span></button>
+      <button class="activity-btn" id="nav-tex" title="ThinkerTex: write LaTeX with a live preview" aria-label="ThinkerTex"><i class="fa-solid fa-pen-nib"></i><span>TeX</span></button>
       <button class="activity-btn" id="nav-spaces" title="Thinkspaces: PDFs and writing projects together" aria-label="Thinkspaces"><i class="fa-solid fa-layer-group"></i><span>Spaces</span></button>
       <div class="rail-divider"></div>
       <button class="activity-btn" id="nav-outline" data-needs-doc title="Contents" aria-label="Contents"><i class="fa-solid fa-list"></i><span>Contents</span></button>
@@ -282,6 +284,10 @@
             </div>
           </section>
         </div>
+      </section>
+
+      <section class="tex-screen" id="tex-screen">
+        <div id="tex-root"></div>
       </section>
 
       <section class="spaces-screen" id="spaces-screen">
