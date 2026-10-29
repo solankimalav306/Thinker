@@ -35,3 +35,5 @@ renderer/vendor/
 build-pyi/
 evals/last-run.log
 evals/results/eval-partial.json
+
+vendor/tectonic/

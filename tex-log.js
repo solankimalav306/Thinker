@@ -27,7 +27,7 @@ function parseLog(text, { mainFile = '' } = {}) {
   const add = (severity, file, line, message) => {
     const clean = String(message || '').trim().replace(/\s+/g, ' ');
     if (!clean) return;
-    const key = `${severity}|${file}|${line}|${clean}`;
+    const key = `${severity}|${file || mainFile}|${line}|${clean.replace(/[.\s]+$/, '').toLowerCase()}`;
     if (seen.has(key)) return;
     seen.add(key);
     problems.push({ severity, file: file || mainFile || '', line: line || null, message: clean, hint: friendly(clean) });
@@ -72,7 +72,11 @@ function parseLog(text, { mainFile = '' } = {}) {
     if (o) add('warning', '', Number(o[2]), raw);
   }
 
-  return problems;
+  // The engine adds generic lines around a real error ("something bad happened inside XeTeX");
+  // they say nothing a person can use, so they go once a specific error has been found.
+  const generic = /something bad happened inside XeTeX|the XeTeX engine had an unrecoverable error|^halted/i;
+  const specific = problems.some((p) => p.severity === 'error' && !generic.test(p.message));
+  return specific ? problems.filter((p) => !(p.severity === 'error' && generic.test(p.message))) : problems;
 }
 
 module.exports = { parseLog, friendly };

@@ -63,6 +63,10 @@
         "filter": [
           "**/*"
         ]
+      },
+      {
+        "from": "vendor/tectonic/tectonic.exe",
+        "to": "tectonic/tectonic.exe"
       }
     ],
     "win": {

@@ -129,6 +129,34 @@ templates (article, IEEE, ACM, beamer, a thesis class) and list what fails.
 - AI-written code runs under exactly the same rules as hand-written code.
 - In local-only mode, builds use `--only-cached` and never touch the network.
 
+## Spike results (2026-10-29, Windows 11, real engine)
+Engine: Tectonic 0.17.0+20260731 (x86_64 MSVC build from the project's "continuous" release; the zip's
+SHA-256 is `5e26562191c9cdc89e9ebfcd6fa683121efbfc2a2293048993091e6936e858fb`). It is run through
+`tex-compile.js` exactly as the app will run it. `node scripts/tex-spike.js` repeats the measurements.
+
+| Measurement | Result |
+|---|---|
+| Size | `tectonic.exe` 52.5 MB (21 MB zipped); expect roughly +25 MB on the installer |
+| First use, empty cache ("prepare") | **200 s** on this connection; cache grows to **41.5 MB** |
+| Simple article, packages cached | **0.4 s** |
+| Maths + table + hyperref document, first time | 12 s (a few more packages fetched) |
+| Same document, packages cached | **0.8 s** |
+| Offline (`--only-cached`) after prepare | works, 0.4 s and 0.8 s |
+| A broken document | fails in 0.2 s with `main.tex:4 Undefined control sequence` and a plain-language hint |
+
+What this decides:
+- **Bundle the engine** (about +25 MB) and ship no packages. Do **not** treat the first compile as a normal
+  build: with the usual 60 s limit it is killed. A one-time **"Set up ThinkerTex"** step runs `prepare` with
+  a 10-minute limit and a progress message, then everything is fast and works offline.
+- Keep the package cache in Thinker's own data folder (the engine honours `TECTONIC_CACHE_DIR`) so it can be
+  shown, cleared and moved, and so a local-only mode can promise "no network" with `--only-cached`.
+- Packages that were not fetched during setup are fetched the first time a document uses them (a few
+  seconds); in local-only mode the error should say which package is missing.
+- The release is a rolling "continuous" build, so pin the engine by hash in the repo's build notes and
+  re-test when updating it. Tectonic is MIT licensed; ship its licence text with the installer.
+- Still to measure: SyncTeX output, bibliography (BibTeX/biber) builds, a 100-page document, and real
+  templates (IEEE, ACM, Beamer, a thesis class).
+
 ## Evaluation (objective, since a compile either works or does not)
 - **Compile rate**: 40 tasks (article, table, equation, TikZ, bibliography, Beamer, two-column) through
   the agent. Targets: 90% compile first time, 97% within 3 repair loops.

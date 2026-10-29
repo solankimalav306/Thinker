@@ -11,6 +11,15 @@ const fs = require('fs');
 const path = require('path');
 const { parseLog } = require('./tex-log');
 
+const PREPARE_DOCUMENT = [
+  '\\documentclass{article}',
+  '\\usepackage{amsmath,amssymb,booktabs,graphicx,hyperref,geometry}',
+  '\\begin{document}',
+  'Thinker is getting ready. $e^{i\\pi}+1=0$',
+  '\\end{document}',
+  ''
+].join('\n');
+
 const DEFAULTS = { timeoutMs: 60000, maxOutputBytes: 2 * 1024 * 1024 };
 
 function insideProject(root, file) {
@@ -37,6 +46,7 @@ function killTree(child) {
 function createCompiler(options = {}) {
   const engine = options.engine; // { command, args: [...] }
   const spawn = options.spawn || childProcess.spawn;
+  const engineEnv = { ...process.env, ...(options.env || {}) };
   const limits = { ...DEFAULTS, ...(options.limits || {}) };
   const running = new Map(); // projectId -> { child, cancelled }
   const waiting = new Map(); // projectId -> { request, resolve }
@@ -53,6 +63,7 @@ function createCompiler(options = {}) {
 
   function run(request) {
     const { projectId, root, mainFile = 'main.tex', buildDir, mode = 'full', onlyCached = false } = request;
+    const timeoutMs = request.timeoutMs || limits.timeoutMs;
     const started = Date.now();
     const mainFull = insideProject(root, mainFile);
     const fail = (message) => ({ ok: false, pdfPath: null, problems: [{ severity: 'error', file: mainFile, line: null, message, hint: '' }], durationMs: 0, timedOut: false, cancelled: false, log: '' });
@@ -62,7 +73,7 @@ function createCompiler(options = {}) {
 
     return new Promise((resolve) => {
       const args = buildArgs({ mainFull: path.relative(root, mainFull), buildDir, mode, onlyCached });
-      const child = spawn(engine.command, args, { cwd: root, windowsHide: true, detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'] });
+      const child = spawn(engine.command, args, { cwd: root, env: engineEnv, windowsHide: true, detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'] });
       const state = { child, cancelled: false };
       running.set(projectId, state);
 
@@ -82,7 +93,7 @@ function createCompiler(options = {}) {
       const timer = setTimeout(() => {
         timedOut = true;
         killTree(child);
-      }, limits.timeoutMs);
+      }, timeoutMs);
 
       const finish = (code, spawnError) => {
         clearTimeout(timer);
@@ -94,7 +105,7 @@ function createCompiler(options = {}) {
         try { if (fs.existsSync(logFile)) log += '\n' + fs.readFileSync(logFile, 'utf8').slice(-limits.maxOutputBytes); } catch { /* the console output is enough */ }
         const problems = parseLog(log, { mainFile });
         if (spawnError) problems.unshift({ severity: 'error', file: '', line: null, message: `The TeX engine could not start: ${spawnError.message}`, hint: 'Reinstall Thinker, or pick another engine in Settings.' });
-        if (timedOut) problems.unshift({ severity: 'error', file: '', line: null, message: `The build took longer than ${Math.round(limits.timeoutMs / 1000)} seconds and was stopped.`, hint: 'A very large document or a loop in a macro can cause this.' });
+        if (timedOut) problems.unshift({ severity: 'error', file: '', line: null, message: `The build took longer than ${Math.round(timeoutMs / 1000)} seconds and was stopped.`, hint: 'A very large document or a loop in a macro can cause this.' });
         const exists = fs.existsSync(pdfPath) && fs.statSync(pdfPath).size > 0;
         const ok = code === 0 && !timedOut && !state.cancelled && !spawnError && exists;
         if (!ok && !problems.some((p) => p.severity === 'error') && !state.cancelled) {
@@ -146,7 +157,16 @@ function createCompiler(options = {}) {
     return true;
   }
 
-  return { compile, cancel, isBuilding: (id) => running.has(id), insideProject };
+  // The engine fetches the packages it needs from the internet the first time, which can take minutes.
+  // This compiles a small document that uses the common packages, with a long limit, so that later
+  // builds are quick and can run offline.
+  async function prepare({ root, buildDir, timeoutMs = 10 * 60 * 1000 }) {
+    fs.mkdirSync(root, { recursive: true });
+    fs.writeFileSync(path.join(root, 'main.tex'), PREPARE_DOCUMENT);
+    return compile({ projectId: '__prepare__', root, buildDir, mainFile: 'main.tex', timeoutMs });
+  }
+
+  return { compile, prepare, cancel, isBuilding: (id) => running.has(id), insideProject };
 }
 
 module.exports = { createCompiler, insideProject, killTree };

@@ -17,7 +17,7 @@ const compiler = (limits) => createCompiler({ engine: { command: process.execPat
 
 test('Tectonic-style errors and warnings are parsed with file and line', () => {
   const problems = parseLog('error: main.tex:12: Missing } inserted.\nwarning: main.tex:5: Overfull \\hbox in paragraph\nerror: halted');
-  assert.deepStrictEqual(problems.map((p) => [p.severity, p.file, p.line]), [['error', 'main.tex', 12], ['warning', 'main.tex', 5], ['error', '', null]]);
+  assert.deepStrictEqual(problems.map((p) => [p.severity, p.file, p.line]), [['error', 'main.tex', 12], ['warning', 'main.tex', 5]]); // the bare "halted" line adds nothing
   assert.match(problems[0].hint, /curly bracket/);
 });
 
@@ -155,4 +155,42 @@ test('projects build independently and in parallel', async () => {
   ]);
   assert.ok(ra.ok && rb.ok);
   assert.ok(Date.now() - t0 < 1500);
+});
+
+test('the engine\'s generic lines are dropped when a real error is known, and repeats ignore the full stop', () => {
+  const log = [
+    'error: main.tex:4: Undefined control sequence',
+    'error: something bad happened inside XeTeX; its output follows:',
+    'error: main.tex:4: Undefined control sequence.',
+    'error: the XeTeX engine had an unrecoverable error'
+  ].join('\n');
+  const problems = parseLog(log);
+  assert.strictEqual(problems.length, 1);
+  assert.strictEqual(problems[0].line, 4);
+  // with nothing more specific, the generic message is kept so the person still sees something
+  assert.strictEqual(parseLog('error: the XeTeX engine had an unrecoverable error').length, 1);
+});
+
+test('prepare builds a starter document with a long limit and the engine sees the given environment', async () => {
+  const root = tmp();
+  const buildDir = path.join(tmp(), 'out');
+  const seen = path.join(tmp(), 'seen.txt');
+  const spy = path.join(tmp(), 'spy-engine.js');
+  fs.writeFileSync(spy, [
+    "const fs = require('fs'); const path = require('path');",
+    "const out = process.argv[process.argv.indexOf('--outdir') + 1];",
+    "fs.mkdirSync(out, { recursive: true });",
+    "fs.writeFileSync(" + JSON.stringify(seen) + ", String(process.env.TECTONIC_CACHE_DIR));",
+    "fs.writeFileSync(path.join(out, 'main.pdf'), '%PDF-fake');"
+  ].join('\n'));
+  const c = createCompiler({ engine: { command: process.execPath, args: [spy] }, limits: { timeoutMs: 100 }, env: { TECTONIC_CACHE_DIR: 'C:/cache/here' } });
+  const result = await c.prepare({ root, buildDir, timeoutMs: 30000 });
+  assert.strictEqual(result.ok, true);
+  assert.ok(fs.readFileSync(path.join(root, 'main.tex'), 'utf8').includes('usepackage{amsmath'));
+  assert.strictEqual(fs.readFileSync(seen, 'utf8'), 'C:/cache/here');
+});
+
+test('the same error reported with and without a file name is listed once', () => {
+  const log = ['error: main.tex:3: Undefined control sequence', '! Undefined control sequence.', 'l.3 oops'].join('\n');
+  assert.strictEqual(parseLog(log, { mainFile: 'main.tex' }).length, 1);
 });
