@@ -25,7 +25,7 @@ It runs in the real app with the real model (`gemini-3.5-flash-lite`) and the re
 | Repeat run of the whole set | the same 11 pass (S1 failed both times) |
 | Wrong attribution of a fact to the wrong document | **0** (the only flagged case is S1, below) |
 | Fact present in only one document attributed to that document | 2 of 2 |
-| Both sides of a disagreement reported and named | 3 of 3 (S3, S10, and the conflicting inspection interval S11) |
+| Both sides of a disagreement reported and named | 2 of 2 (S3, S10), and the newer rule preferred when asked "now" (S11) |
 | Questions the documents cannot answer, refused | 3 of 3 |
 | Typical answer time | about 6 seconds |
 
