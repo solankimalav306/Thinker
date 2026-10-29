@@ -32,7 +32,7 @@ Retrieval today is one FAISS index per document (`<pdfId>.index`), chunked rough
 - **Answers cite document and page**: "Handbook, p. 4" chips that open that document at that page.
 - **Shared panels**: Notes, Glossary and Mind maps can switch between "this document" and
   "whole Thinkspace".
-- **ThinkerTex**: "New > LaTeX project" inside a Thinkspace. A project's compiled PDF is listed with the other documents, and the writing agent can use the Thinkspace's PDFs, notes and glossary (see `docs/PLAN-LATEX.md`).
+- **ThinkerTex**: a Thinkspace can have "New > LaTeX project", or link an existing one. ThinkerTex also works without any Thinkspace (see `docs/PLAN-LATEX.md`). When linked, the project's compiled PDF is listed with the other documents and the writing agent can use the Thinkspace's PDFs, notes and glossary.
 - **Instructions layer**: a Thinkspace-level instruction ("always answer for a legal audience").
 - **Tutorial/Help**: a Thinkspaces guide and a tour step, and a new checklist item.
 

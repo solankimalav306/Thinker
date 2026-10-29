@@ -2,15 +2,15 @@
 
 Thinker today is for **reading**. ThinkerTex makes it a place to **write** too. It is an Overleaf-style
 editor with live PDF preview and an AI agent that writes LaTeX using the same model and key as the chat.
-It lives inside Thinkspaces: any Thinkspace can have new LaTeX projects next to its PDFs, and the agent
-can draw on those PDFs while it writes.
+ThinkerTex is a **tool in its own right**, not a part of Thinkspaces. A LaTeX project can live anywhere:
+on its own, in any folder on disk, or inside a Thinkspace. In a Thinkspace it gains extra powers (the
+agent can use that Thinkspace's PDFs), but it never needs one.
 
-Thinkspaces and ThinkerTex ship together as **v3**. Thinkspaces are the home; ThinkerTex is what you
-make there.
+Thinkspaces and ThinkerTex ship together as **v3** because they strengthen each other.
 
 ## Why it belongs here
-- Thinker is PDF-centric, and LaTeX's output is a PDF. A compiled project is just another document in
-  the Thinkspace: it can be read, searched, marked up and asked about with everything already built.
+- Thinker is PDF-centric, and LaTeX's output is a PDF. A compiled project is just another document:
+  it can be read, searched, marked up and asked about with everything already built.
 - The reader and the writer feed each other: read three papers, ask a question across them, then ask
   ThinkerTex to turn the answer into a related-work section with the right citations.
 - Nobody else has "reading desk + writing desk + one AI that knows both".
@@ -56,19 +56,35 @@ make there.
   on line 41"), warnings grouped (overfull box, missing reference), and **Fix with AI**.
 - **Export**: download the PDF, the `.tex`, or a zip of the project; or **Save to Thinkspace**.
 
-## Thinkspace integration
-- In a Thinkspace: **New > LaTeX project** (blank, article, report, thesis, beamer slides, letter, CV,
-  "from selected notes"). A Thinkspace can hold any number of projects.
-- A project is stored in the Thinkspace like a document. Its compiled PDF is listed in the document
-  list, so you can open it in the reader, mark it up, and chat with it.
-- **The agent can use the Thinkspace** (with your permission each time you turn it on):
+## Where a project can live
+ThinkerTex works the same everywhere; only the extras differ.
+1. **On its own**: Home > **New ThinkerTex project** (blank, article, report, thesis, beamer slides, letter,
+   CV), or a "ThinkerTex" button on the left rail. It is stored in Thinker's own projects folder and
+   shows up under "Your LaTeX projects" on Home.
+2. **In any folder**: **Open folder as ThinkerTex project**, or open any `.tex` file (also from
+   Windows: right-click > Open with Thinker). Files stay where they are, so Git, Dropbox and other
+   editors keep working. Thinker adds only a small hidden build folder.
+3. **Inside a Thinkspace**: **New > LaTeX project** in the Thinkspace (also "from selected notes").
+   A Thinkspace can hold any number of projects, and a project can be added to or removed from a
+   Thinkspace later without moving its files.
+4. **Next to a PDF**: from the reader, "Write about this document" starts a project already linked to
+   that PDF.
+
+The compiled PDF of any project opens in the reader like any other document, so you can mark it up and
+chat with it, wherever the project lives. A project in a Thinkspace also lists its PDF with that
+Thinkspace's documents.
+
+## Thinkspace integration (an extra, not a requirement)
+- **The agent can use the Thinkspace** a project belongs to (with your permission each time you turn it on):
   - cite or summarise the Thinkspace's PDFs (with page numbers in comments);
   - pull in the Thinkspace's notes, glossary and mind maps;
   - build a bibliography only from real metadata of those PDFs (title, authors, year, DOI when present).
     If a field is unknown it stays blank and the agent says so. It never invents a reference.
 - **Reverse direction**: select text in a PDF, "Send to ThinkerTex" inserts it as a quote with a citation key.
 - Settings follow the existing layers: instructions can be set per Thinkspace ("write in British
-  English, use IEEE style") and per project.
+  English, use IEEE style"), per project, and globally for a standalone project.
+- A standalone project can still use the agent's other tools (draft, edit, fix, convert); it just has no
+  Thinkspace documents to cite until it is linked to one.
 
 ## The agent
 Same provider layer, profiles and keys as the chat, with its own prompt and tools.
@@ -130,7 +146,7 @@ Same runner and results format as `evals/run-eval.mjs`.
 | 0. Spike | Tectonic bundled, compile templates from the main process, measure size and time, online and offline | a template set compiles on a clean Windows machine with no TeX |
 | 1. Compile service | spawn with limits, temp folders, log parser, errors as data, Stop, queue | tests for timeout, huge output, path escape, parallel requests, missing package |
 | 2. Studio shell | file tree, CodeMirror editor, preview pane using the viewer, Recompile and Auto, errors strip, autosave | UI stress at narrow sizes and both themes; killing the app mid-edit loses a few seconds at most |
-| 3. Thinkspace link | "New LaTeX project" in a Thinkspace, compiled PDF listed as a document, settings layers | create, close, reopen, delete; the PDF opens in the reader with marks |
+| 3. Projects everywhere | standalone projects on Home, open any folder or `.tex`, "Write about this document", link to a Thinkspace, compiled PDF opens in the reader | create, close, reopen, delete; works with no Thinkspace at all; a linked project lists its PDF in the Thinkspace |
 | 4. Agent | draft, edit selection, fix errors, convert, diff accept/reject | evaluation targets met on at least two models |
 | 5. Cite and sync | Thinkspace-aware citations, Send to ThinkerTex, SyncTeX, templates, offline "prepare" | tutorial, Help guide and a tour step shipped |
 

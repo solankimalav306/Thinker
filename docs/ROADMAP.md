@@ -13,8 +13,9 @@ Two halves of one release.
 - **Thinkspaces**: projects that group PDFs and the chats, notes, glossary and mind maps around them,
   with questions that span several documents. See `docs/PLAN-THINKSPACES.md`.
 - **ThinkerTex**: an Overleaf-style LaTeX studio (file tree, editor, live preview, compile) with an AI
-  agent that writes LaTeX using the same key. Any Thinkspace can have new LaTeX projects, and the
-  compiled PDF becomes a document in the Thinkspace. See `docs/PLAN-LATEX.md`.
+  agent that writes LaTeX using the same key. It stands on its own: a project can live anywhere (its own,
+  any folder, next to a PDF, or inside a Thinkspace). In a Thinkspace the agent can also use that
+  Thinkspace's PDFs. See `docs/PLAN-LATEX.md`.
 - Thinker stops being only a reader: you read, ask, and then write, in one place.
 - Open questions: how a Thinkspace is created (by hand, from a folder, or both); annotations per
   document or shared; whether to include a compare view.
