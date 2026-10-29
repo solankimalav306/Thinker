@@ -228,9 +228,19 @@ const tabActionHandlers = {
   onAdd: null
 };
 
+// A tick for things that worked, a warning for things that did not, an "i" for the rest.
+function toastIconFor(text) {
+  const t = String(text || "");
+  if (/failed|could not|can't|cannot|not a pdf|error|missing|no model|unable/i.test(t)) return "fa-triangle-exclamation";
+  if (/(placed|saved|deleted|updated|added|copied|attached|reverted|undid|redid|done|ready\.?|loaded|opened)/i.test(t)) return "fa-circle-check";
+  return "fa-circle-info";
+}
+
 function setStatus(text) {
   if (elements.statusText) {
     elements.statusText.textContent = text;
+    const icon = elements.statusToast?.querySelector("i");
+    if (icon) icon.className = `fa-solid ${toastIconFor(text)}`;
   }
   if (elements.statusToast) {
     elements.statusToast.classList.add("show");

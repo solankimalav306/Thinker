@@ -684,7 +684,9 @@ export class ChatController {
     button.addEventListener("click", () => this.onNeedSetup?.());
     card.appendChild(button);
     this.chatHistory.appendChild(card);
-    this.chatHistory.scrollTop = this.chatHistory.scrollHeight;
+    // On an empty chat keep the heading in view; only a running conversation follows its newest line.
+    const started = this.chatHistory.querySelector(".user-msg");
+    this.chatHistory.scrollTop = started ? this.chatHistory.scrollHeight : 0;
   }
 
   

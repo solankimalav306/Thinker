@@ -1,4 +1,4 @@
-# Plan: Thinkspaces (v3)
+# Plan: Thinkspaces (v3, together with ThinkerTex)
 
 A **Thinkspace** is a project: a named set of PDFs plus the chats, notes, glossary and mind maps that
 belong to the project as a whole. Today everything hangs off a single document. A Thinkspace lets a
@@ -32,6 +32,7 @@ Retrieval today is one FAISS index per document (`<pdfId>.index`), chunked rough
 - **Answers cite document and page**: "Handbook, p. 4" chips that open that document at that page.
 - **Shared panels**: Notes, Glossary and Mind maps can switch between "this document" and
   "whole Thinkspace".
+- **ThinkerTex**: "New > LaTeX project" inside a Thinkspace. A project's compiled PDF is listed with the other documents, and the writing agent can use the Thinkspace's PDFs, notes and glossary (see `docs/PLAN-LATEX.md`).
 - **Instructions layer**: a Thinkspace-level instruction ("always answer for a legal audience").
 - **Tutorial/Help**: a Thinkspaces guide and a tour step, and a new checklist item.
 

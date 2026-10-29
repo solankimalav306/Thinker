@@ -1,109 +1,144 @@
-# Plan: LaTeX studio (viewer, editor, compiler, writing agent)
+# Plan: ThinkerTex (LaTeX studio inside Thinkspaces)
 
-Write LaTeX in Thinker, see the PDF update beside it, and ask the same AI (same key, same profile)
-to write or fix the code. The compiled result is an ordinary PDF that opens in Thinker's reader,
-so every existing feature (chat, annotate, find, Thinkspaces) works on it.
+Thinker today is for **reading**. ThinkerTex makes it a place to **write** too. It is an Overleaf-style
+editor with live PDF preview and an AI agent that writes LaTeX using the same model and key as the chat.
+It lives inside Thinkspaces: any Thinkspace can have new LaTeX projects next to its PDFs, and the agent
+can draw on those PDFs while it writes.
 
-## Goals
-- Edit `.tex` with a real code editor: highlighting, line numbers, search, bracket matching.
-- Compile to PDF with one key press, show errors in plain language, and jump to the offending line.
-- A LaTeX agent that drafts, edits and repairs code, shows its change as a diff, and never
-  invents citations.
-- Works offline once set up, and nothing leaves the machine except the model request the person asked for.
+Thinkspaces and ThinkerTex ship together as **v3**. Thinkspaces are the home; ThinkerTex is what you
+make there.
 
-## Not in v1
-Real-time collaboration, a package manager UI, Overleaf sync, Word import. (Later: BibTeX UI, templates gallery.)
+## Why it belongs here
+- Thinker is PDF-centric, and LaTeX's output is a PDF. A compiled project is just another document in
+  the Thinkspace: it can be read, searched, marked up and asked about with everything already built.
+- The reader and the writer feed each other: read three papers, ask a question across them, then ask
+  ThinkerTex to turn the answer into a related-work section with the right citations.
+- Nobody else has "reading desk + writing desk + one AI that knows both".
 
-## Compiler choice
+## What it should feel like (Overleaf, plus the agent)
+```
++------------------------------------------------------------------------------------------+
+| Thinkspace > Thesis      main.tex   [Recompile ▶]  [Auto ✓]  [Logs 2]  [⬇ PDF]  [Share ▾] |
++-----------+-----------------------------------+--------------------------+---------------+
+| Files     | 1  \documentclass{article}        |  PDF preview             | Ask ThinkerTex|
+|  main.tex | 2  \usepackage{amsmath}           |  (page 1 of 6)           |               |
+|  refs.bib | 3  \begin{document}               |   [live, keeps your      | "Add a table  |
+|  figs/    | 4  \section{Intro}                |    place after each      |  comparing    |
+| Outline   | 5  ...                            |    compile]              |  the 3 papers"|
+|  Intro    |                                   |                          |  → diff + Apply|
++-----------+-----------------------------------+--------------------------+---------------+
+| Errors and warnings: main.tex:41  Missing } inserted.   [Fix with AI]                     |
++------------------------------------------------------------------------------------------+
+```
+- **Left**: file tree (new file, folder, upload image, rename, delete) and a document outline built
+  from `\section`, `\subsection`, labels. Click to jump.
+- **Middle**: the editor (CodeMirror 6): highlighting, line numbers, search and replace, bracket and
+  environment matching, snippets, spell check, `Ctrl+/` comments, multi-file project.
+- **Right**: the preview, which is the same PDF viewer used everywhere (single, two-page and continuous
+  view, pinch zoom, find, marks, snip) so it behaves exactly like reading.
+- **Agent panel**: a tab beside the preview, plus a floating "Ask ThinkerTex" button on any selection.
+- **Bottom**: errors and warnings with line numbers; clicking one jumps to the line.
+- Layout is resizable (drag the dividers), has an "editor only" and "preview only" mode for small
+  windows, and uses the same light and dark themes.
+
+## Preview and compile (the core loop)
+- **Recompile** button and `Ctrl+Enter`. **Auto-compile** toggle: compiles about 1.5 s after you stop
+  typing and never while a compile is already running (the newest request waits its turn).
+- **Quick draft** mode (one pass, no bibliography) for fast feedback, and a **Full** build (all passes,
+  BibTeX/biber) on demand and before export.
+- While a build runs the previous good PDF stays on screen with a "compiling..." badge. A failed build
+  keeps the last good preview and lists the errors; it never blanks the page.
+- **Keep your place**: after each build the preview returns to the same page and spot (the viewer
+  already keeps a position across re-layouts; a reload by bytes will reuse that).
+- **Source and PDF sync** (SyncTeX): `Ctrl+click` in the PDF jumps to the source line; a button in the
+  editor scrolls the PDF to the cursor.
+- **Logs** tab with the raw log, plain-language rewrites of common errors ("a closing brace is missing
+  on line 41"), warnings grouped (overfull box, missing reference), and **Fix with AI**.
+- **Export**: download the PDF, the `.tex`, or a zip of the project; or **Save to Thinkspace**.
+
+## Thinkspace integration
+- In a Thinkspace: **New > LaTeX project** (blank, article, report, thesis, beamer slides, letter, CV,
+  "from selected notes"). A Thinkspace can hold any number of projects.
+- A project is stored in the Thinkspace like a document. Its compiled PDF is listed in the document
+  list, so you can open it in the reader, mark it up, and chat with it.
+- **The agent can use the Thinkspace** (with your permission each time you turn it on):
+  - cite or summarise the Thinkspace's PDFs (with page numbers in comments);
+  - pull in the Thinkspace's notes, glossary and mind maps;
+  - build a bibliography only from real metadata of those PDFs (title, authors, year, DOI when present).
+    If a field is unknown it stays blank and the agent says so. It never invents a reference.
+- **Reverse direction**: select text in a PDF, "Send to ThinkerTex" inserts it as a quote with a citation key.
+- Settings follow the existing layers: instructions can be set per Thinkspace ("write in British
+  English, use IEEE style") and per project.
+
+## The agent
+Same provider layer, profiles and keys as the chat, with its own prompt and tools.
+1. **Draft** a document or section from a description, using the project's class and packages.
+2. **Edit the selection**: rewrite, shorten, formalise, make it a table or list, fix grammar.
+3. **Fix errors**: sees the code and the log, proposes a patch, compiles, reads the new log. At most
+   3 loops, then stops and explains what is still wrong.
+4. **Convert**: notes, a chat answer, a mind map, or a pasted Markdown into LaTeX.
+5. **Figures and tables**: create `tabular`, `booktabs`, TikZ and pgfplots from data or a description.
+6. **Explain**: what a package, command or error means, from the code in front of it.
+7. **Cite**: as above, from real Thinkspace metadata only.
+
+How it changes your text:
+- It returns a **patch** (a list of range and replacement edits), never a silent rewrite of the file.
+- The editor shows an inline **diff** with Accept and Reject per change, and Accept is one undo step.
+- Context sent to the model: the open file or the selected region plus the preamble, the last log,
+  your instructions, and (only if enabled) the Thinkspace excerpts it needs. Large projects send an
+  outline plus the relevant file. The token meter shows the cost.
+- Safeguards: documents are data, not instructions (a `.tex` or PDF line that says "ignore previous
+  instructions" is just text); the agent never runs shell commands; every compile uses the safe settings below.
+
+## Compiler
 No TeX installation was found on the development machine, and most readers will not have one, so the
-app has to bring its own engine.
+app brings its own engine.
 
 | Option | Pros | Cons |
 |---|---|---|
-| **Tectonic** (recommended) | One small executable, runs on Windows, offline with `--only-cached`, modern XeTeX engine, a flag for untrusted input | Downloads packages on first use, so needs a "prepare offline" step; a few exotic packages missing |
-| Ship MiKTeX / TeX Live | Complete | Gigabytes, installer complexity, licensing and update burden |
-| WebAssembly engine in the renderer | No child process | Large download, slower, weaker package support |
-| Use the person's own TeX | Full compatibility | Most people do not have it |
+| **Tectonic** (recommended) | One small executable, runs on Windows, works offline with `--only-cached`, modern XeTeX engine, an untrusted mode | Downloads packages on first use (so it needs a "prepare offline" step); a few rare packages missing |
+| Ship MiKTeX / TeX Live | Complete | Gigabytes, installer complexity, update burden |
+| WebAssembly engine | No child process | Large download, slower, weaker package support |
+| The person's own TeX | Full compatibility | Most people do not have it |
 
-Plan: **bundle Tectonic** (about tens of MB added to the installer; confirm the exact size when
-packaging), and also detect an existing `pdflatex`/`latexmk` and offer "Use my TeX installation" in
-Settings for people who need packages Tectonic lacks. Tectonic 0.17 is current and supports Windows.
+Plan: bundle Tectonic (measure the installer size in the spike; if too large, download it on first use),
+and detect an existing `latexmk`/`pdflatex` for a "Use my TeX installation" option. Tectonic 0.17 is
+current and supports Windows. For Overleaf-like compatibility the spike must compile a set of real
+templates (article, IEEE, ACM, beamer, a thesis class) and list what fails.
 
 ### Safe execution
-- Always run with Tectonic's untrusted mode, no shell escape, in a temporary build folder per project.
-- Hard limits: 60 s wall time, output size cap, kill the whole process tree on timeout or on Stop.
-- Only the project folder is readable. Reject absolute or `..` paths in `\input` and `\includegraphics`.
-- AI-written code is compiled under exactly the same rules as hand-written code.
+- Untrusted mode, no shell escape, one temporary build folder per project.
+- Hard limits: 60 s per build, an output size cap, kill the whole process tree on timeout or Stop.
+- Only the project folder is readable; absolute and `..` paths in `\input` and `\includegraphics` are refused.
+- AI-written code runs under exactly the same rules as hand-written code.
+- In local-only mode, builds use `--only-cached` and never touch the network.
 
-## Product design
-- **New**: a "LaTeX" entry on Home and in "+" ("New LaTeX project", "Open .tex file", "From template").
-- **Studio layout**: editor on the left, live PDF on the right (the existing reader), a compile log
-  and errors strip underneath, and the agent chat as the existing right-hand panel.
-- **Compile**: Ctrl+Enter (or Ctrl+S) compiles; optional "compile on save"; clear status
-  (compiling... done in 3.2 s / 2 errors). The previous good PDF stays on screen while a build fails.
-- **Errors**: parse the log into `file:line: message`. Show them as a list, underline the line in the
-  editor, and rewrite the common ones in plain words ("A closing brace is missing on line 41").
-  A "Fix with AI" button sends the code and the log to the agent.
-- **Viewer**: reuse `pdf-controller`. Marks, find and chat work on the compiled PDF.
-- **Source and PDF sync (phase 4)**: SyncTeX so clicking the PDF jumps to the source line and back.
-- **Projects**: a project is a folder with `main.tex`, images and `.bib`. It can belong to a
-  Thinkspace, next to the PDFs it cites.
-- **Export**: save the PDF, save the `.tex`, "Zip project".
+## Evaluation (objective, since a compile either works or does not)
+- **Compile rate**: 40 tasks (article, table, equation, TikZ, bibliography, Beamer, two-column) through
+  the agent. Targets: 90% compile first time, 97% within 3 repair loops.
+- **Fix rate**: 30 deliberately broken files (missing brace, undefined command, bad nesting, missing
+  package). Target 85% repaired.
+- **Fidelity**: an edit request changes only what was asked (diff size check, target 95%).
+- **No invented citations**: "cite the papers in this Thinkspace" may only use real metadata (target 100%).
+- **Preview latency**: a typical 10-page document from change to updated preview (target under 5 s on a
+  normal laptop in Draft mode).
+Same runner and results format as `evals/run-eval.mjs`.
 
-### Editor
-Use **CodeMirror 6** with a LaTeX language mode, vendored through the existing `scripts/vendor.js`
-(no CDN, so the CSP stays strict). Needed for v1: highlighting, line numbers, undo/redo, find/replace,
-soft wrap, bracket matching, `Ctrl+/` comment, snippets for common environments (`\begin{...}` pairs),
-and autosave with crash recovery.
-
-## The LaTeX agent
-It reuses the same provider layer, profiles and keys as the chat, with its own prompt and tools.
-
-### What it can do
-1. **Draft** a document or section from a description, using the chosen document class.
-2. **Edit the selection** ("make this a table", "shorten", "turn bullets into an enumerate").
-3. **Fix errors**: given the code and the compile log, propose a patch. Loop at most 3 times:
-   propose, compile, read the log, stop on success or on repeated failure, and say so.
-4. **Translate notes to LaTeX**: turn Thinker notes, a chat answer or a mind map into a section.
-5. **Cite carefully**: build BibTeX entries only from metadata that really exists (the PDF's title,
-   author and year fields, or text the person typed). If a field is unknown it stays blank and the
-   agent says so. It never fabricates references.
-6. **Explain**: what a package or error means, answered from the code in front of it.
-
-### How it works
-- The agent returns a **patch**, not a rewritten file: a list of `{range, replacement}` edits.
-- The UI shows an inline diff with Accept / Reject per hunk, and a single undo step per accept.
-- Context sent to the model: the current file (or the selected region plus the preamble), the last
-  compile log, and the person's instructions. Large projects send an outline plus the relevant file.
-- Prompt rules: output only valid LaTeX for the chosen engine, keep existing macros, do not add
-  packages that are not available, and mark anything uncertain with a `% TODO` comment.
-- Same safeguards as the chat agent: documents are data, not instructions (a `.tex` file that says
-  "ignore previous instructions" is just text).
-
-## Evaluation (objective, unlike most AI features)
-A compile either works or it does not, so the agent can be measured:
-- **Compile rate**: a prompt set of 40 tasks (article, table, equation, TikZ figure, bibliography,
-  Beamer slides, two-column) run through the agent; target 90% compile on the first try, 97% within 3 repair loops.
-- **Fix rate**: 30 deliberately broken files (missing brace, undefined command, wrong environment
-  nesting, missing package); target 85% repaired.
-- **Fidelity**: an edit request changes only the requested part (diff size check; target 95%).
-- **No fabricated citations**: a "cite the three papers in this Thinkspace" task must only use real metadata.
-- Track time and tokens per task, per model.
-The harness mirrors `evals/run-eval.mjs`, so one runner and one results format cover both.
-
-## Phases
+## Phases (ships with Thinkspaces as v3)
 | Phase | Delivers | Done when |
 |---|---|---|
-| 0. Spike | bundle Tectonic, compile a sample from the main process, measure size, time and first-run download | a hello-world compiles on a clean Windows machine with no TeX; both online and `--only-cached` runs documented |
-| 1. Compile service | spawn with limits, temp folders, log parser, errors as data, Stop | tests for timeout, huge output, path escape, parallel builds, a missing package |
-| 2. Studio UI | CodeMirror editor, split view, status, error list, project open/save, autosave | UI stress at narrow sizes and both themes; killing the app mid-edit loses no more than a few seconds |
-| 3. Agent | draft, edit selection, fix errors, diff accept/reject | evaluation targets above met on at least two models |
-| 4. Polish | SyncTeX, templates, BibTeX helpers, Thinkspace integration, offline "prepare" button, "use my TeX" | tutorial, Help guide and a new tour step shipped |
+| 0. Spike | Tectonic bundled, compile templates from the main process, measure size and time, online and offline | a template set compiles on a clean Windows machine with no TeX |
+| 1. Compile service | spawn with limits, temp folders, log parser, errors as data, Stop, queue | tests for timeout, huge output, path escape, parallel requests, missing package |
+| 2. Studio shell | file tree, CodeMirror editor, preview pane using the viewer, Recompile and Auto, errors strip, autosave | UI stress at narrow sizes and both themes; killing the app mid-edit loses a few seconds at most |
+| 3. Thinkspace link | "New LaTeX project" in a Thinkspace, compiled PDF listed as a document, settings layers | create, close, reopen, delete; the PDF opens in the reader with marks |
+| 4. Agent | draft, edit selection, fix errors, convert, diff accept/reject | evaluation targets met on at least two models |
+| 5. Cite and sync | Thinkspace-aware citations, Send to ThinkerTex, SyncTeX, templates, offline "prepare" | tutorial, Help guide and a tour step shipped |
 
 ## Risks
-- **Package gaps / first-run downloads**: surface them honestly ("this needs the `tikz` package; downloading...") and offer the offline prepare step.
-- **Compile security**: untrusted mode and path checks are mandatory, and tested with hostile inputs.
+- **Package gaps and first-run downloads**: say what is being fetched; offer the offline prepare step.
+- **Overleaf expectations**: be clear about what is not there yet (real-time collaboration, review comments, Git, track changes).
+- **Compile security**: untrusted mode and path checks are tested with hostile inputs.
 - **AI over-editing**: patches plus diff review keep the person in control.
-- **Large installer**: measure in the spike; if too big, download Tectonic on first use instead of bundling it.
-- **Editor weight**: lazy-load CodeMirror only when a LaTeX project opens.
+- **Installer size**: measure in the spike.
+- **Editor weight**: lazy-load CodeMirror only when a project opens.
 - **Depends on step 6**: the compile service and the agent are simplest in the TypeScript core; the studio UI can start before it.

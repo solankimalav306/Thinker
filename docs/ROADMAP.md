@@ -8,11 +8,16 @@ Where Thinker is going. v2 is shipped (2.0.0). Each version builds on the one be
 - Retrieval quality (chunking, embedding model), one shared LLM provider layer, streaming replies.
 - Test-connection button, Ollama detection, privacy disclosure and a local-only mode.
 
-## v3: Thinkspaces
-Group documents and their chats, notes and annotations into a workspace that can be asked about
-as a whole.
-- Open questions: created by hand, from a folder, or both; annotations per document or shared;
-  whether to include a compare view.
+## v3: Thinkspaces + ThinkerTex
+Two halves of one release.
+- **Thinkspaces**: projects that group PDFs and the chats, notes, glossary and mind maps around them,
+  with questions that span several documents. See `docs/PLAN-THINKSPACES.md`.
+- **ThinkerTex**: an Overleaf-style LaTeX studio (file tree, editor, live preview, compile) with an AI
+  agent that writes LaTeX using the same key. Any Thinkspace can have new LaTeX projects, and the
+  compiled PDF becomes a document in the Thinkspace. See `docs/PLAN-LATEX.md`.
+- Thinker stops being only a reader: you read, ask, and then write, in one place.
+- Open questions: how a Thinkspace is created (by hand, from a folder, or both); annotations per
+  document or shared; whether to include a compare view.
 
 ## v4: Thinker Remote (same network)
 The laptop or PC becomes the **host**. A phone, tablet or another computer on the same Wi-Fi opens
