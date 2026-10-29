@@ -4,6 +4,39 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openPDF: () => ipcRenderer.invoke('dialog:openPDF'),
   pickPdfs: () => ipcRenderer.invoke('dialog:pickPdfs'),
 
+  // ThinkerTex (every call answers { ok, value } or { ok: false, error })
+  tex: {
+    templates: () => ipcRenderer.invoke('tex:templates'),
+    engine: () => ipcRenderer.invoke('tex:engine'),
+    setup: () => ipcRenderer.invoke('tex:setup'),
+    onSetupProgress: (callback) => {
+      const handler = (_event, data) => callback(data);
+      ipcRenderer.on('tex:setup-progress', handler);
+      return () => ipcRenderer.removeListener('tex:setup-progress', handler);
+    },
+    projects: () => ipcRenderer.invoke('tex:projects'),
+    create: (fields) => ipcRenderer.invoke('tex:create', fields),
+    openFolder: () => ipcRenderer.invoke('tex:openFolder'),
+    openFile: () => ipcRenderer.invoke('tex:openFile'),
+    open: (id) => ipcRenderer.invoke('tex:open', id),
+    forget: (id) => ipcRenderer.invoke('tex:forget', id),
+    rename: (id, name) => ipcRenderer.invoke('tex:rename', id, name),
+    setMain: (id, file) => ipcRenderer.invoke('tex:setMain', id, file),
+    files: (id) => ipcRenderer.invoke('tex:files', id),
+    read: (id, file) => ipcRenderer.invoke('tex:read', id, file),
+    write: (id, file, content) => ipcRenderer.invoke('tex:write', id, file, content),
+    newFile: (id, file, content) => ipcRenderer.invoke('tex:newFile', id, file, content),
+    newFolder: (id, folder) => ipcRenderer.invoke('tex:newFolder', id, folder),
+    renameFile: (id, from, to) => ipcRenderer.invoke('tex:renameFile', id, from, to),
+    deleteFile: (id, file) => ipcRenderer.invoke('tex:deleteFile', id, file),
+    importFiles: (id, dir) => ipcRenderer.invoke('tex:importFiles', id, dir),
+    compile: (id, options) => ipcRenderer.invoke('tex:compile', id, options),
+    cancel: (id) => ipcRenderer.invoke('tex:cancel', id),
+    pdf: (id) => ipcRenderer.invoke('tex:pdf', id),
+    exportPdf: (id) => ipcRenderer.invoke('tex:exportPdf', id),
+    tryChange: (id, overlay) => ipcRenderer.invoke('tex:tryChange', id, overlay)
+  },
+
   // Thinkspaces and ThinkerTex projects
   listWorkspaces: () => ipcRenderer.invoke('ws:list'),
   getWorkspace: (id) => ipcRenderer.invoke('ws:get', id),

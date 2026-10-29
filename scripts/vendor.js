@@ -36,3 +36,4 @@ for (const [destDir, srcDir, keep] of dirs) {
 }
 
 console.log('vendor: copied to', path.relative(root, out));
+require('./build-editor').buildEditor();

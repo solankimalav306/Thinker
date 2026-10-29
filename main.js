@@ -13,6 +13,7 @@ const { initStorage, migrateProfileSecrets, getItemSync, setItemSync, removeItem
 const { openDatabase } = require('./database');
 const { createStore } = require('./store');
 const { createWorkspaces } = require('./workspaces');
+const { registerTexIpc } = require('./tex-service');
 const { importLegacyData } = require('./legacy-import');
 const { handleLLMGenerate } = require('./llm-handler');
 const { resolveSecrets, hasUnresolvedSecret, KEY_UNLOCK_ERROR } = require('./secrets');
@@ -557,6 +558,12 @@ function registerIpcHandlers() {
   });
   ipcMain.handle('conv:messages', (_event, id) => store.getMessages(String(id)));
   ipcMain.handle('conv:append', (_event, id, entry) => store.appendMessage(String(id), entry || {}));
+
+  // ThinkerTex: the engine ships next to the app when packaged, and in vendor/ while developing.
+  registerTexIpc({
+    ipcMain, dialog, shell, BrowserWindow, app, spaces,
+    enginePath: app.isPackaged ? path.join(process.resourcesPath, 'tectonic', 'tectonic.exe') : path.join(__dirname, 'vendor', 'tectonic', 'tectonic.exe')
+  });
 
   // Thinkspaces and ThinkerTex projects. Every call validates its arguments; nothing here touches files.
   const text = (v) => String(v ?? '');
