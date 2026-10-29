@@ -155,6 +155,7 @@ class AgentState(TypedDict):
     instructions: List[Dict]   # layered user instructions
     docs: List[Dict]   # a Thinkspace chat: [{pdfId, title}] searched together
     artifacts: bool    # the reply may be a styled HTML artifact
+    doc_title: str     # the open document's title, used to label its pages in an artifact
 
 # Per-request token accumulator (reset at start of invoke_agent)
 _token_session = {"calls": [], "totals": {"input": 0, "output": 0, "context": 0, "history": 0, "selected_text": 0, "prompt": 0}}
@@ -612,6 +613,7 @@ def ask_node(state: AgentState):
         instructions=state.get("instructions"),
         multi=bool(state.get("docs")),
         artifacts=bool(state.get("artifacts")),
+        doc_title=state.get("doc_title") or "",
     )
     
     content = [{"type": "text", "text": prompt}]
@@ -1326,6 +1328,7 @@ def invoke_agent(query_data: dict):
         "instructions": query_data.get("instructions") or [],
         "docs": [d for d in (query_data.get("docs") or []) if isinstance(d, dict) and d.get("pdfId")][:12],
         "artifacts": bool(query_data.get("artifacts")),
+        "doc_title": str(query_data.get("docTitle") or "")[:200],
     }
 
     print(f"[invoke_agent] Provider: format={api_format}, url={api_url or '(default)'}, model={model}", flush=True)
@@ -1346,7 +1349,7 @@ def invoke_agent(query_data: dict):
         "actions": final_state["actions"],
         "glossary_terms": final_state["glossary_terms"],
         "evaluation": final_state.get("evaluation", {}),
-        "sources": sources_from_hits(final_state.get("rag_hits")),
+        "sources": sources_from_hits([{**h, "doc": h.get("doc") or final_state.get("doc_title") or ""} for h in (final_state.get("rag_hits") or []) if isinstance(h, dict)]),
         "cache_summary": final_state.get("cache_summary", ""),
         "usage": {
             "profile_id": profile_id,

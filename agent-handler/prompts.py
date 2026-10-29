@@ -86,7 +86,7 @@ Rules for the HTML:
 - Keep it under about 1,200 words, self-contained, and readable on a narrow panel."""
 
 
-def build_ask_prompt(*, doc_info="", history="", context="", selected_text="", question="", mode="auto", instructions=None, multi=False, artifacts=False) -> str:
+def build_ask_prompt(*, doc_info="", history="", context="", selected_text="", question="", mode="auto", instructions=None, multi=False, artifacts=False, doc_title="") -> str:
     rules = MODE_RULES[normalize_mode(mode)]
     if multi:
         rules = rules.replace("in this document", "in these documents").replace("the document context", "the context")
@@ -99,6 +99,8 @@ def build_ask_prompt(*, doc_info="", history="", context="", selected_text="", q
         parts.append(MULTI_RULES)
     if artifacts:
         parts.append(ARTIFACT_RULES)
+        if doc_title and not multi:
+            parts.append(f'The only document is titled "{doc_title}". In an artifact, cite pages as data-cite="{doc_title}|page number".')
     block = render_instructions(instructions)
     if block:
         parts.append(block)

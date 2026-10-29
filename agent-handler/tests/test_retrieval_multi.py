@@ -107,3 +107,11 @@ def test_sources_list_what_may_be_cited_without_repeats():
     hits = [{"doc": "Manual", "page": 2}, {"doc": "Manual", "page": 2}, {"doc": "Bulletin", "page": "1"}, {"page": 5}, {"doc": "x", "page": "bad"}, None]
     assert sources_from_hits(hits) == [{"doc": "Manual", "page": 2}, {"doc": "Bulletin", "page": 1}, {"doc": "", "page": 5}]
     assert sources_from_hits(None) == []
+
+
+def test_single_document_artifact_prompt_names_the_document():
+    from prompts import build_ask_prompt
+    prompt = build_ask_prompt(question="make a table", artifacts=True, doc_title="Field Guide")
+    assert 'data-cite="Field Guide|page number"' in prompt
+    plain = build_ask_prompt(question="make a table", artifacts=False, doc_title="Field Guide")
+    assert "Field Guide" not in plain
