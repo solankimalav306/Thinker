@@ -1,5 +1,20 @@
 # Plan: ThinkerTex (LaTeX studio inside Thinkspaces)
 
+## Status (2026-10-30, branch `v3`)
+Built and verified in the running app against the real compiler and the real model:
+- Phases 0 to 2 and most of 3 and 4: engine spike; compile service; projects (templates, open a folder or
+  a .tex file, optional Thinkspace); the studio with file tree, outline, CodeMirror editor with error
+  markers, Recompile and Auto, a live preview that keeps its place, a problems list with plain-language hints.
+- **Visual editor** (the "normal" editor): edits the same file as the code view. Headings, paragraphs
+  (bold, italic, code, maths, citation chips), lists and equations are editable; tables, figures and
+  anything unusual stay as source blocks. Whatever you do not touch is written back byte for byte.
+- **Agent**: writes, compiles a copy to check, repairs itself up to three times, then shows a diff to
+  Apply (one undo step) or Reject. Lesson learned: LaTeX inside JSON corrupts (`` is a backspace), so the
+  agent uses a plain marker format.
+Not done yet: SyncTeX, BibTeX/biber builds, templates beyond the five, an offline-bundle option, the
+installer round trip (the engine is listed for packaging but a packaged build has not been run), and
+checking the Thinkspace-PDF sources option against a real Thinkspace.
+
 Thinker today is for **reading**. ThinkerTex makes it a place to **write** too. It is an Overleaf-style
 editor with live PDF preview and an AI agent that writes LaTeX using the same model and key as the chat.
 ThinkerTex is a **tool in its own right**, not a part of Thinkspaces. A LaTeX project can live anywhere:

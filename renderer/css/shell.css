@@ -508,7 +508,7 @@
 }
 
 /* Short windows: tighten the rail so every destination fits without scrolling. */
-@media (max-height: 760px) {
+@media (max-height: 820px) {
   .activity-btn {
     min-height: 44px;
     gap: 1px;
