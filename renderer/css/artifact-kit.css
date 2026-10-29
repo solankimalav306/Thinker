@@ -98,3 +98,12 @@ tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--tk-sunken) 45
 .tk-cite { display: inline; padding: 0 7px; border: 1px solid color-mix(in srgb, var(--tk-primary) 45%, transparent); border-radius: 999px; background: color-mix(in srgb, var(--tk-primary) 11%, transparent); color: var(--tk-primary); font-size: 0.82em; font-weight: 600; white-space: nowrap; cursor: pointer; }
 .tk-cite:hover { background: color-mix(in srgb, var(--tk-primary) 22%, transparent); }
 [data-cite-unverified] { border-style: dashed; border-color: var(--tk-text-3); background: transparent; color: var(--tk-text-3); cursor: help; }
+
+/* slides: each is a 16:9 card, stacked; the Present view shows them one at a time */
+.tk-slide { display: flex; flex-direction: column; justify-content: center; gap: 0.4em; aspect-ratio: 16 / 9; margin: 0 0 14px; padding: 6% 7%; overflow: hidden; border: 1px solid var(--tk-border); border-radius: 12px; background: var(--tk-surface); }
+.tk-slide h1, .tk-slide h2 { margin: 0 0 0.3em; font-size: 1.5rem; }
+.tk-slide ul { margin: 0; }
+.tk-slide li { margin: 0.25em 0; }
+
+/* a document reads like a page of paper */
+.tk-doc { max-width: 72ch; margin: 0 auto; padding: 18px 22px; border: 1px solid var(--tk-border); border-radius: 6px; background: var(--tk-surface); line-height: 1.65; }

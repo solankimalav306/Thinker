@@ -46,6 +46,7 @@
       "database.js",
       "store.js",
       "workspaces.js",
+      "artifacts.js",
       "tex-log.js",
       "tex-compile.js",
       "artifact-protocol.js",

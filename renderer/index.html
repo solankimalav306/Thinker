@@ -21,6 +21,7 @@
   <link rel="stylesheet" href="css/overlays.css" />
   <link rel="stylesheet" href="css/help.css" />
   <link rel="stylesheet" href="css/spaces.css" />
+  <link rel="stylesheet" href="css/artifacts.css" />
   <link rel="stylesheet" href="css/tex.css" />
   <link rel="stylesheet" href="css/pdf.css" />
   <link rel="stylesheet" href="vendor/pdfjs/pdf_viewer.min.css" />
@@ -40,18 +41,12 @@
   <div class="app-shell">
     <nav class="activity-bar" aria-label="Primary navigation">
       <button class="activity-btn active" id="nav-home" title="Home" aria-label="Home"><i class="fa-solid fa-house"></i><span>Home</span></button>
-      <button class="activity-btn" id="nav-reader" title="Back to your document" aria-label="Reader"><i class="fa-solid fa-book-open"></i><span>Reader</span></button>
-      <button class="activity-btn" id="nav-tex" title="ThinkerTex: write LaTeX with a live preview" aria-label="ThinkerTex"><i class="fa-solid fa-pen-nib"></i><span>TeX</span></button>
-      <button class="activity-btn" id="nav-spaces" title="Thinkspaces: PDFs and writing projects together" aria-label="Thinkspaces"><i class="fa-solid fa-layer-group"></i><span>Spaces</span></button>
       <div class="rail-divider"></div>
-      <button class="activity-btn" id="nav-outline" data-needs-doc title="Contents" aria-label="Contents"><i class="fa-solid fa-list"></i><span>Contents</span></button>
-      <button class="activity-btn" id="nav-thumbs" data-needs-doc title="Pages" aria-label="Pages"><i class="fa-regular fa-images"></i><span>Pages</span></button>
-      <button class="activity-btn" id="nav-notes" data-needs-doc title="Notes" aria-label="Notes"><i class="fa-solid fa-note-sticky"></i><span>Notes</span></button>
-      <button class="activity-btn" id="nav-glossary" data-needs-doc title="Glossary" aria-label="Glossary"><i class="fa-solid fa-spell-check"></i><span>Glossary</span></button>
-      <button class="activity-btn" id="nav-mindmaps" data-needs-doc title="Mind maps" aria-label="Mind maps"><i class="fa-solid fa-diagram-project"></i><span>Mind maps</span></button>
-      <button class="activity-btn" id="nav-history" data-needs-doc title="History" aria-label="History"><i class="fa-solid fa-clock-rotate-left"></i><span>History</span></button>
+      <button class="activity-btn" id="nav-reader" title="Reader: read, mark up and ask about a PDF" aria-label="Reader"><i class="fa-solid fa-book-open"></i><span>Reader</span></button>
+      <button class="activity-btn" id="nav-spaces" title="Thinkspaces: PDFs and writing projects together" aria-label="Thinkspaces"><i class="fa-solid fa-layer-group"></i><span>Spaces</span></button>
+      <button class="activity-btn" id="nav-tex" title="ThinkerTex: write LaTeX with a live preview" aria-label="ThinkerTex"><i class="fa-solid fa-pen-nib"></i><span>TeX</span></button>
+      <button class="activity-btn" id="nav-artifacts" title="Artifacts: your saved tables, charts, slides and documents" aria-label="Artifacts"><i class="fa-solid fa-shapes"></i><span>Artifacts</span></button>
       <div class="rail-spacer"></div>
-      <button class="activity-btn" id="nav-chat" data-needs-doc title="Ask Thinker" aria-label="Chat"><i class="fa-solid fa-comments"></i><span>Chat</span></button>
       <button class="activity-btn" id="nav-help" title="Help and tutorials" aria-label="Help"><i class="fa-regular fa-circle-question"></i><span>Help</span></button>
       <button class="activity-btn" id="nav-settings" title="Settings" aria-label="Settings"><i class="fa-solid fa-gear"></i><span>Settings</span></button>
     </nav>
@@ -60,6 +55,7 @@
       <header class="top-bar">
         <div class="toolbar-center">
           <div class="tool-group">
+            <button class="btn icon-btn" id="toggle-sidebar" title="Show or hide the panels (Contents, Pages, Notes, Glossary, Mind maps, History)" aria-label="Show or hide panels"><i class="fa-solid fa-table-columns"></i></button>
             <button class="btn icon-btn" id="prev-page" title="Previous page"><i class="fas fa-arrow-left"></i></button>
             <button class="btn icon-btn" id="next-page" title="Next page"><i class="fas fa-arrow-right"></i></button>
             <span class="page-info">Page <input id="page-num" class="page-num-input" type="text" inputmode="numeric" autocomplete="off" value="0" aria-label="Page number" title="Go to page (Ctrl+G)"> of <span id="page-count">0</span></span>
@@ -93,6 +89,7 @@
               <button class="btn mode-btn" id="mode-two" title="Two pages"><i class="fa-solid fa-book-open"></i></button>
               <button class="btn mode-btn" id="mode-scroll" title="Continuous scroll"><i class="fa-solid fa-scroll"></i></button>
             </div>
+            <button class="btn" id="nav-chat" data-needs-doc title="Ask Thinker about this document" aria-label="Chat"><i class="fa-solid fa-comments"></i> Ask</button>
             <button class="btn primary" id="save-annotations-btn" title="Save your marks into a new PDF"><i class="fa-solid fa-floppy-disk"></i> Save</button>
           </div>
         </div>
@@ -294,6 +291,10 @@
         <div id="spaces-content"></div>
       </section>
 
+      <section class="artifacts-screen" id="artifacts-screen">
+        <div id="artifacts-content"></div>
+      </section>
+
       <section class="help-screen" id="help-screen">
         <div class="settings" id="help-content"></div>
       </section>
@@ -301,6 +302,14 @@
       <section class="reader-layout" id="reader-layout">
         <aside class="reader-sidebar" id="reader-sidebar">
           <div class="resizer sidebar-resizer" id="sidebar-resizer"></div>
+          <div class="panel-tabs" role="tablist" aria-label="Panels for this document">
+            <button class="panel-tab" id="nav-outline" role="tab" title="Contents" aria-label="Contents"><i class="fa-solid fa-list"></i></button>
+            <button class="panel-tab" id="nav-thumbs" role="tab" title="Pages" aria-label="Pages"><i class="fa-regular fa-images"></i></button>
+            <button class="panel-tab" id="nav-notes" role="tab" title="Notes" aria-label="Notes"><i class="fa-solid fa-note-sticky"></i></button>
+            <button class="panel-tab" id="nav-glossary" role="tab" title="Glossary" aria-label="Glossary"><i class="fa-solid fa-spell-check"></i></button>
+            <button class="panel-tab" id="nav-mindmaps" role="tab" title="Mind maps" aria-label="Mind maps"><i class="fa-solid fa-diagram-project"></i></button>
+            <button class="panel-tab" id="nav-history" role="tab" title="History" aria-label="History"><i class="fa-solid fa-clock-rotate-left"></i></button>
+          </div>
           <div class="sidebar-block" id="outline-block">
             <h4>Contents</h4>
             <ul id="outline-list" class="jump-list"></ul>

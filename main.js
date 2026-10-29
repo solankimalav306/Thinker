@@ -15,6 +15,7 @@ const { initStorage, migrateProfileSecrets, getItemSync, setItemSync, removeItem
 const { openDatabase } = require('./database');
 const { createStore } = require('./store');
 const { createWorkspaces } = require('./workspaces');
+const { createArtifacts } = require('./artifacts');
 const { registerTexIpc } = require('./tex-service');
 const { importLegacyData } = require('./legacy-import');
 const { handleLLMGenerate } = require('./llm-handler');
@@ -27,6 +28,8 @@ let backendProcess = null;
 let store = null;
 let workspaces = null;
 const spaces = () => (workspaces ||= createWorkspaces(store));
+let artifactLib = null;
+const artifacts = () => (artifactLib ||= createArtifacts(store));
 
 // ── Backend address: random free port + per-launch token, chosen at startup ──
 let BACKEND_PORT = 0;
@@ -590,6 +593,11 @@ function registerIpcHandlers() {
   ipcMain.handle('ws:removeDocument', (_e, id, docId) => spaces().removeDocument(text(id), text(docId)));
   ipcMain.handle('ws:reorderDocuments', (_e, id, order) => spaces().reorderDocuments(text(id), paths(order)));
   ipcMain.handle('ws:forDocument', (_e, docId) => spaces().workspacesForDocument(text(docId)));
+  ipcMain.handle('art:list', (_e, filter) => artifacts().list(filter || {}));
+  ipcMain.handle('art:get', (_e, id) => artifacts().get(text(id)));
+  ipcMain.handle('art:create', (_e, fields) => artifacts().create(fields || {}));
+  ipcMain.handle('art:update', (_e, id, patch) => artifacts().update(text(id), patch || {}));
+  ipcMain.handle('art:delete', (_e, id) => artifacts().remove(text(id)));
   ipcMain.handle('proj:list', () => spaces().listProjects());
   ipcMain.handle('proj:get', (_e, id) => spaces().getProject(text(id)));
   ipcMain.handle('proj:update', (_e, id, patch) => spaces().updateProject(text(id), patch || {}));

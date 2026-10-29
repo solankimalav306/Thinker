@@ -27,6 +27,7 @@ import { buildTours } from "./tours.js";
 import { createOnboarding, TASKS, progress, nextTask } from "./onboarding.js";
 import { renderHelp, openGuide } from "./help.js";
 import { createSpaces } from "./spaces.js";
+import { createArtifactsLibrary } from "./artifacts-library.js";
 import { createTexStudio } from "./tex-studio.js";
 import { loadSettings, getSetting, setSetting, onSettingChange } from "./settings-registry.js";
 import { registerAllSettings } from "./settings-definitions.js";
@@ -72,12 +73,16 @@ const elements = {
   texScreen: document.getElementById("tex-screen"),
   texRoot: document.getElementById("tex-root"),
   spacesScreen: document.getElementById("spaces-screen"),
+  artifactsScreen: document.getElementById("artifacts-screen"),
+  artifactsContent: document.getElementById("artifacts-content"),
+  navArtifacts: document.getElementById("nav-artifacts"),
   spacesContent: document.getElementById("spaces-content"),
   spaceRow: document.getElementById("space-row"),
   navSettings: document.getElementById("nav-settings"),
   navOutline: document.getElementById("nav-outline"),
   navThumbs: document.getElementById("nav-thumbs"),
   navChat: document.getElementById("nav-chat"),
+  toggleSidebar: document.getElementById("toggle-sidebar"),
   chatPanel: document.getElementById("chat-panel"),
   aiCapabilitiesBtn: document.getElementById("ai-capabilities-btn"),
   aiCapabilitiesModal: document.getElementById("ai-capabilities-modal"),
@@ -275,6 +280,7 @@ function syncLayoutToggles() {
   elements.settingsScreen.classList.toggle("visible", currentView === "settings");
   elements.helpScreen.classList.toggle("visible", currentView === "help");
   elements.spacesScreen.classList.toggle("visible", currentView === "spaces");
+  elements.artifactsScreen.classList.toggle("visible", currentView === "artifacts");
   elements.texScreen.classList.toggle("visible", currentView === "tex");
   elements.readerLayout.classList.toggle("visible", isReader);
   elements.readerLayout.classList.toggle("sidebar-hidden", !showSidebar);
@@ -289,6 +295,7 @@ function syncLayoutToggles() {
   elements.navSettings.classList.toggle("active", currentView === "settings");
   elements.navHelp.classList.toggle("active", currentView === "help");
   elements.navSpaces.classList.toggle("active", currentView === "spaces");
+  elements.navArtifacts.classList.toggle("active", currentView === "artifacts");
   elements.navTex.classList.toggle("active", currentView === "tex");
   elements.navOutline.classList.toggle("active", showSidebar && sidebarPanel === "outline");
   elements.navThumbs.classList.toggle("active", showSidebar && sidebarPanel === "thumbs");
@@ -297,6 +304,7 @@ function syncLayoutToggles() {
   elements.navHistory?.classList.toggle("active", showSidebar && sidebarPanel === "history");
   elements.navMindmaps?.classList.toggle("active", showSidebar && sidebarPanel === "mindmaps");
   elements.navChat?.classList.toggle("active", showChat);
+  elements.toggleSidebar?.classList.toggle("active", showSidebar);
 
   elements.glossaryBlock?.classList.toggle("visible", showSidebar && sidebarPanel === "glossary");
   elements.notesBlock?.classList.toggle("visible", showSidebar && sidebarPanel === "notes");
@@ -337,6 +345,12 @@ function showWelcome() {
 
 function showTex() {
   currentView = "tex";
+  syncLayoutToggles();
+  renderTabs();
+}
+
+function showArtifacts() {
+  currentView = "artifacts";
   syncLayoutToggles();
   renderTabs();
 }
@@ -1595,6 +1609,18 @@ async function boot() {
     go: showSpaces
   });
   elements.navSpaces.addEventListener("click", () => spaces.showList());
+
+  // Artifacts
+  const artifactsLibrary = createArtifactsLibrary({
+    container: elements.artifactsContent,
+    openPdfAt: async (path, page) => {
+      await openTab(path);
+      window.dispatchEvent(new CustomEvent("navigate-pdf-page", { detail: { page } }));
+    },
+    setStatus,
+    go: showArtifacts
+  });
+  elements.navArtifacts.addEventListener("click", () => artifactsLibrary.showList());
   window.addEventListener("thinker:home-shown", () => spaces.refreshHome().catch(() => {}));
   spaces.refreshHome().catch(() => {});
   renderHelp(elements.helpContent, {
@@ -1944,6 +1970,11 @@ async function boot() {
     elements.chatInput.value = "Generate a comprehensive mind map of this document.";
     elements.chatInput.focus();
     setStatus("Ask the AI to generate a map.");
+  });
+
+  elements.toggleSidebar.addEventListener("click", () => {
+    sidebarVisible = !sidebarVisible;
+    showReader();
   });
 
   elements.navChat.addEventListener("click", () => {

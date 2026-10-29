@@ -88,3 +88,13 @@ test('the colour tokens map onto variables the app really defines', async () => 
   const tokens = fs.readFileSync(require('path').join(__dirname, '..', 'renderer', 'css', 'tokens.css'), 'utf8');
   for (const variable of Object.values(TOKEN_MAP)) assert.ok(tokens.includes(variable + ':'), `${variable} is defined in tokens.css`);
 });
+
+test('the kind comes from the type attribute, or is guessed from the content', async () => {
+  const { splitArtifacts, artifactKind } = await import('../renderer/js/artifact-html.js');
+  const parts = splitArtifacts('Here.\n<artifact title="Sales" type="chart"><svg></svg></artifact>');
+  assert.strictEqual(parts.find((p) => p.type === 'artifact').kind, 'chart');
+  assert.strictEqual(artifactKind('', '<section class="tk-slide">a</section>'), 'slides');
+  assert.strictEqual(artifactKind('', '<div class="tk-doc">a</div>'), 'document');
+  assert.strictEqual(artifactKind('', '<table></table>'), 'table');
+  assert.strictEqual(artifactKind('bogus', '<p>hi</p>'), 'page');
+});

@@ -1,4 +1,4 @@
-# Artifacts: AI-written HTML in the chat (phase 1, 2026-10-30)
+# Artifacts: AI-written HTML in the chat and a library of kept ones (2026-10-30)
 
 When you ask for a table, timeline, flashcards, study guide or diagram, the agent can answer with a small
 styled document (an **artifact**) instead of plain text. It is written as HTML and CSS, shown in the chat,
@@ -6,6 +6,22 @@ can be opened larger, copied or saved as an HTML file, and every citation in it 
 
 Phase 1 is in the **Thinkspace chat**. The single-PDF chat, saving artifacts into a Thinkspace, printing
 them to PDF and interactive artifacts come later.
+
+## The Artifacts library (phase 2)
+- **Keep what you like**: the bookmark on a chat card saves the artifact on its own, apart from the chat, with the sources it
+  was given so its citations still check out. Saving never changes or deletes the chat.
+- **Artifacts** in the left rail opens the library: a grid with search by title and a filter by kind (page, table, chart,
+  slides, document). Opening one shows it in the same sealed frame; rename it, link it to a Thinkspace (or none), save it as an
+  HTML file, or delete it (press twice). Deleting a Thinkspace keeps its artifacts.
+- **Kinds**: the model labels each artifact (`type="table|chart|slides|document|page"`), or the kind is guessed from the content.
+  Charts are inline SVG or `tk-bar` rows, slides are 16:9 `tk-slide` cards, documents use `tk-doc`.
+- Stored in the database (migration 3, table `artifacts`), tests in `tests/artifacts.test.js`.
+- Not built yet: Present mode for slides, and export to PDF, PNG, Word and PowerPoint.
+
+## Navigation
+The rail holds only the big tools: Home, Reader, Thinkspaces, ThinkerTex, Artifacts, then Help and Settings. The panels that
+belong to an open PDF (Contents, Pages, Notes, Glossary, Mind maps, History) are tabs at the top of the reader's side panel,
+shown or hidden with the panel button in the toolbar, and chat is the Ask button in the toolbar.
 
 ## How it works
 1. The prompt tells the model to use an artifact **only** when asked for a visual document by name, and gives

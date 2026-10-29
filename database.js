@@ -165,6 +165,24 @@ const MIGRATIONS = [
         PRIMARY KEY (workspace_id, project_id)
       );
     `
+  },
+  {
+    version: 3,
+    sql: `
+      -- Artifacts: AI-written HTML (tables, charts, slides, documents, pages) kept on their own,
+      -- apart from the chat that produced them. A Thinkspace link is optional and never deletes the artifact.
+      CREATE TABLE artifacts (
+        id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL DEFAULT 'page',
+        title TEXT NOT NULL,
+        html TEXT NOT NULL,
+        sources TEXT NOT NULL DEFAULT '[]',   -- JSON: [{doc, page}] the answer was given, for citation checks
+        workspace_id TEXT REFERENCES workspaces(id) ON DELETE SET NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE INDEX artifacts_updated ON artifacts(updated_at DESC);
+    `
   }
 ];
 

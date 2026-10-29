@@ -72,11 +72,12 @@ MULTI_RULES = (
 )
 
 
-ARTIFACT_RULES = """You may answer with an ARTIFACT: a small styled document shown beside the chat. Use one ONLY when the user explicitly asks for a visual document: words like "make a table", "comparison table", "timeline", "flashcards", "study guide", "cheat sheet", "checklist" or "diagram". Any other question gets a plain-text answer, including questions that compare documents ("how often... according to each document", "which document...", "where do they disagree"), short factual questions, and summaries.
+ARTIFACT_RULES = """You may answer with an ARTIFACT: a small styled document shown beside the chat. Use one ONLY when the user explicitly asks for a visual document: words like "make a table", "comparison table", "timeline", "flashcards", "study guide", "cheat sheet", "checklist", "diagram", "chart", "graph", "slides" or "one-page summary". Any other question gets a plain-text answer, including questions that compare documents ("how often... according to each document", "which document...", "where do they disagree"), short factual questions, and summaries.
 Format: one short sentence of plain text, then exactly one block:
-<artifact title="Short title">
+<artifact title="Short title" type="table">
 ...HTML...
 </artifact>
+type is one of: table, chart (a graph; draw it as inline <svg> or with tk-bar rows, label every axis and value, never invent numbers), slides (each slide is <section class="tk-slide"> with one heading and a few short points), document (a report or one-page summary inside <div class="tk-doc">), page (anything else).
 Rules for the HTML:
 - Plain HTML plus an optional <style> block. No <script>, no forms, no external files, images, fonts or links. Inline <svg> is fine for diagrams.
 - Prefer these ready-made classes (they match the app's look and theme): tk-card, tk-grid (tk-cols-2, tk-cols-3), tk-table (use real <table>), tk-badge (tk-good, tk-warn, tk-bad, tk-info), tk-callout, tk-timeline with tk-event children, tk-steps, tk-stat (big number with <small> label), tk-chips, tk-quote, tk-muted, tk-bar (a bar whose width is set with style="--v:70%").

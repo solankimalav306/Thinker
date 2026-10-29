@@ -10,6 +10,20 @@ export function cleanTitle(raw) {
 const ENTITIES = { "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#39;": "'", "&#x27;": "'", "&apos;": "'" };
 const decode = (text) => String(text).replace(/&(?:amp|lt|gt|quot|apos|#39|#x27);/g, (m) => ENTITIES[m] ?? m);
 
+export const ARTIFACT_KINDS = ["page", "table", "chart", "slides", "document"];
+
+// The kind the model named, or a guess from what it wrote. Only used to label and filter; it never changes how a page is shown.
+export function artifactKind(declared, html) {
+  const named = String(declared || "").trim().toLowerCase();
+  if (ARTIFACT_KINDS.includes(named)) return named;
+  const body = String(html || "");
+  if (/class\s*=\s*["'][^"']*\btk-slide\b/i.test(body)) return "slides";
+  if (/class\s*=\s*["'][^"']*\btk-doc\b/i.test(body)) return "document";
+  if (/<svg\b/i.test(body)) return "chart";
+  if (/<table\b/i.test(body)) return "table";
+  return "page";
+}
+
 // Splits a reply into text and artifact parts. An artifact that was never closed (the reply was cut off)
 // is still shown, marked incomplete.
 export function splitArtifacts(reply) {
@@ -27,7 +41,9 @@ export function splitArtifacts(reply) {
     const complete = closeAt !== -1;
     const body = text.slice(bodyStart, complete ? closeAt : text.length);
     const title = /\btitle\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(match[1]);
-    parts.push({ type: "artifact", title: cleanTitle(title ? title[1] ?? title[2] : ""), html: body.trim(), complete });
+    const type = /\btype\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(match[1]);
+    const html = body.trim();
+    parts.push({ type: "artifact", title: cleanTitle(title ? title[1] ?? title[2] : ""), html, kind: artifactKind(type ? type[1] ?? type[2] : "", html), complete });
     cursor = complete ? closeAt + "</artifact>".length : text.length;
     open.lastIndex = cursor;
   }

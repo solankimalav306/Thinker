@@ -73,7 +73,7 @@ export const GUIDES = [
     title: "Ask questions and read the answers",
     summary: "Chat about the open document and check where each answer came from.",
     steps: [
-      "Open the chat from the rail (the Chat button) and type a question. Press Enter to send.",
+      "Open the chat with the Ask button in the toolbar and type a question. Press Enter to send.",
       "Select text in the document first to ask about just that passage; it appears above the box as a quote.",
       "Answers name their pages, like Page 3. Click one to jump straight to it.",
       "Document + AI may add general knowledge, always marked AI Knowledge. Document only sticks strictly to your PDF and says so when it can't find something.",

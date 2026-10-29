@@ -206,12 +206,6 @@
   color: var(--on-primary);
 }
 
-/* Panels and chat are toggles (soft); the highlighted pill marks where you are (Home, Reader, Settings). */
-.activity-btn[data-needs-doc].active i {
-  background: var(--accent-soft);
-  color: var(--accent-text);
-}
-
 .rail-divider {
   width: 32px;
   height: 1px;
@@ -221,12 +215,6 @@
 
 .rail-spacer {
   flex: 1;
-}
-
-/* Panel buttons only make sense with a document open. */
-.app-shell.home-mode .activity-btn[data-needs-doc],
-.app-shell.home-mode .rail-divider {
-  display: none;
 }
 
 /* ---------- Workspace ---------- */
@@ -563,4 +551,51 @@
   .activity-btn span {
     display: none;
   }
+}
+
+/* ---------- Panel tabs: the PDF-only panels live inside the reader, not in the main rail ---------- */
+.panel-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.panel-tab {
+  display: grid;
+  flex: 1;
+  place-items: center;
+  min-height: 34px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-3);
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+
+.panel-tab:hover {
+  background: var(--sunken);
+  color: var(--text);
+}
+
+.panel-tab.active {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+#nav-chat.active {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+#toggle-sidebar.active {
+  background: var(--accent-soft);
+  color: var(--accent-text);
 }

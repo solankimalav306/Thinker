@@ -126,7 +126,7 @@ export function standaloneDocument(title, html, css, tokens) {
   return `<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">\n<title>${safeTitle}</title>\n<style>:root{${vars}}\n${css}</style></head>\n<body><div id="root">${html}</div></body></html>\n`;
 }
 
-export function createArtifactView({ title, html, complete = true, sources, onCite, onSave }) {
+export function createArtifactView({ title, html, complete = true, sources, onCite, onSave, onKeep }) {
   const clean = sanitizeArtifact(html);
   const checked = validateCitations(clean, sources);
   const box = el("section", "art-frame");
@@ -157,6 +157,20 @@ export function createArtifactView({ title, html, complete = true, sources, onCi
   foot.append(bigger);
   box.append(foot);
 
+  if (onKeep) {
+    const keep = iconButton("fa-bookmark", "Save to Artifacts", async () => {
+      keep.disabled = true;
+      try {
+        await onKeep({ title, html: checked.html, sources: checked.valid });
+        keep.firstChild.className = "fa-solid fa-circle-check";
+        keep.title = "Saved to Artifacts";
+        keep.setAttribute("aria-label", "Saved to Artifacts");
+      } catch {
+        keep.disabled = false;
+      }
+    });
+    tools.append(keep);
+  }
   tools.append(
     iconButton("fa-up-right-and-down-left-from-center", "Open larger", () => openLarge({ title, checked, onCite })),
     iconButton("fa-copy", "Copy the HTML", () => navigator.clipboard?.writeText(checked.html).catch(() => {})),
