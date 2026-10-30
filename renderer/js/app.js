@@ -192,6 +192,7 @@ const elements = {
   homeGreeting: document.getElementById("home-greeting"),
   homeEyebrow: document.getElementById("home-eyebrow"),
   usageSummary: document.getElementById("usage-summary"),
+  tokenUsageSources: document.getElementById("token-usage-sources"),
   tokenUsagePanel: document.getElementById("token-usage-panel"),
   docState: document.getElementById("doc-state"),
   tourOffer: document.getElementById("tour-offer"),
@@ -1323,6 +1324,9 @@ async function boot() {
     window.electronAPI.openDocumentLink(href);
   });
 
+  // any part of the app that used the AI: keep the Settings summary current
+  window.addEventListener("thinker:usage", () => refreshTokenDashboard(elements, elements.tokenUsageProfileFilter?.value || "all"));
+
   window.addEventListener("navigate-pdf-page", (event) => {
     const pageNum = event.detail.page;
     if (pageNum && pdf && pdf.hasDocument()) {
@@ -2296,7 +2300,8 @@ async function boot() {
   });
   const applyAiSettings = () => {
     if (elements.chatModeSelect) elements.chatModeSelect.value = getSetting("ai.defaultMode");
-    if (elements.tokenTracker) elements.tokenTracker.style.display = getSetting("ai.showTokenCounter") ? "" : "none";
+    // one setting hides or shows the token line everywhere: reader, Thinkspace chat and ThinkerTex
+    document.body.classList.toggle("hide-token-counter", !getSetting("ai.showTokenCounter"));
   };
   applyAiSettings();
   onSettingChange((key) => {

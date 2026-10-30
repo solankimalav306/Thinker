@@ -554,3 +554,7 @@
     width: 100%;
   }
 }
+
+/* the charts need a height of their own: a canvas has none until something is drawn on it */
+#token-breakdown-chart { height: 112px; }
+#token-usage-graph { height: 64px; }

@@ -1,4 +1,5 @@
 import { recordTokenUsage, updateTokenTracker } from "./token-usage.js";
+import { trackAiUsage } from "./ai-usage.js";
 import { escapeHtml, renderMarkdown } from "./safe-html.js";
 import { splitArtifacts } from "./artifact-html.js";
 import { createArtifactView } from "./artifact-view.js";
@@ -747,6 +748,7 @@ export class ChatController {
         throw new Error(result?.error || "AI request failed");
       }
 
+      trackAiUsage({ source: "Reader chat", profile, usage: result.usage });
       return result.text || "No response.";
     }
 
@@ -911,6 +913,7 @@ export class ChatController {
           profileLabel: config.profile?.label || config.apiKeyLabel || "Unknown",
           usage: agentRes.usage,
           pdfId,
+          source: "Reader chat"
         });
         if (this.onTokenUsage) this.onTokenUsage();
       }
@@ -1011,6 +1014,7 @@ export class ChatController {
           profileLabel: config.profile?.label || "Unknown",
           usage: res.result.usage,
           pdfId,
+          source: "Reader chat"
         });
         if (this.onTokenUsage) this.onTokenUsage();
       }

@@ -5,6 +5,7 @@ import { friendlyAgentError, timeAgo, splitCitations } from "./chat-groups.js";
 import { ensureIndexed } from "./doc-index.js";
 import { splitArtifacts } from "./artifact-html.js";
 import { createArtifactView } from "./artifact-view.js";
+import { trackAiUsage, createUsageLine } from "./ai-usage.js";
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -83,7 +84,8 @@ export function createSpaceChat(root, { api = window.electronAPI, space, openPdf
   send.type = "submit";
   send.disabled = !docs.length;
   form.append(input, send);
-  root.append(head, messages, progress, form);
+  const usageLine = createUsageLine("sc-tokens");
+  root.append(head, messages, progress, form, usageLine);
 
   const profile = () => {
     const all = getApiProfiles();
@@ -250,6 +252,7 @@ export function createSpaceChat(root, { api = window.electronAPI, space, openPdf
       if (result.cancelled) { setStatus("Stopped."); return; }
       if (!result.ok) throw new Error(result.error || "The request failed");
       if (result.result?.error) throw new Error(result.result.error);
+      trackAiUsage({ source: "Thinkspace chat", profile: p, usage: result.result?.usage });
       const answer = result.result?.response_text || "";
       if (!answer.trim()) throw new Error("The AI did not send an answer.");
       const reply = { role: "assistant", text: answer, ts: Date.now(), sources: (result.result?.sources || []).map((s) => ({ doc: s.doc, page: s.page })) };

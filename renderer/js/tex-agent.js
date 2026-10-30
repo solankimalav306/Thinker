@@ -1,6 +1,7 @@
 // The ThinkerTex agent panel: ask for LaTeX, it writes it, compiles it on a scratch copy to check,
 // repairs its own mistakes (up to three tries), and shows what it wants to change as a diff to Apply or Reject.
 // Nothing touches your files until you press Apply.
+import { trackAiUsage, createUsageLine } from "./ai-usage.js";
 import { getApiProfiles, getActiveApiProfileId } from "./state.js";
 import { friendlyAgentError } from "./chat-groups.js";
 import {
@@ -56,7 +57,8 @@ export function createTexAgent(root, deps) {
   const send = btn("", "btn primary ta-send", "fa-arrow-up", null, "Send");
   send.type = "submit";
   form.append(input, send);
-  root.append(head, messages, chips, form);
+  const usageLine = createUsageLine("ta-tokens");
+  root.append(head, messages, chips, form, usageLine);
 
   const profile = () => {
     const all = getApiProfiles();
@@ -120,6 +122,7 @@ export function createTexAgent(root, deps) {
       system: SYSTEM_PROMPT, maxTokens: 8000, timeoutMs: 150000
     });
     if (!result?.ok) throw new Error(friendlyAgentError(result?.error));
+    trackAiUsage({ source: "ThinkerTex", profile: p, usage: result.usage });
     return result.text || "";
   }
 

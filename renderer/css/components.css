@@ -522,3 +522,44 @@ select[aria-invalid="true"] {
   border-color: var(--danger);
   box-shadow: 0 0 0 3px var(--danger-soft);
 }
+
+/* Settings: what each part of the app has used */
+.token-usage-sources {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.token-source-row {
+  display: grid;
+  grid-template-columns: 7.5em 1fr auto;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-sm, 0.85rem);
+}
+
+.token-source-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.token-source-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--sunken);
+  overflow: hidden;
+}
+
+.token-source-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--primary);
+}
+
+.token-source-value {
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

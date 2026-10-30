@@ -25,7 +25,7 @@ function formatNum(n) {
   return String(val);
 }
 
-export async function recordTokenUsage({ profileId, profileLabel, usage, pdfId }) {
+export async function recordTokenUsage({ profileId, profileLabel, usage, pdfId, source }) {
   if (!usage || !window.electronAPI?.appendTokenUsage) return;
 
   const entry = {
@@ -36,6 +36,7 @@ export async function recordTokenUsage({ profileId, profileLabel, usage, pdfId }
     total_tokens: usage.total_tokens || 0,
     breakdown: usage.breakdown || {},
     pdfId: pdfId || "",
+    source: source || "Reader chat",
   };
 
   await window.electronAPI.appendTokenUsage(entry);
@@ -76,17 +77,21 @@ export function aggregateStats(history) {
 }
 function setupCanvas(canvas) {
   const dpr = window.devicePixelRatio || 1;
+  // Measure what the stylesheet gives it, not what an earlier draw left behind: drawing while the panel was
+  // closed used to freeze the chart at 0 x 0 for good.
+  canvas.style.width = "";
+  canvas.style.height = "";
   const rect = canvas.getBoundingClientRect();
-  
-  // Set display size
-  canvas.style.width = rect.width + 'px';
-  canvas.style.height = rect.height + 'px';
-  
+  if (!rect.width || !rect.height) return null; // not on screen yet; it is drawn when it is opened
+
+  canvas.style.width = rect.width + "px";
+  canvas.style.height = rect.height + "px";
+
   // Set actual internal resolution
   canvas.width = rect.width * dpr;
   canvas.height = rect.height * dpr;
-  
-  const ctx = canvas.getContext('2d');
+
+  const ctx = canvas.getContext("2d");
   ctx.scale(dpr, dpr);
   return ctx;
 }
@@ -115,6 +120,8 @@ export function renderTokenDashboard(elements, history, profileId = "all") {
   emptyEl.style.display = "none";
   statsEl.style.display = "flex";
 
+  renderSourceList(elements.tokenUsageSources, filtered);
+
   if (elements.statPromptTokens) elements.statPromptTokens.textContent = formatNum(stats.prompt);
   if (elements.statResponseTokens) elements.statResponseTokens.textContent = formatNum(stats.response);
   if (elements.statTotalTokens) elements.statTotalTokens.textContent = formatNum(stats.total);
@@ -134,10 +141,44 @@ export function renderTokenDashboard(elements, history, profileId = "all") {
   renderUsageGraph(elements.tokenUsageGraph, filtered.slice(-MAX_GRAPH_POINTS));
 }
 
+// What each part of the app has used, biggest first.
+function renderSourceList(container, rows) {
+  if (!container) return;
+  const bySource = new Map();
+  for (const row of rows) {
+    const name = row.source || "Reader chat"; // entries from before this was tracked all came from the reader
+    const entry = bySource.get(name) || { total: 0, requests: 0 };
+    entry.total += row.total_tokens || 0;
+    entry.requests += 1;
+    bySource.set(name, entry);
+  }
+  container.textContent = "";
+  const sorted = [...bySource.entries()].sort((a, b) => b[1].total - a[1].total);
+  const max = sorted.length ? sorted[0][1].total || 1 : 1;
+  for (const [name, entry] of sorted) {
+    const line = document.createElement("div");
+    line.className = "token-source-row";
+    const label = document.createElement("span");
+    label.className = "token-source-name";
+    label.textContent = name;
+    const bar = document.createElement("span");
+    bar.className = "token-source-bar";
+    const fill = document.createElement("span");
+    fill.style.width = `${Math.max(3, Math.round((entry.total / max) * 100))}%`;
+    bar.append(fill);
+    const value = document.createElement("span");
+    value.className = "token-source-value";
+    value.textContent = `${formatNum(entry.total)} · ${entry.requests} ${entry.requests === 1 ? "request" : "requests"}`;
+    line.append(label, bar, value);
+    container.append(line);
+  }
+}
+
 function renderBreakdownChart(canvas, breakdown) {
   if (!canvas) return;
   const colors = palette();
   const ctx = setupCanvas(canvas);
+  if (!ctx) return;
   const w = canvas.offsetWidth;
   const h = canvas.offsetHeight;
 
@@ -184,6 +225,7 @@ function renderUsageGraph(canvas, points) {
   if (!canvas) return;
   const colors = palette();
   const ctx = setupCanvas(canvas);
+  if (!ctx) return;
   const w = canvas.offsetWidth;
   const h = canvas.offsetHeight;
 

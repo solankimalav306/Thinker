@@ -122,7 +122,7 @@ async function handleLLMGenerate(_event, rawPayload) {
 
       const parsed = safeJsonParse(responseText);
       const text = parsed?.choices?.[0]?.message?.content || parsed?.output_text || "";
-      return { ok: true, text };
+      return { ok: true, text, usage: normalizeUsage(parsed?.usage) };
     }
 
     const geminiParts = toGeminiParts(parts);
@@ -153,12 +153,23 @@ async function handleLLMGenerate(_event, rawPayload) {
     const parsed = safeJsonParse(responseText);
     // Join every text part except the model's private "thought" parts.
     const text = (parsed?.candidates?.[0]?.content?.parts || []).filter((p) => p && typeof p.text === "string" && !p.thought).map((p) => p.text).join("") || "";
-    const usage = parsed?.usageMetadata || null;
-    return { ok: true, text, usage };
+    return { ok: true, text, usage: normalizeUsage(parsed?.usageMetadata) };
   } catch (error) {
     if (error?.name === "TimeoutError" || error?.name === "AbortError") return { ok: false, error: "The AI service took too long to answer (timed out)." };
     return { ok: false, error: error?.message || "LLM request failed." };
   }
 }
 
-module.exports = { handleLLMGenerate };
+// Every provider reports what a request cost in its own words; the app wants one shape.
+function normalizeUsage(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const num = (v) => (Number.isFinite(Number(v)) ? Math.max(0, Math.round(Number(v))) : 0);
+  const prompt = num(raw.promptTokenCount ?? raw.prompt_tokens ?? raw.input_tokens);
+  const total = num(raw.totalTokenCount ?? raw.total_tokens);
+  // models that think first count those tokens in the total only; they are still paid for, so they count as output
+  const response = total > prompt ? total - prompt : num(raw.candidatesTokenCount ?? raw.completion_tokens ?? raw.output_tokens);
+  if (!prompt && !response) return null;
+  return { prompt_tokens: prompt, response_tokens: response, total_tokens: prompt + response };
+}
+
+module.exports = { handleLLMGenerate, normalizeUsage };
