@@ -15,6 +15,7 @@ export function normalizeUsage(raw) {
 
 // Where the work happened, in words a person would use.
 export const SOURCES = ["Reader chat", "Thinkspace chat", "ThinkerTex", "Other"];
+export const BIG_ANSWER = 20000;
 
 export async function trackAiUsage({ source = "Other", profile = null, usage, pdfId = "" }) {
   const normalized = normalizeUsage(usage);
@@ -30,6 +31,10 @@ export async function trackAiUsage({ source = "Other", profile = null, usage, pd
     });
   } catch { /* the history is a convenience; an answer is never held back by it */ }
   window.dispatchEvent(new CustomEvent("thinker:usage"));
+  // an answer that cost a lot is worth a word: long documents and long chats are what make it expensive
+  if (normalized.total_tokens >= BIG_ANSWER) {
+    window.dispatchEvent(new CustomEvent("thinker:status", { detail: `That used about ${Math.round(normalized.total_tokens / 1000)}K tokens. Long documents and long chats use more; a new chat keeps it small.` }));
+  }
   return normalized;
 }
 
@@ -37,8 +42,8 @@ export async function trackAiUsage({ source = "Other", profile = null, usage, pd
 export function createUsageLine(className = "") {
   const line = document.createElement("span");
   line.className = `token-tracker ${className}`.trim();
-  line.title = "Tokens used by the last answer";
-  line.textContent = "Tokens: 0";
+  line.title = "How much AI the last answer used. Click to see your AI usage.";
+  line.textContent = "Last answer: nothing yet";
   if (document.body.classList.contains("hide-token-counter")) line.hidden = true;
   return line;
 }

@@ -25,6 +25,43 @@ function formatNum(n) {
   return String(val);
 }
 
+let period = "today";
+try { period = localStorage.getItem("thinker.usagePeriod") || "today"; } catch { /* private mode */ }
+if (!["today", "week", "all"].includes(period)) period = "today";
+
+export function getUsagePeriod() { return period; }
+export function setUsagePeriod(next) {
+  if (!["today", "week", "all"].includes(next)) return;
+  period = next;
+  try { localStorage.setItem("thinker.usagePeriod", next); } catch { /* private mode */ }
+}
+
+// The rows that fall in a time range: since midnight today, the last seven days, or everything.
+export function filterByPeriod(history, which, now = Date.now()) {
+  if (which === "all") return history;
+  let from;
+  if (which === "today") {
+    const d = new Date(now);
+    d.setHours(0, 0, 0, 0);
+    from = d.getTime();
+  } else {
+    from = now - 7 * 24 * 60 * 60 * 1000;
+  }
+  return history.filter((row) => (row.timestamp || 0) >= from);
+}
+
+// Tokens as something a person can picture: about three quarters of a word each, and about 500 words to a page.
+export function describeTokens(tokens) {
+  const words = Math.round((Number(tokens) || 0) * 0.75);
+  if (words < 20) return "";
+  const pages = words / 500;
+  const wordText = `about ${words >= 1000 ? `${Math.round(words / 100) / 10}K` : words} words`;
+  if (pages < 0.5) return wordText;
+  return `${wordText}, roughly ${pages < 10 ? pages.toFixed(1).replace(/\.0$/, "") : Math.round(pages)} ${pages <= 1.05 ? "page" : "pages"} of text`;
+}
+
+const PERIOD_WORDS = { today: "today", week: "in the last 7 days", all: "so far" };
+
 export async function recordTokenUsage({ profileId, profileLabel, usage, pdfId, source }) {
   if (!usage || !window.electronAPI?.appendTokenUsage) return;
 
@@ -97,7 +134,8 @@ function setupCanvas(canvas) {
 }
 
 export function renderTokenDashboard(elements, history, profileId = "all") {
-  const filtered = filterHistoryByProfile(history, profileId);
+  const everything = filterHistoryByProfile(history, profileId);
+  const filtered = filterByPeriod(everything, period);
   const stats = aggregateStats(filtered);
   const last = filtered[filtered.length - 1];
 
@@ -105,20 +143,41 @@ export function renderTokenDashboard(elements, history, profileId = "all") {
   const statsEl = elements.tokenUsageStats;
   if (!emptyEl || !statsEl) return;
 
+  document.querySelectorAll("[data-usage-period]").forEach((chip) => {
+    const on = chip.dataset.usagePeriod === period;
+    chip.classList.toggle("active", on);
+    chip.setAttribute("aria-pressed", String(on));
+  });
+
   if (elements.usageSummary) {
+    const word = stats.requests === 1 ? "request" : "requests";
     elements.usageSummary.textContent = filtered.length === 0
-      ? "Nothing yet"
-      : `${formatNum(stats.total)} tokens \u00b7 ${stats.requests} ${stats.requests === 1 ? "question" : "questions"}`;
+      ? (everything.length ? "Nothing today" : "Nothing yet")
+      : `${period === "today" ? "Today: " : period === "week" ? "7 days: " : ""}${stats.requests} ${word} \u00b7 ${formatNum(stats.total)} tokens`;
   }
 
   if (filtered.length === 0) {
     emptyEl.style.display = "";
     statsEl.style.display = "none";
+    const text = document.getElementById("token-usage-empty-text");
+    if (text) text.textContent = everything.length
+      ? `No AI requests ${PERIOD_WORDS[period]}. Choose "All time" to see everything.`
+      : "No questions asked yet. Usage appears here once you start chatting.";
     return;
   }
 
   emptyEl.style.display = "none";
   statsEl.style.display = "flex";
+
+  const heroCount = document.getElementById("usage-hero-count");
+  const heroLabel = document.getElementById("usage-hero-label");
+  const heroDetail = document.getElementById("usage-hero-detail");
+  if (heroCount) heroCount.textContent = String(stats.requests);
+  if (heroLabel) heroLabel.textContent = `AI ${stats.requests === 1 ? "request" : "requests"} ${PERIOD_WORDS[period]}`;
+  if (heroDetail) {
+    const picture = describeTokens(stats.total);
+    heroDetail.textContent = `${formatNum(stats.total)} tokens${picture ? ` \u00b7 ${picture}` : ""}`;
+  }
 
   renderSourceList(elements.tokenUsageSources, filtered);
 
@@ -168,7 +227,7 @@ function renderSourceList(container, rows) {
     bar.append(fill);
     const value = document.createElement("span");
     value.className = "token-source-value";
-    value.textContent = `${formatNum(entry.total)} · ${entry.requests} ${entry.requests === 1 ? "request" : "requests"}`;
+    value.textContent = `${entry.requests} ${entry.requests === 1 ? "request" : "requests"} · ${formatNum(entry.total)} tokens`;
     line.append(label, bar, value);
     container.append(line);
   }
@@ -183,10 +242,10 @@ function renderBreakdownChart(canvas, breakdown) {
   const h = canvas.offsetHeight;
 
   const items = [
-    { label: "Context", value: breakdown.context, color: colors.context },
-    { label: "History", value: breakdown.history, color: colors.history },
-    { label: "Selected", value: breakdown.selected_text, color: colors.selected },
-    { label: "Prompt", value: breakdown.prompt, color: colors.prompt },
+    { label: "Document passages", value: breakdown.context, color: colors.context },
+    { label: "Earlier chat", value: breakdown.history, color: colors.history },
+    { label: "Your selection", value: breakdown.selected_text, color: colors.selected },
+    { label: "Instructions and question", value: breakdown.prompt, color: colors.prompt },
   ];
 
   const total = items.reduce((s, i) => s + i.value, 0) || 1;
@@ -280,8 +339,8 @@ export function updateTokenTracker(trackerEl, usage) {
   const total = usage.total_tokens || 0;
   const prompt = usage.prompt_tokens || 0;
   const response = usage.response_tokens || 0;
-  trackerEl.textContent = `Tokens: ${formatNum(total)} (${formatNum(prompt)} in, ${formatNum(response)} out)`;
-  trackerEl.title = `Last request — Prompt: ${prompt}, Response: ${response}`;
+  trackerEl.textContent = `Last answer: ${formatNum(total)} tokens`;
+  trackerEl.title = `The AI read ${prompt.toLocaleString()} tokens and wrote ${response.toLocaleString()}. Click to see your AI usage.`;
 }
 
 export async function refreshTokenDashboard(elements, profileId = "all") {

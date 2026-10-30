@@ -90,6 +90,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   cancelAgent: (requestId) => ipcRenderer.invoke('agent:cancel', requestId),
   summarizeCache: (data) => ipcRenderer.invoke('agent:summarizeCache', data),
   appendTokenUsage: (entry) => ipcRenderer.invoke('tokens:append', entry),
+  clearTokenUsage: () => ipcRenderer.invoke('tokens:clear'),
   getTokenUsageHistory: () => ipcRenderer.invoke('tokens:getHistory'),
   
   getDefinition: (payload) => ipcRenderer.invoke('dict:define', payload),

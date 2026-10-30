@@ -149,56 +149,73 @@
               <span class="usage-summary" id="usage-summary">Nothing yet</span>
             </summary>
             <div class="usage-body">
-              <label class="usage-filter">Profile
-                <select id="token-usage-profile-filter" class="token-profile-filter" title="Filter by profile">
-                  <option value="all">All profiles</option>
-                </select>
-              </label>
+              <div class="usage-periods" role="group" aria-label="Time range">
+                <button type="button" class="ta-chip active" data-usage-period="today">Today</button>
+                <button type="button" class="ta-chip" data-usage-period="week">Last 7 days</button>
+                <button type="button" class="ta-chip" data-usage-period="all">All time</button>
+              </div>
               <div id="token-usage-body">
                 <div class="token-usage-empty empty-state" id="token-usage-empty">
                   <i class="fa-solid fa-seedling"></i>
-                  <span>No questions asked yet. Usage appears here once you start chatting.</span>
+                  <span id="token-usage-empty-text">No questions asked yet. Usage appears here once you start chatting.</span>
                 </div>
                 <div id="token-usage-stats" class="token-usage-stats">
-                  <div class="token-stat-row">
-                    <span class="token-stat-label">Sent to the model</span>
-                    <span class="token-stat-value" id="stat-prompt-tokens">0</span>
-                  </div>
-                  <div class="token-stat-row">
-                    <span class="token-stat-label">Received back</span>
-                    <span class="token-stat-value" id="stat-response-tokens">0</span>
-                  </div>
-                  <div class="token-stat-row token-stat-total">
-                    <span class="token-stat-label">Total tokens</span>
-                    <span class="token-stat-value" id="stat-total-tokens">0</span>
-                  </div>
-                  <div class="token-stat-row">
-                    <span class="token-stat-label">Questions asked</span>
-                    <span class="token-stat-value" id="stat-total-requests">0</span>
-                  </div>
-                  <div class="token-stat-row">
-                    <span class="token-stat-label">Last question</span>
-                    <span class="token-stat-value" id="stat-last-tokens">-</span>
-                  </div>
-                  <div class="token-usage-bar-wrap" title="Sent vs received tokens">
-                    <div class="token-usage-bar">
-                      <div class="token-bar-prompt" id="bar-prompt"></div>
-                      <div class="token-bar-response" id="bar-response"></div>
+                  <div class="usage-hero">
+                    <div class="usage-hero-number" id="usage-hero-count">0</div>
+                    <div class="usage-hero-text">
+                      <strong id="usage-hero-label">AI requests today</strong>
+                      <span id="usage-hero-detail"></span>
                     </div>
-                    <div class="token-bar-legend"><span>Sent</span><span>Received</span></div>
                   </div>
+                  <p class="usage-explain">The AI reads and writes in small pieces of text called <em>tokens</em> (about three quarters of a word each). AI services count and charge by tokens, so this is the number that matters. Free keys have daily limits set by your provider, which Thinker cannot see.</p>
                   <div class="token-chart-section">
-                    <div class="token-chart-label">Used by</div>
+                    <div class="token-chart-label">Where it went</div>
                     <div id="token-usage-sources" class="token-usage-sources"></div>
                   </div>
-                  <div class="token-chart-section">
-                    <div class="token-chart-label">Where the input went</div>
-                    <canvas id="token-breakdown-chart" class="token-chart-canvas" width="280" height="80"></canvas>
-                  </div>
-                  <div class="token-chart-section">
-                    <div class="token-chart-label">Recent questions</div>
-                    <canvas id="token-usage-graph" class="token-chart-canvas" width="280" height="60"></canvas>
-                  </div>
+                  <details class="usage-more" id="usage-more">
+                    <summary>More detail</summary>
+                    <label class="usage-filter">Profile
+                      <select id="token-usage-profile-filter" class="token-profile-filter" title="Filter by profile">
+                        <option value="all">All profiles</option>
+                      </select>
+                    </label>
+                    <div class="token-stat-row">
+                      <span class="token-stat-label">Sent to the model</span>
+                      <span class="token-stat-value" id="stat-prompt-tokens">0</span>
+                    </div>
+                    <div class="token-stat-row">
+                      <span class="token-stat-label">Received back</span>
+                      <span class="token-stat-value" id="stat-response-tokens">0</span>
+                    </div>
+                    <div class="token-stat-row token-stat-total">
+                      <span class="token-stat-label">Total tokens</span>
+                      <span class="token-stat-value" id="stat-total-tokens">0</span>
+                    </div>
+                    <div class="token-stat-row">
+                      <span class="token-stat-label">Requests</span>
+                      <span class="token-stat-value" id="stat-total-requests">0</span>
+                    </div>
+                    <div class="token-stat-row">
+                      <span class="token-stat-label">Last request</span>
+                      <span class="token-stat-value" id="stat-last-tokens">-</span>
+                    </div>
+                    <div class="token-usage-bar-wrap" title="Sent vs received tokens">
+                      <div class="token-usage-bar">
+                        <div class="token-bar-prompt" id="bar-prompt"></div>
+                        <div class="token-bar-response" id="bar-response"></div>
+                      </div>
+                      <div class="token-bar-legend"><span>Sent</span><span>Received</span></div>
+                    </div>
+                    <div class="token-chart-section">
+                      <div class="token-chart-label">What was sent: document passages, earlier chat, your selection, instructions and question</div>
+                      <canvas id="token-breakdown-chart" class="token-chart-canvas" width="280" height="80"></canvas>
+                    </div>
+                    <div class="token-chart-section">
+                      <div class="token-chart-label">Recent requests</div>
+                      <canvas id="token-usage-graph" class="token-chart-canvas" width="280" height="60"></canvas>
+                    </div>
+                    <button type="button" class="btn danger usage-clear" id="usage-clear">Clear usage history</button>
+                  </details>
                 </div>
               </div>
             </div>
@@ -453,7 +470,7 @@
           <select id="chat-profile-select" class="chat-bottom-select" title="AI model" aria-label="AI model"></select>
           <button id="instructions-btn" class="pill-btn" type="button" title="Custom AI instructions"><i class="fa-solid fa-sliders"></i><span>Instructions</span><span class="pill-count" id="instructions-count" hidden></span></button>
           <button id="summarize-cache-btn" class="btn icon-btn" title="Condense this chat's memory"><i class="fa-solid fa-brain"></i></button>
-          <span id="token-tracker" class="token-tracker" title="Tokens used by the last answer">Tokens: 0</span>
+          <span id="token-tracker" class="token-tracker" title="How much AI the last answer used. Click to see your AI usage.">Last answer: nothing yet</span>
         </div>
       </div>
     </aside>

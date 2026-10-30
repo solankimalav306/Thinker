@@ -22,3 +22,21 @@ test('the app accepts what the backend, a provider or an older entry sends', asy
   assert.strictEqual(normalizeUsage(undefined), null);
   assert.strictEqual(normalizeUsage({ prompt_tokens: 'many' }), null);
 });
+
+test('usage can be narrowed to today, the last week or everything', async () => {
+  const { filterByPeriod, describeTokens } = await import('../renderer/js/token-usage.js');
+  const now = new Date(2026, 9, 30, 15, 0, 0).getTime();
+  const hours = (h) => now - h * 3600 * 1000;
+  const rows = [{ timestamp: hours(1), total_tokens: 1 }, { timestamp: hours(20), total_tokens: 2 }, { timestamp: hours(24 * 5), total_tokens: 3 }, { timestamp: hours(24 * 20), total_tokens: 4 }];
+  assert.deepStrictEqual(filterByPeriod(rows, 'today', now).map((r) => r.total_tokens), [1]);
+  assert.deepStrictEqual(filterByPeriod(rows, 'week', now).map((r) => r.total_tokens), [1, 2, 3]);
+  assert.strictEqual(filterByPeriod(rows, 'all', now).length, 4);
+  assert.deepStrictEqual(filterByPeriod([], 'today', now), []);
+  // a row with no time is treated as old, never as today
+  assert.strictEqual(filterByPeriod([{ total_tokens: 9 }], 'today', now).length, 0);
+
+  assert.strictEqual(describeTokens(10), '');
+  assert.match(describeTokens(2000), /about 1\.5K words/);
+  assert.match(describeTokens(8000), /roughly 12 pages|roughly 12\.0 pages|roughly 12/);
+  assert.match(describeTokens(500), /about 375 words/);
+});

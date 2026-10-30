@@ -1012,6 +1012,11 @@ function registerIpcHandlers() {
     }
   });
 
+  ipcMain.handle('tokens:clear', async () => {
+    store.clearUsage();
+    return { ok: true };
+  });
+
   ipcMain.handle('tokens:getHistory', async () => {
     try {
       return store.readUsage();

@@ -818,3 +818,12 @@
 body.hide-token-counter .token-tracker {
   display: none;
 }
+
+.token-tracker {
+  cursor: pointer;
+}
+
+.token-tracker:hover {
+  color: var(--text-2);
+  text-decoration: underline;
+}

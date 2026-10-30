@@ -441,13 +441,71 @@ def record_token_usage(node: str, input_breakdown: dict, output_tokens: int):
         for key in ("context", "history", "selected_text", "prompt"):
             _token_session["totals"][key] += input_breakdown.get(key, 0)
 
+def extract_provider_usage(response):
+    """What the provider says a request cost: (input, output) tokens, or None when it did not say.
+
+    Output counts everything after the input (so a model's private thinking is included, as it is billed).
+    """
+    try:
+        meta = getattr(response, "usage_metadata", None)
+        if not isinstance(meta, dict):
+            return None
+        input_t = meta.get("input_tokens")
+        if input_t is None or int(input_t) <= 0:
+            return None
+        input_t = int(input_t)
+        output_t = int(meta.get("output_tokens") or 0)
+        total = meta.get("total_tokens")
+        if total is not None:
+            output_t = max(output_t, int(total) - input_t)
+        return input_t, max(0, output_t)
+    except Exception:
+        return None
+
+
+def reconcile_input(estimate: dict, real_input=None) -> dict:
+    """Split what was really sent into where it went.
+
+    The estimate counts the whole prompt, and the document passages, the chat history and the selected text are
+    already inside that prompt, so adding them on top would count them twice. Here the prompt is the whole, the three
+    parts are slices of it, and "prompt" is what is left (instructions and the question). When the provider gave the
+    real total, the slices are scaled to it.
+    """
+    context = int(estimate.get("context", 0))
+    history = int(estimate.get("history", 0))
+    selected = int(estimate.get("selected_text", 0))
+    whole = int(estimate.get("prompt", 0))
+    estimated_total = max(whole, context + history + selected)
+    target = int(real_input) if real_input else estimated_total
+    if estimated_total <= 0:
+        return {"context": 0, "history": 0, "selected_text": 0, "prompt": max(0, target)}
+    scale = target / estimated_total
+    context_s = round(context * scale)
+    history_s = round(history * scale)
+    selected_s = round(selected * scale)
+    return {
+        "context": context_s,
+        "history": history_s,
+        "selected_text": selected_s,
+        "prompt": max(0, target - context_s - history_s - selected_s),
+    }
+
+
 def invoke_llm_tracked(llm, state: dict, prompt: str, node: str = "unknown", messages=None):
-    input_breakdown = print_llm_tokens(llm, state, prompt)
+    estimate = print_llm_tokens(llm, state, prompt)
     if messages is not None:
         response = llm.invoke(messages)
     else:
         response = llm.invoke(prompt)
-    output_tokens = extract_output_tokens(llm, response)
+    real = extract_provider_usage(response)
+    if real:
+        input_breakdown = reconcile_input(estimate, real[0])
+        output_tokens = real[1]
+    else:
+        # a local model that reports nothing: our own count of what we sent and received
+        input_breakdown = reconcile_input(estimate)
+        output_tokens = extract_output_tokens(llm, response)
+    print(f"[tokens] node={node} counted_in={sum(input_breakdown.values())} counted_out={output_tokens} from={'provider' if real else 'estimate'} (the old way would have said {sum(estimate.values())} in)", flush=True)
     record_token_usage(node, input_breakdown, output_tokens)
     return response
 

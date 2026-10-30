@@ -44,7 +44,7 @@ import { MindMapController } from "./mindmap-controller.js";
 import { StickyNotesController } from "./sticky-notes-controller.js";
 import { HistoryController } from "./history-controller.js";
 import { FindController } from "./find-controller.js";
-import { refreshTokenDashboard } from "./token-usage.js";
+import { refreshTokenDashboard, setUsagePeriod } from "./token-usage.js";
 
 const elements = {
   appShell: document.querySelector(".app-shell"),
@@ -1233,6 +1233,37 @@ async function boot() {
       elements.glossaryList.appendChild(el);
     });
   }
+
+  // time range chips, the detail drawer (its charts can only be drawn once it is open) and clearing the history
+  const refreshUsage = () => refreshTokenDashboard(elements, elements.tokenUsageProfileFilter?.value || "all");
+  document.querySelectorAll("[data-usage-period]").forEach((chip) => {
+    chip.addEventListener("click", () => { setUsagePeriod(chip.dataset.usagePeriod); refreshUsage(); });
+  });
+  document.getElementById("usage-more")?.addEventListener("toggle", refreshUsage);
+  const clearUsage = document.getElementById("usage-clear");
+  let clearArmed = null;
+  clearUsage?.addEventListener("click", async () => {
+    if (!clearArmed) {
+      clearUsage.textContent = "Press again to clear";
+      clearArmed = setTimeout(() => { clearArmed = null; clearUsage.textContent = "Clear usage history"; }, 4000);
+      return;
+    }
+    clearTimeout(clearArmed);
+    clearArmed = null;
+    clearUsage.textContent = "Clear usage history";
+    await window.electronAPI.clearTokenUsage();
+    setStatus("Usage history cleared.");
+    refreshUsage();
+  });
+
+  // the "Last answer: ..." line under any chat is a doorway to the full picture
+  document.addEventListener("click", (event) => {
+    if (!(event.target instanceof Element) || !event.target.closest(".token-tracker")) return;
+    showWelcome();
+    elements.tokenUsagePanel.open = true;
+    refreshUsage();
+    requestAnimationFrame(() => elements.tokenUsagePanel.scrollIntoView({ block: "center", behavior: "smooth" }));
+  });
 
   elements.tokenUsagePanel?.addEventListener("toggle", () => {
     if (elements.tokenUsagePanel.open) refreshTokenDashboard(elements, elements.tokenUsageProfileFilter?.value || "all");

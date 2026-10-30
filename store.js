@@ -194,6 +194,10 @@ function createStore(db) {
       .run(entry?.timestamp || now(), entry?.profileId || entry?.profile_id || null, entry?.conversationId || null, JSON.stringify(entry));
   }
 
+  function clearUsage() {
+    q('DELETE FROM usage').run();
+  }
+
   function readUsage() {
     return q('SELECT ts, data FROM usage ORDER BY id').all().map((r) => ({ timestamp: r.ts, ...parse(r.data, {}) }));
   }
@@ -317,7 +321,7 @@ function createStore(db) {
     getSettings, setSetting, resetSetting,
     loadNotes, saveNotes, listMindmaps, saveMindmap, deleteMindmap,
     getGlossary, addGlossaryTerm, removeGlossaryTerm,
-    appendUsage, readUsage,
+    appendUsage, readUsage, clearUsage,
     listConversations, listWorkspaceConversations, createWorkspaceConversation, getConversation, createConversation, updateConversation, deleteConversation, getMessages, appendMessage,
     listInstructions, saveInstruction, deleteInstruction
   };
