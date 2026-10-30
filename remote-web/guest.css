@@ -135,3 +135,5 @@ main { flex: 1; display: flex; flex-direction: column; min-height: 0; padding: 1
 .cm-ySelectionInfo { padding: 1px 6px; border-radius: 4px; color: #fff; font: 600 11px system-ui, sans-serif; }
 .chip:empty { display: none; }
 .no-pdf { margin: auto; padding: 24px; max-width: 32ch; text-align: center; color: var(--muted); }
+.link-btn { padding: 2px 8px; border: 0; background: none; color: var(--muted); font: inherit; font-size: 0.85rem; text-decoration: underline; cursor: pointer; }
+.link-btn[hidden] { display: none; }

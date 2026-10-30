@@ -192,3 +192,17 @@ test('stopping the share saves the work and closes every live connection', async
     assert.strictEqual(fs.readFileSync(path.join(dir, 'main.tex'), 'utf8'), 'kept Hello\n');
   } finally { await server.stop(); }
 });
+
+test('a guest can sign out and come back with the other code', async () => {
+  const { server, share, url } = await editable();
+  try {
+    const edit = cookieFrom(await auth(url, share.editPin));
+    assert.strictEqual((await get(`${url}/api/info`, { cookie: edit })).status, 200);
+    const out = await fetch(`${url}/logout`, { method: 'POST', headers: { cookie: edit } });
+    assert.strictEqual(out.status, 200);
+    assert.match(out.headers.get('set-cookie'), /Max-Age=0/);
+    assert.strictEqual((await get(`${url}/api/info`, { cookie: edit })).status, 401, 'the old session is gone on the server too');
+    const view = await (await get(`${url}/api/info`, { cookie: cookieFrom(await auth(url, share.pin)) })).json();
+    assert.strictEqual(view.canEdit, false);
+  } finally { await server.stop(); }
+});

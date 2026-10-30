@@ -207,6 +207,10 @@ function createRemoteServer({ appRoot, now = () => Date.now() } = {}) {
       return send(res, 200, body, { 'content-type': entry.type, 'content-security-policy': FRAME_CSP });
     }
     if (req.method === 'POST' && rest === '/auth') return authenticate(req, res, share);
+    if (req.method === 'POST' && rest === '/logout') {
+      sessions.delete(cookieOf(req, 'tr_session'));
+      return json(res, 200, { ok: true }, { 'set-cookie': `tr_session=; Path=/s/${share.token}; HttpOnly; SameSite=Strict; Max-Age=0` });
+    }
 
     const session = sessionFor(req, share);
     if (!session) return json(res, 401, { error: 'Enter the code first.' });

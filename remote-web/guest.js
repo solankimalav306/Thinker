@@ -12,6 +12,7 @@
   var frame = null;
   var pending = null;
   var live = null; // the live-editing layout, once built
+  var events = null; // the open update stream
 
   function show(text) {
     message.textContent = text;
@@ -28,6 +29,26 @@
     if (text !== undefined) node.textContent = text;
     return node;
   }
+
+  // sign out and ask for a code again, without reloading the page
+  $("switch").addEventListener("click", function () {
+    api("/logout", { method: "POST" }).then(function () {
+      if (events) { events.close(); events = null; }
+      if (live && live.editor) { live.editor.destroy(); live.editor = null; }
+      live = null;
+      frame = null;
+      info = null;
+      view.textContent = "";
+      view.className = "view";
+      view.hidden = true;
+      show("");
+      $("switch").hidden = true;
+      $("live").hidden = true;
+      $("who").hidden = true;
+      $("pin").value = "";
+      showGate();
+    });
+  });
 
   function showGate() {
     view.hidden = true;
@@ -228,6 +249,7 @@
 
   function watch() {
     var source = new EventSource(base + "/api/events");
+    events = source;
     var first = true;
     source.addEventListener("version", function () {
       $("live").hidden = false;
@@ -254,6 +276,7 @@
         $("title").textContent = body.title;
         document.title = body.title + " - Thinker";
         $("role").textContent = body.canEdit ? "Can edit" : "View only";
+        $("switch").hidden = false;
         $("role").classList.toggle("can-edit", Boolean(body.canEdit));
         if (body.live) {
           var who = $("who");
