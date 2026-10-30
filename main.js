@@ -16,6 +16,8 @@ const { openDatabase } = require('./database');
 const { createStore } = require('./store');
 const { createWorkspaces } = require('./workspaces');
 const { createArtifacts } = require('./artifacts');
+const { createRemoteServer } = require('./remote-server');
+const os = require('os');
 const { registerTexIpc } = require('./tex-service');
 const { importLegacyData } = require('./legacy-import');
 const { handleLLMGenerate } = require('./llm-handler');
@@ -664,9 +666,65 @@ function registerIpcHandlers() {
   ipcMain.handle('conv:messages', (_event, id) => store.getMessages(String(id)));
   ipcMain.handle('conv:append', (_event, id, entry) => store.appendMessage(String(id), entry || {}));
 
+  // Thinker Remote: share one artifact or project on the local network, read-only. Off until asked.
+  const remote = createRemoteServer({ appRoot: __dirname });
+  const lanAddresses = () => Object.values(os.networkInterfaces()).flat()
+    .filter((i) => i && i.family === 'IPv4' && !i.internal).map((i) => i.address);
+  remote.events.on('change', () => {
+    for (const win of BrowserWindow.getAllWindows()) { try { win.webContents.send('remote:changed'); } catch { /* closing */ } }
+  });
+  app.on('before-quit', () => { remote.stop(); });
+  const remoteView = () => ({ running: remote.running, address: remote.address, lan: lanAddresses(), shares: remote.listShares() });
+  const shareLinks = (share) => {
+    const a = remote.address;
+    if (!a) return [];
+    const hosts = a.host === '127.0.0.1' ? ['127.0.0.1'] : lanAddresses();
+    return hosts.map((h) => `http://${h}:${a.port}/s/${share.token}/`);
+  };
+  ipcMain.handle('remote:status', () => {
+    const view = remoteView();
+    return { ...view, shares: view.shares.map((s) => ({ ...s, urls: shareLinks(s) })) };
+  });
+  ipcMain.handle('remote:share', async (_e, req) => {
+    const kind = String(req?.kind || '');
+    const ref = String(req?.id || '');
+    const local = req?.scope === 'local';
+    const ttlMs = Math.max(0.25, Math.min(Number(req?.hours) || 4, 24)) * 3600 * 1000;
+    let provider;
+    let title;
+    if (kind === 'artifact') {
+      const found = artifacts().get(ref);
+      if (!found) throw new Error('That artifact no longer exists.');
+      title = found.title;
+      provider = { content: async () => ({ type: 'html', html: artifacts().get(ref)?.html || '' }) };
+    } else if (kind === 'tex') {
+      const found = spaces().getProject(ref);
+      if (!found) throw new Error('That project no longer exists.');
+      title = found.name;
+      provider = {
+        content: async () => ({
+          type: 'pdf',
+          file: path.join(app.getPath('userData'), 'ThinkerTex', 'builds', found.id, path.basename(found.mainFile).replace(/\.tex$/i, '.pdf'))
+        })
+      };
+    } else {
+      throw new Error('That cannot be shared.');
+    }
+    if (remote.running && remote.address.host === '127.0.0.1' && !local) await remote.stop();
+    await remote.start({ bindHost: local ? '127.0.0.1' : '0.0.0.0' });
+    const made = remote.createShare({ kind, title, ref, provider, ttlMs });
+    return { ...made, urls: shareLinks({ token: made.token }), lan: lanAddresses(), local };
+  });
+  ipcMain.handle('remote:end', async (_e, id) => {
+    const ended = remote.endShare(String(id));
+    if (!remote.listShares().length) await remote.stop();
+    return ended;
+  });
+  ipcMain.handle('remote:stopAll', async () => { await remote.stop(); return true; });
+
   // ThinkerTex: the engine ships next to the app when packaged, and in vendor/ while developing.
   registerTexIpc({
-    ipcMain, dialog, shell, BrowserWindow, app, spaces,
+    ipcMain, dialog, shell, BrowserWindow, app, spaces, onBuilt: (projectId) => remote.bumpRef('tex', projectId),
     enginePath: app.isPackaged ? path.join(process.resourcesPath, 'tectonic', 'tectonic.exe') : path.join(__dirname, 'vendor', 'tectonic', 'tectonic.exe')
   });
 

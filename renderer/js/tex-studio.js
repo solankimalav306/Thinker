@@ -1,6 +1,7 @@
 // ThinkerTex: the project list and the studio (files, editor, compile, live preview, problems).
 // The code editor is CodeMirror (bundled); the visual editor and the agent plug in from their own modules.
 import { PdfController } from "./pdf-controller.js";
+import { openShareDialog } from "./remote-share.js";
 
 const BS = String.fromCharCode(92);
 
@@ -339,8 +340,9 @@ export function createTexStudio(deps) {
     autoLabel.append(dom.autoBox, document.createTextNode(" Auto"));
     autoLabel.title = "Compile a moment after you stop typing";
     dom.exportBtn = btn("", "btn icon-btn", "fa-download", exportPdf, "Download the PDF");
+    dom.shareBtn = btn("", "btn icon-btn", "fa-share-nodes", () => openShareDialog({ kind: "tex", id: state.project.id, title: state.project.name, setStatus }), "Share this project on your network");
     dom.agentBtn = btn("Ask AI", "btn", "fa-wand-magic-sparkles", () => showRightTab("agent"), "Ask ThinkerTex to write, edit or fix");
-    right.append(dom.status, autoLabel, dom.compileBtn, dom.exportBtn, dom.agentBtn);
+    right.append(dom.status, autoLabel, dom.compileBtn, dom.exportBtn, dom.shareBtn, dom.agentBtn);
     bar.append(left, mid, right);
 
     dom.studioBanner = el("div", "tex-banner-slot");

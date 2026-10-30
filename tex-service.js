@@ -35,7 +35,7 @@ function makeShadow(root, overlay = {}) {
   return shadow;
 }
 
-function registerTexIpc({ ipcMain, dialog, shell, BrowserWindow, app, spaces, enginePath }) {
+function registerTexIpc({ ipcMain, dialog, shell, BrowserWindow, app, spaces, enginePath, onBuilt }) {
   const dataRoot = () => path.join(app.getPath('userData'), 'ThinkerTex');
   const projectsRoot = () => path.join(dataRoot(), 'projects');
   const buildsRoot = () => path.join(dataRoot(), 'builds');
@@ -163,7 +163,10 @@ function registerTexIpc({ ipcMain, dialog, shell, BrowserWindow, app, spaces, en
       projectId: p.id, root: p.rootPath, mainFile: p.mainFile, buildDir: buildDirFor(p),
       mode: options.draft ? 'draft' : 'full', onlyCached: offline
     });
-    if (result.ok) spaces().updateProject(p.id, { lastBuiltAt: Date.now() });
+    if (result.ok) {
+      spaces().updateProject(p.id, { lastBuiltAt: Date.now() });
+      try { onBuilt?.(p.id); } catch { /* sharing must never break a build */ }
+    }
     return { ok: result.ok, problems: result.problems, durationMs: result.durationMs, timedOut: result.timedOut, cancelled: result.cancelled, superseded: Boolean(result.superseded), hasPdf: Boolean(result.pdfPath), log: result.log.slice(-60000) };
   });
 

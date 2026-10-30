@@ -52,6 +52,20 @@ export const GUIDES = [
     tip: "Charts and slides are drawn from the document, but check the numbers: a model can still get one wrong."
   },
   {
+    id: "share",
+    icon: "fa-share-nodes",
+    title: "Share with people on your network",
+    summary: "Let someone on the same Wi-Fi or office network look at an artifact or a LaTeX project, without sending files.",
+    steps: [
+      "Open an artifact in Artifacts, or a project in ThinkerTex, and press Share.",
+      "Choose who can reach it and for how long, then press Start sharing. Windows may ask once about the network: choose Private networks.",
+      "Send them the link. Read out the 6-digit code; they type it in on the page. Both are needed.",
+      "They see only that one thing, read-only. For a project they see the compiled PDF, and it updates each time you compile.",
+      "Press Stop sharing, or close Thinker, and the link stops working at once. Five wrong codes lock that person out for ten minutes."
+    ],
+    tip: "The connection is plain HTTP on your local network, not encrypted. Share only on a network you trust, and never on public Wi-Fi."
+  },
+  {
     id: "tex",
     icon: "fa-pen-nib",
     title: "Write LaTeX with ThinkerTex",

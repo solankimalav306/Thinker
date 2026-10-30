@@ -1,7 +1,7 @@
 {
   "name": "thinker",
   "productName": "Thinker",
-  "version": "3.1.0",
+  "version": "3.2.0",
   "description": "AI-Powered PDF Reader",
   "main": "main.js",
   "scripts": {
@@ -48,6 +48,8 @@
       "workspaces.js",
       "artifacts.js",
       "artifact-export.js",
+      "remote-server.js",
+      "remote-web/**/*",
       "tex-log.js",
       "tex-compile.js",
       "artifact-protocol.js",
