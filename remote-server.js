@@ -24,8 +24,12 @@ const WEB = {
 const FRAME = {
   '/artifact-frame.html': { file: ['renderer', 'artifact-frame.html'], type: 'text/html; charset=utf-8', rewrite: true },
   '/artifact-bridge.js': { file: ['renderer', 'js', 'artifact-bridge.js'], type: 'text/javascript; charset=utf-8' },
-  '/purify.min.js': { file: ['renderer', 'vendor', 'dompurify', 'purify.min.js'], type: 'text/javascript; charset=utf-8' }
+  '/purify.min.js': { file: ['renderer', 'vendor', 'dompurify', 'purify.min.js'], type: 'text/javascript; charset=utf-8' },
+  '/katex.min.js': { file: ['renderer', 'vendor', 'katex', 'katex.min.js'], type: 'text/javascript; charset=utf-8' },
+  '/artifact-components.js': { file: ['renderer', 'js', 'artifact-components.js'], type: 'text/javascript; charset=utf-8' }
 };
+// the maths fonts: only files of exactly this shape, from the one folder
+const FONT_PATH = /^\/fonts\/(KaTeX_[A-Za-z0-9_-]+\.woff2)$/;
 
 const PAGE_CSP = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
 // the live editor talks over a WebSocket to this same address; older browsers do not count that as 'self'
@@ -33,7 +37,7 @@ const pageCsp = (req) => {
   const host = String(req.headers.host || '');
   return /^[A-Za-z0-9.:[\]-]{1,80}$/.test(host) ? PAGE_CSP.replace("connect-src 'self'", `connect-src 'self' ws://${host}`) : PAGE_CSP;
 };
-const FRAME_CSP = "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src data:; font-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'";
+const FRAME_CSP = "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src data:; font-src data: 'self'; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'";
 const SECURITY = { 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer', 'cache-control': 'no-store' };
 
 const MAX_BODY = 1024;
@@ -199,11 +203,13 @@ function createRemoteServer({ appRoot, now = () => Date.now() } = {}) {
       return body ? send(res, 200, body, { 'content-type': entry.type, 'content-security-policy': pageCsp(req) }) : notFound(res);
     }
     if (req.method === 'GET' && rest.startsWith('/frame/')) {
-      const entry = FRAME[`/${rest.slice(7)}`];
+      const wanted = `/${rest.slice(7)}`;
+      const font = FONT_PATH.exec(wanted);
+      const entry = font ? { file: ['renderer', 'vendor', 'katex', 'fonts', font[1]], type: 'font/woff2' } : FRAME[wanted];
       if (!entry) return notFound(res);
       let body = await read(entry.file).catch(() => null);
       if (!body) return notFound(res);
-      if (entry.rewrite) body = Buffer.from(body.toString('utf8').replace(/script-src thinker-artifact:/g, "script-src 'self'"));
+      if (entry.rewrite) body = Buffer.from(body.toString('utf8').replace(/thinker-artifact:/g, "'self'"));
       return send(res, 200, body, { 'content-type': entry.type, 'content-security-policy': FRAME_CSP });
     }
     if (req.method === 'POST' && rest === '/auth') return authenticate(req, res, share);
