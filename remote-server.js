@@ -18,7 +18,8 @@ const WEB = {
   '/guest.html': { file: ['remote-web', 'guest.html'], type: 'text/html; charset=utf-8' },
   '/guest.js': { file: ['remote-web', 'guest.js'], type: 'text/javascript; charset=utf-8' },
   '/guest.css': { file: ['remote-web', 'guest.css'], type: 'text/css; charset=utf-8' },
-  '/kit.css': { file: ['renderer', 'css', 'artifact-kit.css'], type: 'text/css; charset=utf-8' }
+  '/kit.css': { file: ['renderer', 'css', 'artifact-kit.css'], type: 'text/css; charset=utf-8' },
+  '/editor.js': { file: ['renderer', 'vendor', 'guest-editor', 'guest-editor.js'], type: 'text/javascript; charset=utf-8' }
 };
 const FRAME = {
   '/artifact-frame.html': { file: ['renderer', 'artifact-frame.html'], type: 'text/html; charset=utf-8', rewrite: true },
@@ -26,7 +27,12 @@ const FRAME = {
   '/purify.min.js': { file: ['renderer', 'vendor', 'dompurify', 'purify.min.js'], type: 'text/javascript; charset=utf-8' }
 };
 
-const PAGE_CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
+const PAGE_CSP = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
+// the live editor talks over a WebSocket to this same address; older browsers do not count that as 'self'
+const pageCsp = (req) => {
+  const host = String(req.headers.host || '');
+  return /^[A-Za-z0-9.:[\]-]{1,80}$/.test(host) ? PAGE_CSP.replace("connect-src 'self'", `connect-src 'self' ws://${host}`) : PAGE_CSP;
+};
 const FRAME_CSP = "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src data:; font-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'";
 const SECURITY = { 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer', 'cache-control': 'no-store' };
 
@@ -107,6 +113,7 @@ function createRemoteServer({ appRoot, now = () => Date.now() } = {}) {
     share.version += 1;
     for (const res of share.watchers) { try { res.write(`event: version\ndata: ${share.version}\n\n`); } catch { /* gone */ } }
   }
+  const collabFor = (kind, ref) => { for (const s of shares.values()) if (s.kind === kind && s.ref === ref && s.collab) return s.collab; return null; };
   const bumpRef = (kind, ref) => { for (const s of shares.values()) if (s.kind === kind && s.ref === ref) bump(s.id); };
 
   function sweep() {
@@ -184,12 +191,12 @@ function createRemoteServer({ appRoot, now = () => Date.now() } = {}) {
 
     if (req.method === 'GET' && rest === '/') {
       const body = await read(WEB['/guest.html'].file).catch(() => null);
-      return body ? send(res, 200, body, { 'content-type': WEB['/guest.html'].type, 'content-security-policy': PAGE_CSP }) : notFound(res);
+      return body ? send(res, 200, body, { 'content-type': WEB['/guest.html'].type, 'content-security-policy': pageCsp(req) }) : notFound(res);
     }
-    if (req.method === 'GET' && (rest === '/guest.js' || rest === '/guest.css' || rest === '/kit.css')) {
+    if (req.method === 'GET' && (rest === '/guest.js' || rest === '/guest.css' || rest === '/kit.css' || rest === '/editor.js')) {
       const entry = WEB[rest];
       const body = await read(entry.file).catch(() => null);
-      return body ? send(res, 200, body, { 'content-type': entry.type, 'content-security-policy': PAGE_CSP }) : notFound(res);
+      return body ? send(res, 200, body, { 'content-type': entry.type, 'content-security-policy': pageCsp(req) }) : notFound(res);
     }
     if (req.method === 'GET' && rest.startsWith('/frame/')) {
       const entry = FRAME[`/${rest.slice(7)}`];
@@ -217,6 +224,7 @@ function createRemoteServer({ appRoot, now = () => Date.now() } = {}) {
         share.collab.flushAll();
         const result = await share.provider.compile();
         share.lastCompile = now();
+        if (result?.notReady) return json(res, 200, { ok: false, notReady: true, problems: [] });
         return json(res, 200, { ok: Boolean(result?.ok), problems: (result?.problems || []).slice(0, 10).map((p) => ({ severity: p.severity, file: p.file, line: p.line, message: String(p.message || '').slice(0, 300) })) });
       } catch {
         return json(res, 502, { error: 'The build could not run right now.' });
@@ -326,7 +334,7 @@ function createRemoteServer({ appRoot, now = () => Date.now() } = {}) {
   }
 
   return {
-    events, start, stop, createShare, endShare, listShares, bump, bumpRef, sweep,
+    events, start, stop, createShare, endShare, listShares, bump, bumpRef, collabFor, sweep,
     get running() { return Boolean(server); },
     get address() { return server ? { port, host } : null; }
   };

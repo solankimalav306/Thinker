@@ -55,15 +55,17 @@ export const GUIDES = [
     id: "share",
     icon: "fa-share-nodes",
     title: "Share with people on your network",
-    summary: "Let someone on the same Wi-Fi or office network look at an artifact or a LaTeX project, without sending files.",
+    summary: "Let someone on the same Wi-Fi or office network look at an artifact, or work on a LaTeX project with you, live.",
     steps: [
       "Open an artifact in Artifacts, or a project in ThinkerTex, and press Share.",
       "Choose who can reach it and for how long, then press Start sharing. Windows may ask once about the network: choose Private networks.",
-      "Send them the link. Read out the 6-digit code; they type it in on the page. Both are needed.",
-      "They see only that one thing, read-only. For a project they see the compiled PDF, and it updates each time you compile.",
+      "Send them the link. Read out a 6-digit code; they type it in on the page. Both are needed.",
+      "For a project you can tick Let people edit this project with me. You then get two codes: the edit code lets someone change the text files and run a build, the view code lets them only watch.",
+      "Everyone types in the same file at once. You see each other's cursors and names, and your project files on your computer always hold the combined result.",
+      "Guests see only that one project's text files and its PDF, never anything else on your computer. Artifacts can only be looked at.",
       "Press Stop sharing, or close Thinker, and the link stops working at once. Five wrong codes lock that person out for ten minutes."
     ],
-    tip: "The connection is plain HTTP on your local network, not encrypted. Share only on a network you trust, and never on public Wi-Fi."
+    tip: "Give the edit code only to people you trust: what they type is compiled on your computer. The connection is plain HTTP on your local network, not encrypted, so never use it on public Wi-Fi."
   },
   {
     id: "tex",

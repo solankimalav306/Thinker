@@ -145,6 +145,7 @@ function createCollab({ root, writeDelay = 400, watch = true, onError = () => {}
   }
 
   function release(entry) {
+    if (entry.dead) return;
     entry.refs -= 1;
     if (entry.refs > 0) return;
     entry.flush();

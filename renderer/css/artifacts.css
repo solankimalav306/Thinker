@@ -189,3 +189,9 @@
 .share-pin-label { color: var(--text-3); }
 .share-pin-value { font: 700 2rem/1 Consolas, monospace; letter-spacing: 0.2em; }
 .share-stats { margin: 0; color: var(--text-2); }
+
+.share-check { display: flex; align-items: center; gap: var(--space-2); font-weight: 600; }
+.share-pins { display: flex; flex-direction: column; gap: var(--space-2); }
+.share-pin { justify-content: space-between; padding: var(--space-2) var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-md); }
+.share-pin-text { display: flex; flex-direction: column; min-width: 0; }
+.share-pin-value { margin-left: auto; font-size: 1.5rem; }

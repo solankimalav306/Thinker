@@ -8,6 +8,9 @@ import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
 import { autocompletion, closeBrackets, closeBracketsKeymap, completionKeymap, snippetCompletion } from '@codemirror/autocomplete';
 import { stex } from '@codemirror/legacy-modes/mode/stex';
 import { tags as t } from '@lezer/highlight';
+import * as Y from 'yjs';
+import { Awareness, applyAwarenessUpdate, encodeAwarenessUpdate } from 'y-protocols/awareness';
+import { yCollab, yUndoManagerKeymap } from 'y-codemirror.next';
 
 const BS = String.fromCharCode(92);
 
@@ -158,13 +161,16 @@ function toggleComment(view) {
 export function createCodeEditor(parent, options = {}) {
   const wrap = new Compartment();
   const readOnlyCompartment = new Compartment();
+  const historyCompartment = new Compartment();
+  const collabCompartment = new Compartment();
   let applyingExternal = false;
 
   const extensions = [
     lineNumbers(),
     problemGutter,
     highlightActiveLineGutter(),
-    history(),
+    historyCompartment.of(history()),
+    collabCompartment.of([]),
     drawSelection(),
     indentOnInput(),
     bracketMatching(),
@@ -242,7 +248,45 @@ export function createCodeEditor(parent, options = {}) {
     setProblems: (problems) => view.dispatch({ effects: setProblems.of(problems || []) }),
     setReadOnly: (value) => view.dispatch({ effects: readOnlyCompartment.reconfigure(EditorState.readOnly.of(Boolean(value))) }),
     setWrap: (on) => view.dispatch({ effects: wrap.reconfigure(on ? EditorView.lineWrapping : []) }),
+    // Everyone's edits to this file are merged by Yjs; its own undo replaces the editor's, so undo only takes back your own typing.
+    attachCollab: (ext) => view.dispatch({ effects: [historyCompartment.reconfigure([]), collabCompartment.reconfigure(ext)] }),
+    detachCollab: () => view.dispatch({ effects: [historyCompartment.reconfigure(history()), collabCompartment.reconfigure([])] }),
     focus: () => view.focus(),
     destroy: () => view.destroy()
+  };
+}
+
+// ---- working on the same file with other people ----
+const PALETTE = ['#e11d48', '#2563eb', '#16a34a', '#d97706', '#9333ea', '#0891b2', '#db2777', '#65a30d'];
+const colourFor = (name) => PALETTE[[...String(name)].reduce((n, c) => n + c.charCodeAt(0), 0) % PALETTE.length];
+
+// Joins `editor` to a shared copy of its file. `state` and `awarenessState` are what the host process already has;
+// `onUpdate` and `onAwareness` carry this side's changes back. Returns the pieces the caller needs to keep it in step.
+export function bindCollab(editor, { state, awarenessState, name = 'You', onUpdate, onAwareness }) {
+  const doc = new Y.Doc();
+  const ytext = doc.getText('content');
+  if (state) Y.applyUpdate(doc, new Uint8Array(state), 'remote');
+  const awareness = new Awareness(doc);
+  if (awarenessState) applyAwarenessUpdate(awareness, new Uint8Array(awarenessState), 'remote');
+  const color = colourFor(name);
+  awareness.setLocalStateField('user', { name, color, colorLight: color + '33' });
+  doc.on('update', (update, origin) => { if (origin !== 'remote') onUpdate(update); });
+  awareness.on('update', ({ added, updated, removed }, origin) => {
+    if (origin !== 'remote') onAwareness(encodeAwarenessUpdate(awareness, added.concat(updated, removed)));
+  });
+  editor.reset(ytext.toString());
+  const undoManager = new Y.UndoManager(ytext);
+  editor.attachCollab([yCollab(ytext, awareness, { undoManager }), keymap.of(yUndoManagerKeymap)]);
+  return {
+    text: () => ytext.toString(),
+    applyUpdate: (update) => Y.applyUpdate(doc, new Uint8Array(update), 'remote'),
+    applyAwareness: (update) => applyAwarenessUpdate(awareness, new Uint8Array(update), 'remote'),
+    people: () => [...awareness.getStates().entries()].filter(([id]) => id !== doc.clientID).map(([, s]) => s.user).filter(Boolean),
+    destroy() {
+      try { awareness.setLocalState(null); } catch { /* already gone */ }
+      try { editor.detachCollab(); } catch { /* the editor closed first */ }
+      awareness.destroy();
+      doc.destroy();
+    }
   };
 }

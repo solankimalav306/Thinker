@@ -1,4 +1,4 @@
-# Thinker Remote (phase 1: view-only sharing on your network)
+# Thinker Remote: sharing and live co-editing on your network
 
 Share one artifact or one LaTeX project with people on the same network. Nothing is uploaded; guests open a page served
 from your computer, and it stops when you stop sharing or close Thinker.
@@ -28,7 +28,38 @@ A project is shown as its compiled PDF and refreshes each time you compile.
   (script, `onerror`, a script reaching `window.parent`) did nothing to the guest page, the host sees the guest count, Stop
   sharing tells the guest and kills the link, and a shared project shows its PDF.
 
+## Editing together (phase 2)
+Tick **Let people edit this project with me, live** when you share a LaTeX project. The share then has two codes:
+- the **edit code**: change the project's text files together with you, and press **Build PDF**;
+- the **view code**: watch the same live editor read-only, and the PDF.
+
+How it works: each text file being edited has one shared copy (Yjs, the standard library for this). Your own editor in ThinkerTex,
+and every guest's editor in their browser, are all connected to that copy, so concurrent typing merges instead of overwriting.
+Cursors and names show who is where. The program writes the shared copy back to the real file in your project a moment after
+every change, and also folds in changes made to the file outside Thinker. While others can edit, the Visual view is off (it rewrites
+the whole file, which would disturb everyone else's cursors); it comes back when you stop sharing.
+
+What an editing guest can and cannot do:
+- open and change **existing** `.tex .bib .sty .cls .bst .txt .md .cfg .def .ltx` files of that project (up to 1 MB each, 200 files);
+- cannot create, delete, rename or upload files, see any other folder, open a file through a link that leaves the project, or reach hidden files;
+- can ask for a build, at most one every few seconds; the result appears for everyone, including you.
+**Give the edit code only to people you trust.** What they type is compiled on your computer. The LaTeX compiler runs in its
+untrusted-input mode (no shell commands), but you are still running someone else's text through it.
+
+Extra protection on the live connection: it needs the guest's session cookie, refuses a page from another site (the browser's origin
+must be this address), allows at most 12 live connections per share, drops messages over 2 MB, and a view-code guest's edits are discarded by the server.
+
+## Tested (phase 2)
+- `tests/collab-docs.test.js` (10): only existing text files inside the project open, hidden and build folders are skipped, two editors
+  converge and reach the disk, simultaneous edits are both kept, a viewer cannot change anything, who-is-where appears and disappears, broken or
+  oversized messages are ignored, outside changes are folded in, and closing saves.
+- `tests/remote-edit.test.js` (7): two codes give two roles, file list, path tricks refused, session and origin required, two guests edit
+  together and the file follows, a view guest changes nothing, only editors can build, stopping saves and disconnects everyone.
+- In the real app, a host editor and a guest in a separate browser: each saw the other's typing, names and cursors, the host's badge showed
+  "Editing with Guest 28", both edits were in the file, a view-code guest's attempt changed nothing, and stopping the share returned the host's
+  editor to normal saving with Visual view back.
+
 ## Not built yet
-- **Live editing** together (Yjs) for LaTeX projects, with a guest role and a separate edit code.
-- Encrypted connections (a certificate the guest has to trust), a QR code for the link, a list of guests with names.
-- Sharing a whole Thinkspace, or sharing across the internet (this is local network only on purpose).
+- Creating or renaming files as a guest, comments and chat, a QR code for the link.
+- Encrypted connections, sharing a whole Thinkspace, or sharing across the internet (local network only on purpose).
+- Co-editing artifacts (they remain look-only).

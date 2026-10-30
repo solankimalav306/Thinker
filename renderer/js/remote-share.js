@@ -61,8 +61,18 @@ export function openShareDialog({ kind, id, title, api = window.electronAPI, set
     panel.textContent = "";
     panel.append(header());
     panel.append(el("p", "share-text", kind === "tex"
-      ? "People on your network can watch the compiled PDF of this project, and it updates each time you compile. They cannot see or change your files."
+      ? "People on your network can watch the compiled PDF of this project, and it updates each time you compile. They never see your other files."
       : "People on your network can view this artifact. They cannot edit it or see anything else in Thinker."));
+
+    let allowEdit = null;
+    if (kind === "tex") {
+      const label = el("label", "share-check");
+      allowEdit = el("input");
+      allowEdit.type = "checkbox";
+      allowEdit.checked = true;
+      label.append(allowEdit, document.createTextNode(" Let people edit this project with me, live"));
+      panel.append(label, el("p", "share-fine", "You get two codes: one for people who can edit the text files and run a build, and one for people who can only watch. Your project files on disk always have the combined result."));
+    }
 
     const scope = el("select", "sc-select");
     scope.setAttribute("aria-label", "Who can reach it");
@@ -79,7 +89,7 @@ export function openShareDialog({ kind, id, title, api = window.electronAPI, set
     const go = button("Start sharing", "btn primary", "fa-share-nodes", async () => {
       go.disabled = true;
       try {
-        await api.remoteShare({ kind, id, scope: scope.value, hours: Number(hours.value) });
+        await api.remoteShare({ kind, id, scope: scope.value, hours: Number(hours.value), allowEdit: Boolean(allowEdit?.checked) });
         await refresh();
       } catch (error) {
         go.disabled = false;
@@ -105,11 +115,22 @@ export function openShareDialog({ kind, id, title, api = window.electronAPI, set
     });
     if (links.length > 1) linkBox.append(el("p", "share-fine", "Your computer has more than one network address. Use the one on the same network as your guests."));
 
-    const pinRow = el("div", "share-pin");
-    pinRow.append(el("span", "share-pin-label", "Code"), el("strong", "share-pin-value", share.pin), button("Copy", "btn", "fa-copy", () => copy(share.pin, "Code")));
+    const pinRows = el("div", "share-pins");
+    const pinRow = (label, pin, note) => {
+      const row = el("div", "share-pin");
+      const text = el("div", "share-pin-text");
+      text.append(el("span", "share-pin-label", label), el("small", "share-fine", note));
+      row.append(text, el("strong", "share-pin-value", pin), button("Copy", "btn", "fa-copy", () => copy(pin, "Code")));
+      return row;
+    };
+    if (share.editPin) {
+      pinRows.append(pinRow("Edit code", share.editPin, "Can change the text files and run a build"), pinRow("View code", share.pin, "Can only watch"));
+    } else {
+      pinRows.append(pinRow("Code", share.pin, "Read this out to people you share with"));
+    }
 
     const left = Math.max(0, Math.round((share.expiresAt - Date.now()) / 60000));
-    const guests = share.guests === 1 ? "1 person is looking" : `${share.guests} people are looking`;
+    const guests = share.guests === 1 ? "1 person is here" : `${share.guests} people are here`;
     const stats = el("p", "share-stats");
     stats.textContent = `${share.guests ? guests : "No one has opened it yet"} · ends in ${left >= 60 ? `${Math.floor(left / 60)} h ${left % 60} min` : `${left} min`}`;
     if (share.locked) stats.textContent = "Locked after too many wrong codes. Stop and start again to get a new link.";
@@ -119,7 +140,7 @@ export function openShareDialog({ kind, id, title, api = window.electronAPI, set
       setStatus("Stopped sharing.");
       await refresh();
     });
-    panel.append(linkBox, pinRow, stats, stop);
+    panel.append(linkBox, pinRows, stats, stop);
     panel.append(el("p", "share-fine", "Anyone with the link and the code can view this. The connection is not encrypted, so share only on a network you trust."));
   }
 

@@ -82,6 +82,8 @@ export function createTexStudio(deps) {
   let agent = null; // the ThinkerTex agent panel
   let preview = null; // { controller, ... }
   let dom = {};
+  let collab = null; // { projectId, path, binding } while this file is shared for editing
+  let collabToken = 0;
   let stopProgress = null;
 
   const currentBuffer = () => state.buffers.get(state.path);
@@ -89,6 +91,7 @@ export function createTexStudio(deps) {
   // ================================================================================== home
   async function showHome() {
     state.view = "home";
+    await detachCollab();
     await flushAll();
     go();
     container.textContent = "";
@@ -330,6 +333,9 @@ export function createTexStudio(deps) {
 
     const right = el("div", "tex-bar-group");
     dom.compileBtn = btn("Recompile", "btn primary", "fa-play", () => compile({ manual: true }), "Compile (Ctrl+Enter)");
+    dom.collabBadge = el("span", "tex-chip collab-badge");
+    dom.collabBadge.hidden = true;
+    dom.collabBadge.title = "People who can edit this file with you";
     dom.status = el("span", "tex-status", "Not compiled yet");
     dom.status.setAttribute("aria-live", "polite");
     const autoLabel = el("label", "tex-auto");
@@ -342,7 +348,7 @@ export function createTexStudio(deps) {
     dom.exportBtn = btn("", "btn icon-btn", "fa-download", exportPdf, "Download the PDF");
     dom.shareBtn = btn("", "btn icon-btn", "fa-share-nodes", () => openShareDialog({ kind: "tex", id: state.project.id, title: state.project.name, setStatus }), "Share this project on your network");
     dom.agentBtn = btn("Ask AI", "btn", "fa-wand-magic-sparkles", () => showRightTab("agent"), "Ask ThinkerTex to write, edit or fix");
-    right.append(dom.status, autoLabel, dom.compileBtn, dom.exportBtn, dom.shareBtn, dom.agentBtn);
+    right.append(dom.collabBadge, dom.status, autoLabel, dom.compileBtn, dom.exportBtn, dom.shareBtn, dom.agentBtn);
     bar.append(left, mid, right);
 
     dom.studioBanner = el("div", "tex-banner-slot");
@@ -483,7 +489,9 @@ export function createTexStudio(deps) {
     }
     state.path = path;
     const buffer = currentBuffer();
+    await detachCollab();
     code?.reset(buffer.text);
+    syncCollab();
     applyProblemsToEditor();
     if (state.mode === "visual") renderVisual();
     updateModeAvailability();
@@ -635,9 +643,85 @@ export function createTexStudio(deps) {
   const scheduleSave = debounce(() => saveBuffer(state.path), 900);
   const scheduleAutoCompile = debounce(() => compile({ manual: false }), 1800);
 
+  // ---- editing together: while a share allows editing, this editor works on the one shared copy of the file ----
+  async function detachCollab() {
+    collabToken += 1;
+    const held = collab;
+    collab = null;
+    if (!held) return;
+    try { held.binding.destroy(); } catch { /* the editor was already closed */ }
+    try { await window.electronAPI.collab.close(held.projectId, held.path); } catch { /* the share ended */ }
+    if (state.project) updateModeAvailability();
+    showCollabBadge();
+  }
+
+  function showCollabBadge() {
+    if (!dom.collabBadge) return;
+    const people = collab ? collab.binding.people() : [];
+    dom.collabBadge.hidden = !collab;
+    if (!collab) return;
+    dom.collabBadge.textContent = people.length ? `Editing with ${people.map((p) => p.name).slice(0, 3).join(", ")}${people.length > 3 ? ` +${people.length - 3}` : ""}` : "Others can edit";
+  }
+
+  async function syncCollab() {
+    const token = ++collabToken;
+    if (!state.project || !state.path || !code) return;
+    let editing = false;
+    try {
+      const status = await window.electronAPI.remoteStatus();
+      editing = status.shares.some((s) => s.kind === "tex" && s.ref === state.project.id && s.allowEdit);
+    } catch { editing = false; }
+    if (token !== collabToken) return;
+    if (!editing) { if (collab) await detachCollab(); return; }
+    if (collab && collab.path === state.path && collab.projectId === state.project.id) return;
+    if (collab) await detachCollab();
+    const projectId = state.project.id;
+    const path = state.path;
+    const joined = await window.electronAPI.collab.open(projectId, path).catch(() => null);
+    if (!joined) return;
+    if (token !== collabToken || state.path !== path) { window.electronAPI.collab.close(projectId, path).catch(() => {}); return; }
+    if (state.mode === "visual") setMode("code");
+    const { bindCollab } = await import("../vendor/code-editor/code-editor.js");
+    const binding = bindCollab(code, {
+      state: joined.state,
+      awarenessState: joined.awareness,
+      name: "Host",
+      onUpdate: (update) => window.electronAPI.collab.update(projectId, path, update),
+      onAwareness: (update) => window.electronAPI.collab.awareness(projectId, path, update)
+    });
+    collab = { projectId, path, binding };
+    const buffer = currentBuffer();
+    if (buffer) { buffer.text = binding.text(); buffer.saved = buffer.text; }
+    updateModeAvailability();
+    showCollabBadge();
+    renderTabs();
+  }
+
+  window.electronAPI.collab?.onUpdate(({ projectId, rel, update }) => {
+    if (collab && collab.projectId === projectId && collab.path === rel) collab.binding.applyUpdate(update);
+  });
+  window.electronAPI.collab?.onAwareness(({ projectId, rel, update }) => {
+    if (collab && collab.projectId === projectId && collab.path === rel) { collab.binding.applyAwareness(update); showCollabBadge(); }
+  });
+  window.electronAPI.onRemoteChanged?.(() => { if (state.view === "studio") syncCollab(); });
+  // someone else asked for a build: show its result here like our own
+  window.electronAPI.onRemoteBuilt?.((result) => {
+    if (state.view !== "studio" || !state.project || state.project.id !== result.projectId) return;
+    state.problems = result.problems || [];
+    state.log = result.log || "";
+    state.lastOk = Boolean(result.ok);
+    dom.status.textContent = result.ok ? "Compiled for a guest" : "A guest's build had errors";
+    dom.status.classList.toggle("bad", !result.ok);
+    if (result.ok) loadPreview().catch(() => {});
+    renderProblems();
+    applyProblemsToEditor();
+  });
+
   async function saveBuffer(path) {
     const buffer = state.buffers.get(path);
     if (!buffer || buffer.text === buffer.saved || !state.project) return;
+    // a file others can edit is saved by the sharing side, from the one shared copy
+    if (collab && collab.path === path && collab.projectId === state.project.id) { buffer.saved = buffer.text; return; }
     const text = buffer.text;
     try {
       await call(tex.write(state.project.id, path, text));
@@ -674,6 +758,7 @@ export function createTexStudio(deps) {
   }
 
   function visualAvailable() {
+    if (collab) return { ok: false, reason: "The visual view is off while other people can edit this file." };
     const buffer = currentBuffer();
     if (!buffer || !/\.tex$/i.test(state.path || "")) return { ok: false, reason: "The visual view is for .tex documents." };
     if (!/\\begin\{document\}/.test(buffer.text)) return { ok: false, reason: "Open the main document to use the visual view. This file is a part of a larger one." };

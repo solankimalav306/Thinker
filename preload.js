@@ -61,6 +61,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   remoteEnd: (id) => ipcRenderer.invoke('remote:end', id),
   remoteStopAll: () => ipcRenderer.invoke('remote:stopAll'),
   onRemoteChanged: (callback) => ipcRenderer.on('remote:changed', () => callback()),
+  onRemoteBuilt: (callback) => ipcRenderer.on('remote:built', (_e, payload) => callback(payload)),
+  collab: {
+    open: (projectId, rel) => ipcRenderer.invoke('collab:open', projectId, rel),
+    update: (projectId, rel, update) => ipcRenderer.invoke('collab:update', projectId, rel, update),
+    awareness: (projectId, rel, update) => ipcRenderer.invoke('collab:awareness', projectId, rel, update),
+    close: (projectId, rel) => ipcRenderer.invoke('collab:close', projectId, rel),
+    onUpdate: (callback) => ipcRenderer.on('collab:update', (_e, payload) => callback(payload)),
+    onAwareness: (callback) => ipcRenderer.on('collab:awareness', (_e, payload) => callback(payload))
+  },
   listProjects: () => ipcRenderer.invoke('proj:list'),
   getProject: (id) => ipcRenderer.invoke('proj:get', id),
   updateProject: (id, patch) => ipcRenderer.invoke('proj:update', id, patch),
