@@ -183,6 +183,15 @@ const MIGRATIONS = [
       );
       CREATE INDEX artifacts_updated ON artifacts(updated_at DESC);
     `
+  },
+  {
+    version: 4,
+    sql: `
+      -- Interactive artifacts are kept as data (spec) and drawn fresh each time, so they pick up later improvements;
+      -- state is the person's progress in one (ticked tasks, quiz answers).
+      ALTER TABLE artifacts ADD COLUMN spec TEXT NOT NULL DEFAULT '';
+      ALTER TABLE artifacts ADD COLUMN state TEXT NOT NULL DEFAULT '{}';
+    `
   }
 ];
 

@@ -4,8 +4,10 @@ import { timeAgo } from "./chat-groups.js";
 import { createArtifactView } from "./artifact-view.js";
 import { openShareDialog } from "./remote-share.js";
 
-const KIND_LABELS = { page: "Page", table: "Table", chart: "Chart", slides: "Slides", document: "Document" };
-const KIND_ICONS = { page: "fa-file-lines", table: "fa-table", chart: "fa-chart-simple", slides: "fa-display", document: "fa-file-word" };
+// the kinds and how they look come from the one list in artifact-spec.js
+const TYPES = () => globalThis.TKSpec?.TYPES || {};
+const kindLabel = (kind) => TYPES()[kind]?.label || "Page";
+const kindIcon = (kind) => TYPES()[kind]?.icon || "fa-file-lines";
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -48,7 +50,7 @@ export function createArtifactsLibrary({ container, api = window.electronAPI, op
     const kinds = el("div", "lib-kinds");
     kinds.setAttribute("role", "group");
     kinds.setAttribute("aria-label", "Filter by kind");
-    for (const [value, label] of [["", "All"], ...Object.entries(KIND_LABELS)]) {
+    for (const [value, label] of [["", "All"], ...Object.entries(TYPES()).map(([k, t]) => [k, t.label])]) {
       const chip = button(label, `ta-chip${filter.kind === value ? " active" : ""}`, "", () => { filter.kind = value; showList(); });
       chip.setAttribute("aria-pressed", String(filter.kind === value));
       kinds.append(chip);
@@ -78,8 +80,8 @@ export function createArtifactsLibrary({ container, api = window.electronAPI, op
         const card = el("button", "lib-card");
         card.type = "button";
         const icon = el("span", "lib-card-icon");
-        icon.append(el("i", `fa-solid ${KIND_ICONS[item.kind] || KIND_ICONS.page}`));
-        const meta = [KIND_LABELS[item.kind] || "Page", timeAgo(item.updatedAt)];
+        icon.append(el("i", `fa-solid ${kindIcon(item.kind)}`));
+        const meta = [kindLabel(item.kind), timeAgo(item.updatedAt)];
         if (item.workspaceId && names.get(item.workspaceId)) meta.push(names.get(item.workspaceId));
         card.append(icon, el("strong", "lib-card-title", item.title), el("span", "lib-card-meta", meta.join(" · ")));
         card.addEventListener("click", () => open(item.id));
@@ -152,6 +154,10 @@ export function createArtifactsLibrary({ container, api = window.electronAPI, op
     const view = createArtifactView({
       title: item.title,
       html: item.html,
+      spec: item.spec,
+      state: item.state,
+      // ticking a task or answering a question is saved with the artifact, quietly
+      onState: (value) => api.updateArtifact(item.id, { state: value }).catch(() => {}),
       sources: item.sources,
       kind: item.kind,
       onCite: ({ doc, page: n }) => {

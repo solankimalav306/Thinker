@@ -13,7 +13,7 @@ const FRAME_CSP = [
   `script-src ${SCHEME}:`,
   "style-src 'unsafe-inline'",
   'img-src data:',
-  'font-src data:',
+  `font-src data: ${SCHEME}:`,
   "connect-src 'none'",
   "base-uri 'none'",
   "form-action 'none'",
@@ -24,7 +24,9 @@ const FRAME_CSP = [
 const FILES = {
   '/artifact-frame.html': { file: path.join('renderer', 'artifact-frame.html'), type: 'text/html; charset=utf-8' },
   '/artifact-bridge.js': { file: path.join('renderer', 'js', 'artifact-bridge.js'), type: 'text/javascript; charset=utf-8' },
-  '/purify.min.js': { file: path.join('renderer', 'vendor', 'dompurify', 'purify.min.js'), type: 'text/javascript; charset=utf-8' }
+  '/purify.min.js': { file: path.join('renderer', 'vendor', 'dompurify', 'purify.min.js'), type: 'text/javascript; charset=utf-8' },
+  '/katex.min.js': { file: path.join('renderer', 'vendor', 'katex', 'katex.min.js'), type: 'text/javascript; charset=utf-8' },
+  '/artifact-components.js': { file: path.join('renderer', 'js', 'artifact-components.js'), type: 'text/javascript; charset=utf-8' }
 };
 
 // Must run before the app is ready.
@@ -32,11 +34,16 @@ function registerScheme(protocol) {
   protocol.registerSchemesAsPrivileged([{ scheme: SCHEME, privileges: { standard: true, secure: true } }]);
 }
 
+// the maths fonts: only files of that exact shape, from that one folder
+const FONT_PATH = /^\/fonts\/(KaTeX_[A-Za-z0-9_-]+\.woff2)$/;
+
 function lookup(requestUrl) {
   let url;
   try { url = new URL(requestUrl); } catch { return null; }
   if (url.protocol !== `${SCHEME}:` || url.host !== 'frame') return null;
-  return FILES[url.pathname] || null;
+  if (FILES[url.pathname]) return FILES[url.pathname];
+  const font = FONT_PATH.exec(url.pathname);
+  return font ? { file: path.join('renderer', 'vendor', 'katex', 'fonts', font[1]), type: 'font/woff2' } : null;
 }
 
 // Must run once the app is ready.

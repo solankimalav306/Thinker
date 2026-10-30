@@ -37,15 +37,41 @@
     if (tokens["--tk-scheme"] === "dark" || tokens["--tk-scheme"] === "light") document.documentElement.style.colorScheme = tokens["--tk-scheme"];
   }
 
+  // progress inside an interactive artifact (ticked tasks, quiz answers) goes back to the app, which keeps it
+  var saveTimer = null;
+  function saver(state) {
+    return function () {
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(function () {
+        var text = "";
+        try { text = JSON.stringify(state); } catch (e) { return; }
+        if (text.length < 20000) post({ type: "state", value: state });
+      }, 300);
+    };
+  }
+
   function render(data) {
+    if (typeof data.css === "string") kitStyle.textContent = data.css.slice(0, 200000);
+    applyTokens(data.tokens);
+    // an interactive artifact arrives as data and is drawn by Thinker's own code
+    if (data.kind && data.spec && window.TKComponents) {
+      var state = data.state && typeof data.state === "object" ? data.state : {};
+      try {
+        window.TKComponents.render(root, String(data.kind), data.spec, { state: state, save: saver(state), cites: data.cites && typeof data.cites === "object" ? data.cites : {} });
+      } catch (e) {
+        root.textContent = "This artifact could not be drawn.";
+        post({ type: "error", reason: "draw" });
+      }
+      measure();
+      return;
+    }
     if (!window.DOMPurify) {
       root.textContent = "This content could not be displayed safely.";
       post({ type: "error", reason: "no-sanitiser" });
       return;
     }
-    if (typeof data.css === "string") kitStyle.textContent = data.css.slice(0, 60000);
-    applyTokens(data.tokens);
     root.innerHTML = window.DOMPurify.sanitize(String(data.html || "").slice(0, 200000), CONFIG);
+    if (window.TKComponents) { try { window.TKComponents.mathify(root); } catch (e) { /* maths is a nicety */ } }
     measure();
   }
 

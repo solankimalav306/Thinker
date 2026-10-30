@@ -151,11 +151,11 @@ export function createSpaceChat(root, { api = window.electronAPI, space, openPdf
       for (const part of splitArtifacts(entry.text)) {
         if (part.type === "artifact") {
           wrap.append(createArtifactView({
-            title: part.title, html: part.html, complete: part.complete, sources: entry.sources || [],
+            title: part.title, html: part.html, spec: part.spec, error: part.error, complete: part.complete, sources: entry.sources || [],
             onCite: ({ doc, page }) => { const d = docs.find((x) => x.title.toLowerCase() === doc.toLowerCase()); if (d) openPdfAt(d.path, page); },
             kind: part.kind,
             onKeep: async (file) => {
-              const saved = await api.createArtifact({ title: part.title, html: file.html, kind: part.kind, sources: entry.sources || [], workspaceId: space.id });
+              const saved = await api.createArtifact({ title: part.title, html: file.html, spec: file.spec, state: file.state, kind: part.kind, sources: entry.sources || [], workspaceId: space.id });
               setStatus(`Saved "${saved.title}" to Artifacts.`);
             },
             onSave: (file) => api.saveTextFile({ defaultPath: `${file.title.replace(/[\\/:*?"<>|]+/g, "-")}.html`, content: file.content, filters: [{ name: "HTML page", extensions: ["html"] }] })

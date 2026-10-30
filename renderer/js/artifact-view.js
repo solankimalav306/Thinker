@@ -1,6 +1,7 @@
 // Shows an AI-written HTML artifact safely: cleaned here, shown in a sandboxed frame that is cleaned again,
 // with citations checked against what the answer was really given, and only a few fixed actions allowed back.
 import { validateCitations, TOKEN_MAP } from "./artifact-html.js";
+import { specToHtml, specToText } from "./artifact-static.js";
 
 const ALLOWED_DATA = new Set(["data-cite", "data-action", "data-text", "data-page", "data-cite-unverified"]);
 const CONFIG = {
@@ -30,9 +31,34 @@ export function sanitizeArtifact(html) {
 }
 
 let kitCssPromise = null;
+// the design kit, plus what maths needs; both go into the frame as text, because the frame loads no stylesheets
 function loadKitCss() {
-  if (!kitCssPromise) kitCssPromise = fetch("css/artifact-kit.css").then((r) => r.text()).catch(() => "");
+  if (!kitCssPromise) {
+    const get = (url) => fetch(url).then((r) => r.text()).catch(() => "");
+    kitCssPromise = Promise.all([get("css/artifact-kit.css"), get("vendor/katex/katex.min.css")]).then(([kit, katex]) => `${kit}\n${katex}`);
+  }
   return kitCssPromise;
+}
+
+// Progress inside a chat card is remembered on this computer, keyed by the content, so reopening the chat keeps your ticks.
+const hashOf = (text) => { let h = 5381; for (let i = 0; i < text.length; i += 1) h = ((h * 33) ^ text.charCodeAt(i)) >>> 0; return h.toString(36); };
+function recall(key) { try { return JSON.parse(localStorage.getItem(key) || "null") || {}; } catch { return {}; } }
+function remember(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* storage is a convenience */ } }
+
+// Which of a spec's references the answer was really given, as { "Doc|2": true/false } plus the list that may open a page.
+function checkSpecCitations(kind, spec, sources) {
+  const allowed = new Set((sources || []).map((s) => `${String(s.doc).trim().toLowerCase()}|${Number(s.page)}`));
+  const map = {};
+  const valid = [];
+  for (const c of globalThis.TKSpec?.citations(kind, spec) || []) {
+    const at = c.lastIndexOf("|");
+    const doc = c.slice(0, at).trim();
+    const page = parseInt(c.slice(at + 1), 10);
+    const ok = at > 0 && allowed.has(`${doc.toLowerCase()}|${page}`);
+    map[c] = ok;
+    if (ok) valid.push({ doc, page });
+  }
+  return { map, valid, invalid: Object.values(map).filter((ok) => !ok).length };
 }
 
 function isDark() {
@@ -74,7 +100,7 @@ function iconButton(icon, title, onClick) {
 }
 
 // A frame showing `html`. It reports its height and relays the few actions it is allowed to.
-function mountFrame({ html, valid, onCite, minHeight = 80, maxHeight, label, extraCss = "", fixed = false }) {
+function mountFrame({ html, valid, onCite, minHeight = 80, maxHeight, label, extraCss = "", fixed = false, kind = "", spec = null, state = null, citeMap = null, onState = null }) {
   const frame = document.createElement("iframe");
   frame.className = "art-iframe";
   frame.title = label;
@@ -89,7 +115,7 @@ function mountFrame({ html, valid, onCite, minHeight = 80, maxHeight, label, ext
 
   const send = async () => {
     const css = (await loadKitCss()) + extraCss;
-    frame.contentWindow?.postMessage({ type: "render", html, css, tokens: readTokens() }, "*");
+    frame.contentWindow?.postMessage(spec ? { type: "render", kind, spec, state: state || {}, cites: citeMap || {}, css, tokens: readTokens() } : { type: "render", html, css, tokens: readTokens() }, "*");
   };
 
   const onMessage = (event) => {
@@ -97,6 +123,7 @@ function mountFrame({ html, valid, onCite, minHeight = 80, maxHeight, label, ext
     if (event.source !== frame.contentWindow) return;
     const data = event.data || {};
     if (data.type === "ready") send();
+    else if (data.type === "state" && data.value && typeof data.value === "object") onState?.(data.value);
     else if (data.type === "height" && Number.isFinite(data.value) && !fixed) {
       const limit = maxHeight ? maxHeight() : Infinity;
       frame.style.height = `${Math.max(minHeight, Math.min(Math.ceil(data.value), limit))}px`;
@@ -126,25 +153,48 @@ export function standaloneDocument(title, html, css, tokens) {
   return `<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">\n<title>${safeTitle}</title>\n<style>:root{${vars}}\n${css}</style></head>\n<body><div id="root">${html}</div></body></html>\n`;
 }
 
-export function createArtifactView({ title, html, complete = true, sources, onCite, onSave, onKeep, kind = "page" }) {
-  const clean = sanitizeArtifact(html);
-  const checked = validateCitations(clean, sources);
+export function createArtifactView({ title, html, spec = null, error = "", complete = true, sources, onCite, onSave, onKeep, onState, state = null, kind = "page" }) {
+  const live = Boolean(spec);
   const box = el("section", "art-frame");
   box.setAttribute("aria-label", `Artifact: ${title}`);
 
   const head = el("div", "art-head");
   const heading = el("div", "art-title");
-  heading.append(el("i", "fa-solid fa-wand-magic-sparkles"), el("strong", "", title), el("span", "art-badge", "AI-generated"));
+  const known = globalThis.TKSpec?.TYPES?.[kind];
+  heading.append(el("i", `fa-solid ${known?.icon || "fa-wand-magic-sparkles"}`), el("strong", "", title), el("span", "art-badge", known && live ? `${known.label} \u00b7 AI-generated` : "AI-generated"));
   const tools = el("div", "art-tools");
   head.append(heading, tools);
   box.append(head);
 
-  if (!clean.trim()) {
-    box.append(el("p", "art-empty", "This content could not be displayed safely."));
+  if (error) {
+    box.append(el("p", "art-empty", `This ${known?.label?.toLowerCase() || "artifact"} could not be shown. ${error}`));
     return box;
   }
 
-  const inline = mountFrame({ html: checked.html, valid: checked.valid, onCite, label: title, maxHeight: () => Math.max(300, window.innerHeight * 0.6) });
+  let checked;
+  let citeInfo = null;
+  if (live) {
+    citeInfo = checkSpecCitations(kind, spec, sources);
+    // the plain version is what exports, copies and the library work from
+    checked = { html: specToHtml(kind, spec), valid: citeInfo.valid, invalid: citeInfo.invalid };
+  } else {
+    checked = validateCitations(sanitizeArtifact(html), sources);
+    if (!checked.html.trim()) {
+      box.append(el("p", "art-empty", "This content could not be displayed safely."));
+      return box;
+    }
+  }
+
+  // ticks and answers: remembered with the artifact in the library, or on this computer for a card in a chat
+  const stateKey = live && !onState ? `thinker.artstate.${hashOf(JSON.stringify(spec))}` : "";
+  let current = state && typeof state === "object" ? state : (stateKey ? recall(stateKey) : {});
+  const saveState = (value) => { current = value; if (onState) onState(value); else if (stateKey) remember(stateKey, value); };
+  const liveFrame = live ? { kind, spec, cites: citeInfo.map, getState: () => current, onState: saveState } : null;
+
+  const inline = mountFrame({
+    html: checked.html, valid: checked.valid, onCite, label: title, maxHeight: () => Math.max(300, window.innerHeight * 0.7),
+    ...(live ? { kind, spec, state: current, citeMap: citeInfo.map, onState: saveState } : {})
+  });
   box.append(inline);
   if (!complete) box.append(el("p", "art-note", "The reply was cut off, so this may be unfinished."));
   if (checked.invalid) box.append(el("p", "art-note", `${checked.invalid} reference${checked.invalid === 1 ? "" : "s"} could not be checked against the sources and ${checked.invalid === 1 ? "is" : "are"} shown dashed.`));
@@ -153,7 +203,7 @@ export function createArtifactView({ title, html, complete = true, sources, onCi
   const bigger = el("button", "art-more");
   bigger.type = "button";
   bigger.append(el("i", "fa-solid fa-up-right-and-down-left-from-center"), document.createTextNode(" Open larger"));
-  bigger.addEventListener("click", () => openLarge({ title, checked, onCite }));
+  bigger.addEventListener("click", () => openLarge({ title, checked, onCite, live: liveFrame }));
   foot.append(bigger);
   box.append(foot);
 
@@ -161,7 +211,7 @@ export function createArtifactView({ title, html, complete = true, sources, onCi
     const keep = iconButton("fa-bookmark", "Save to Artifacts", async () => {
       keep.disabled = true;
       try {
-        await onKeep({ title, html: checked.html, sources: checked.valid });
+        await onKeep({ title, html: live ? "" : checked.html, spec: live ? spec : null, state: current, kind, sources: checked.valid });
         keep.firstChild.className = "fa-solid fa-circle-check";
         keep.title = "Saved to Artifacts";
         keep.setAttribute("aria-label", "Saved to Artifacts");
@@ -172,10 +222,10 @@ export function createArtifactView({ title, html, complete = true, sources, onCi
     tools.append(keep);
   }
   tools.append(
-    iconButton("fa-up-right-and-down-left-from-center", "Open larger", () => openLarge({ title, checked, onCite })),
-    iconButton("fa-copy", "Copy the HTML", () => navigator.clipboard?.writeText(checked.html).catch(() => {}))
+    iconButton("fa-up-right-and-down-left-from-center", "Open larger", () => openLarge({ title, checked, onCite, live: liveFrame })),
+    iconButton("fa-copy", live ? "Copy as text" : "Copy the HTML", () => navigator.clipboard?.writeText(live ? specToText(kind, spec) : checked.html).catch(() => {}))
   );
-  const slides = slideHtml(checked.html);
+  const slides = live ? [] : slideHtml(checked.html);
   if (slides.length) tools.prepend(iconButton("fa-display", "Present as slides", () => openPresent({ title, slides, onCite })));
   tools.append(exportMenu({ title, checked, kind, onSave }));
   return box;
@@ -298,7 +348,7 @@ function exportMenu({ title, checked, kind, onSave }) {
   return wrap;
 }
 
-function openLarge({ title, checked, onCite }) {
+function openLarge({ title, checked, onCite, live = null }) {
   const overlay = el("div", "art-overlay");
   overlay.setAttribute("role", "dialog");
   overlay.setAttribute("aria-modal", "true");
@@ -309,7 +359,10 @@ function openLarge({ title, checked, onCite }) {
   heading.append(el("strong", "", title), el("span", "art-badge", "AI-generated"));
   const close = iconButton("fa-xmark", "Close", () => done());
   bar.append(heading, close);
-  const frame = mountFrame({ html: checked.html, valid: checked.valid, onCite: (c) => { done(); onCite?.(c); }, label: title, minHeight: 200, maxHeight: () => window.innerHeight * 0.82 });
+  const frame = mountFrame({
+    html: checked.html, valid: checked.valid, onCite: (c) => { done(); onCite?.(c); }, label: title, minHeight: 200, maxHeight: () => window.innerHeight * 0.82,
+    ...(live ? { kind: live.kind, spec: live.spec, state: live.getState(), citeMap: live.cites, onState: live.onState } : {})
+  });
   panel.append(bar, frame);
   overlay.append(panel);
   const onKey = (e) => { if (e.key === "Escape") { e.stopPropagation(); done(); } };

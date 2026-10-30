@@ -98,3 +98,19 @@ test('the kind comes from the type attribute, or is guessed from the content', a
   assert.strictEqual(artifactKind('', '<table></table>'), 'table');
   assert.strictEqual(artifactKind('bogus', '<p>hi</p>'), 'page');
 });
+
+test('an older artifact written as a page keeps showing as a page; data kinds read their JSON', async () => {
+  require('../renderer/js/artifact-spec.js');
+  const { splitArtifacts } = await load();
+  const old = splitArtifacts('Here.\n<artifact title="Rules" type="table"><table><tr><td>a</td></tr></table></artifact>').find((p) => p.type === 'artifact');
+  assert.strictEqual(old.kind, 'table');
+  assert.ok(old.html.includes('<table>') && !old.spec && !old.error);
+  const fresh = splitArtifacts('Here.\n<artifact title="Todo" type="checklist">{"groups":[{"items":["a","b"]}]}</artifact>').find((p) => p.type === 'artifact');
+  assert.strictEqual(fresh.kind, 'checklist');
+  assert.strictEqual(fresh.spec.groups[0].items.length, 2);
+  assert.strictEqual(fresh.html, '');
+  const broken = splitArtifacts('x\n<artifact title="Q" type="quiz">{"questions": [</artifact>').find((p) => p.type === 'artifact');
+  assert.ok(broken.error && !broken.spec);
+  const cut = splitArtifacts('x\n<artifact title="Q" type="quiz">{"questions": [{"q":"a"').find((p) => p.type === 'artifact');
+  assert.ok(cut.error && cut.complete === false);
+});

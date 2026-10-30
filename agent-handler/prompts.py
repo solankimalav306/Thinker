@@ -86,7 +86,7 @@ Rules for the HTML:
 - Keep it under about 1,200 words, self-contained, and readable on a narrow panel."""
 
 
-def build_ask_prompt(*, doc_info="", history="", context="", selected_text="", question="", mode="auto", instructions=None, multi=False, artifacts=False, doc_title="") -> str:
+def build_ask_prompt(*, doc_info="", history="", context="", selected_text="", question="", mode="auto", instructions=None, multi=False, artifacts=False, doc_title="", artifact_kind="") -> str:
     rules = MODE_RULES[normalize_mode(mode)]
     if multi:
         rules = rules.replace("in this document", "in these documents").replace("the document context", "the context")
@@ -97,7 +97,11 @@ def build_ask_prompt(*, doc_info="", history="", context="", selected_text="", q
     ]
     if multi:
         parts.append(MULTI_RULES)
-    if artifacts:
+    if artifact_kind:
+        # making an artifact: only the instructions for that one kind
+        from utils.artifacts import prompt_for
+        parts.append(prompt_for(artifact_kind, "" if multi else doc_title))
+    elif artifacts:
         parts.append(ARTIFACT_RULES)
         if doc_title and not multi:
             parts.append(f'The only document is titled "{doc_title}". In an artifact, cite pages as data-cite="{doc_title}|page number".')
@@ -110,5 +114,5 @@ def build_ask_prompt(*, doc_info="", history="", context="", selected_text="", q
     parts.append(f"<document_context>\n{context}\n</document_context>")
     parts.append(f"<selected_text>\n{selected_text}\n</selected_text>")
     parts.append(f"User's question:\n{question}")
-    parts.append("Answer concisely.")
+    parts.append("Make the artifact now." if artifact_kind else "Answer concisely.")
     return "\n\n".join(parts)

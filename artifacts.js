@@ -1,7 +1,8 @@
 // The Artifacts library: AI-written pages (tables, charts, slides, documents) kept on their own.
 const crypto = require('crypto');
 
-const KINDS = ['page', 'table', 'chart', 'slides', 'document'];
+const KINDS = ['checklist', 'steps', 'quiz', 'flashcards', 'table', 'chart', 'diagram', 'timeline', 'document', 'slides', 'page'];
+const MAX_STATE = 20000;
 const MAX_TITLE = 120;
 const MAX_HTML = 200000;
 const now = () => Date.now();
@@ -22,24 +23,31 @@ function createArtifacts(store) {
   const q = (sql) => db.prepare(sql);
   const spaceId = (id) => (id && q('SELECT id FROM workspaces WHERE id = ?').get(String(id)) ? String(id) : null);
 
+  const parseJson = (text, fallback) => { try { return JSON.parse(text); } catch { return fallback; } };
   const row = (r, withHtml) => !r ? null : ({
     id: r.id, kind: r.kind, title: r.title, workspaceId: r.workspace_id,
     createdAt: r.created_at, updatedAt: r.updated_at,
-    ...(withHtml ? { html: r.html, sources: JSON.parse(r.sources || '[]') } : {})
+    ...(withHtml ? { html: r.html, spec: r.spec ? parseJson(r.spec, null) : null, state: parseJson(r.state, {}), sources: parseJson(r.sources, []) } : {})
   });
+  const cleanState = (v) => {
+    if (!v || typeof v !== 'object' || Array.isArray(v)) return {};
+    const text = JSON.stringify(v);
+    return text.length > MAX_STATE ? {} : v;
+  };
 
   function get(id) {
     return row(q('SELECT * FROM artifacts WHERE id = ?').get(String(id)), true);
   }
 
-  function create({ title, html, kind, sources, workspaceId } = {}) {
+  function create({ title, html, spec, state, kind, sources, workspaceId } = {}) {
     const body = String(html ?? '');
-    if (!body.trim()) throw new Error('There is nothing to save: the artifact is empty.');
-    if (body.length > MAX_HTML) throw new Error('That artifact is too large to save.');
+    const data = spec && typeof spec === 'object' && !Array.isArray(spec) && Object.keys(spec).length ? JSON.stringify(spec) : '';
+    if (!body.trim() && !data) throw new Error('There is nothing to save: the artifact is empty.');
+    if (body.length > MAX_HTML || data.length > MAX_HTML) throw new Error('That artifact is too large to save.');
     const id = newId();
     const t = now();
-    q('INSERT INTO artifacts (id, kind, title, html, sources, workspace_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(id, cleanKind(kind), cleanTitle(title), body, JSON.stringify(cleanSources(sources)), spaceId(workspaceId), t, t);
+    q('INSERT INTO artifacts (id, kind, title, html, spec, state, sources, workspace_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(id, cleanKind(kind), cleanTitle(title), body, data, JSON.stringify(cleanState(state)), JSON.stringify(cleanSources(sources)), spaceId(workspaceId), t, t);
     return get(id);
   }
 
@@ -63,7 +71,13 @@ function createArtifacts(store) {
     const title = patch.title !== undefined ? cleanTitle(patch.title) : current.title;
     const kind = patch.kind !== undefined ? cleanKind(patch.kind) : current.kind;
     const workspaceId = patch.workspaceId !== undefined ? spaceId(patch.workspaceId) : current.workspaceId;
-    q('UPDATE artifacts SET title = ?, kind = ?, workspace_id = ?, updated_at = ? WHERE id = ?').run(title, kind, workspaceId, now(), String(id));
+    // ticking a task is not editing the artifact: progress is saved without moving it to the top of the list
+    if (patch.state !== undefined && patch.title === undefined && patch.kind === undefined && patch.workspaceId === undefined) {
+      q('UPDATE artifacts SET state = ? WHERE id = ?').run(JSON.stringify(cleanState(patch.state)), String(id));
+      return get(id);
+    }
+    const state = patch.state !== undefined ? JSON.stringify(cleanState(patch.state)) : JSON.stringify(current.state || {});
+    q('UPDATE artifacts SET title = ?, kind = ?, workspace_id = ?, state = ?, updated_at = ? WHERE id = ?').run(title, kind, workspaceId, state, now(), String(id));
     return get(id);
   }
 

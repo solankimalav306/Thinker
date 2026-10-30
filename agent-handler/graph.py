@@ -9,7 +9,8 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 from services.retrieval import retrieval_service, pages_service, retrieval_multi
 from utils.page_refs import extract_page_refs
-from utils.intents import constrain_intent, apply_artifact_intent
+from utils.artifacts import decide as decide_artifact, finalize as finalize_artifact, schema_hint, KINDS as ARTIFACT_KINDS
+from utils.intents import constrain_intent
 from utils.sources import sources_from_hits
 from services.dictionary import dictionary_service
 from duckduckgo_search import DDGS
@@ -154,7 +155,8 @@ class AgentState(TypedDict):
     mode: str          # "auto" | "document"
     instructions: List[Dict]   # layered user instructions
     docs: List[Dict]   # a Thinkspace chat: [{pdfId, title}] searched together
-    artifacts: bool    # the reply may be a styled HTML artifact
+    artifacts: bool    # an artifact may be made
+    artifact_kind: str  # which kind, once one is wanted
     doc_title: str     # the open document's title, used to label its pages in an artifact
 
 # Per-request token accumulator (reset at start of invoke_agent)
@@ -544,6 +546,12 @@ User Query: {state['user_query']}
 Selected Text (context): {state['user_context']}
 
 Return ONLY the intent label (one of: ask, define, highlight, note, mindmap, search, comment). No other text."""
+    if state.get("artifacts"):
+        kinds = ", ".join(ARTIFACT_KINDS)
+        prompt = prompt.replace(
+            "Critical rules:",
+            f'- "artifact"  : The user asks you to MAKE something visual or interactive from the content: a checklist or to-do list, steps or a plan, a quiz, flashcards, a table, a chart, a diagram, a timeline, slides, a report document or a web page. Answer as artifact:<kind> where <kind> is one of: {kinds}.\n\nCritical rules:',
+        ).replace("mindmap, search, comment). No other text.", "mindmap, search, comment, artifact:<kind>). No other text.")
     
     # Construct multi-modal content if parts are present
     content = [{"type": "text", "text": prompt}]
@@ -563,6 +571,10 @@ Return ONLY the intent label (one of: ask, define, highlight, note, mindmap, sea
     
     # Strict exact-word matching (avoids substring false-positives)
     VALID_INTENTS = ["ask", "define", "highlight", "note", "mindmap", "search", "comment"]
+    llm_kind = None
+    found_kind = re.search(r"\bartifact\b[\s:_-]*(\w+)?", raw_intent)
+    if found_kind and state.get("artifacts"):
+        llm_kind = (found_kind.group(1) or "").lower() or None
     intent = "ask"  # safe default
     for possible in VALID_INTENTS:
         # Match whole word so "define" doesn't accidentally match inside "undefined"
@@ -572,9 +584,9 @@ Return ONLY the intent label (one of: ask, define, highlight, note, mindmap, sea
 
     intent = constrain_intent(intent, normalize_mode(state.get("mode")), multi=bool(state.get("docs")))
     routed = intent
-    intent = apply_artifact_intent(intent, state.get("user_query", ""), bool(state.get("artifacts")))
-    if intent != routed:
-        print(f"[supervisor_node] Asked for an artifact: '{routed}' became '{intent}'", flush=True)
+    intent, artifact_kind = decide_artifact(intent, state.get("user_query", ""), bool(state.get("artifacts")), llm_kind)
+    if intent == "artifact":
+        print(f"[supervisor_node] Artifact wanted ({artifact_kind}); the router had said '{routed}'", flush=True)
     print(f"[supervisor_node] Final intent: '{intent}'", flush=True)
     
     # Retrieve RAG context with token-saving dynamic context reduction
@@ -638,6 +650,7 @@ Return ONLY the intent label (one of: ask, define, highlight, note, mindmap, sea
         "rag_chunks": chunks,
         "rag_hits": hits,
         "cache_summary": cache_summary,
+        "artifact_kind": artifact_kind or "",
     }
 
 def dictionary_node(state: AgentState):
@@ -674,7 +687,6 @@ def ask_node(state: AgentState):
         mode=state.get("mode"),
         instructions=state.get("instructions"),
         multi=bool(state.get("docs")),
-        artifacts=bool(state.get("artifacts")),
         doc_title=state.get("doc_title") or "",
     )
     
@@ -691,6 +703,39 @@ def ask_node(state: AgentState):
     
     response = invoke_llm_tracked(llm, state, prompt, node="ask", messages=[HumanMessage(content=content)])
     return {"response_text": reply_text(response)}
+
+def artifact_node(state: AgentState):
+    """Make the artifact that was asked for: its own instructions, its own checks, one repair at most."""
+    llm = create_llm(state)
+    kind = state.get("artifact_kind") or "document"
+    context = "\n".join(state["rag_chunks"])
+
+    cache = normalize_knowledge_cache(load_knowledge_cache(state.get("storage_path"), cache_id(state)))
+    history = build_cache_history_text(cache, max_recent=3)
+
+    prompt = build_ask_prompt(
+        history=history,
+        context=context,
+        selected_text=state.get("user_context", ""),
+        question=state["user_query"],
+        mode=state.get("mode"),
+        instructions=state.get("instructions"),
+        multi=bool(state.get("docs")),
+        doc_title=state.get("doc_title") or "",
+        artifact_kind=kind,
+    )
+    response = invoke_llm_tracked(llm, state, prompt, node=f"artifact_{kind}", messages=[HumanMessage(content=[{"type": "text", "text": prompt}])])
+
+    def repair(bad, why):
+        fix = (
+            f"The data for a {kind} below has a problem: {why}\n"
+            f"Return ONLY the corrected artifact in the same <artifact title=\"...\" type=\"{kind}\">...</artifact> form, with JSON of this shape:\n"
+            f"{schema_hint(kind)}\n\nProblem data:\n{str(bad)[:6000]}"
+        )
+        return reply_text(invoke_llm_tracked(llm, state, fix, node=f"artifact_{kind}_repair", messages=[HumanMessage(content=[{"type": "text", "text": fix}])]))
+
+    return {"response_text": finalize_artifact(kind, reply_text(response), repair)}
+
 
 def highlight_node(state: AgentState):
     llm = create_llm(state)
@@ -1289,6 +1334,7 @@ workflow = StateGraph(AgentState)
 workflow.add_node("supervisor", supervisor_node)
 workflow.add_node("dictionary", dictionary_node)
 workflow.add_node("ask", ask_node)
+workflow.add_node("artifact", artifact_node)
 workflow.add_node("highlighter", highlight_node)
 workflow.add_node("notes", notes_node)
 workflow.add_node("mindmap", mindmap_node)
@@ -1314,6 +1360,8 @@ def route_intent(state):
         return "highlighter"
     if intent == "note":
         return "notes"
+    if intent == "artifact":
+        return "artifact"
     if intent == "mindmap":
         return "mindmap"
     if intent == "search":
@@ -1333,12 +1381,14 @@ workflow.add_conditional_edges(
         "mindmap": "mindmap",
         "websearch": "websearch",
         "comment": "comment",
-        "ask": "ask"
+        "ask": "ask",
+        "artifact": "artifact"
     }
 )
 
 workflow.add_edge("dictionary", END)
 workflow.add_edge("ask", END)
+workflow.add_edge("artifact", END)
 workflow.add_edge("highlighter", END)
 workflow.add_edge("notes", "plan")
 workflow.add_edge("plan", "analyze")

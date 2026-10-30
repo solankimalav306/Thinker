@@ -62,3 +62,28 @@ test('rename, link to a Thinkspace; deleting the Thinkspace keeps the artifact',
   assert.strictEqual(art.get(a.id), null);
   assert.throws(() => art.update('nope', { title: 'x' }), /no longer exists/);
 });
+
+test('an interactive artifact is kept as data with the person\'s progress', () => {
+  const { art } = fresh();
+  const spec = { groups: [{ title: '', items: [{ text: 'Read the brief' }, { text: 'Pick data' }] }] };
+  const a = art.create({ title: 'Assignment', kind: 'checklist', spec, state: { done: { '0.0': true } } });
+  assert.deepStrictEqual(a.spec, spec);
+  assert.deepStrictEqual(a.state, { done: { '0.0': true } });
+  assert.strictEqual(a.html, '');
+  assert.strictEqual(art.list()[0].spec, undefined, 'the list does not carry the data');
+  // ticking a task saves progress and leaves the order of the list alone
+  const before = art.get(a.id).updatedAt;
+  const saved = art.update(a.id, { state: { done: { '0.0': true, '0.1': true } } });
+  assert.deepStrictEqual(saved.state.done, { '0.0': true, '0.1': true });
+  assert.strictEqual(saved.updatedAt, before);
+  // a state that is far too big, or not an object, is replaced by an empty one
+  assert.deepStrictEqual(art.update(a.id, { state: 'nope' }).state, {});
+  assert.deepStrictEqual(art.update(a.id, { state: { x: 'y'.repeat(30000) } }).state, {});
+  assert.throws(() => art.create({ title: 'x', spec: {}, html: '' }), /nothing to save/);
+});
+
+test('the kinds are a short fixed list, and anything else becomes a page', () => {
+  const { art } = fresh();
+  for (const kind of ['quiz', 'diagram', 'flashcards', 'steps']) assert.strictEqual(art.create({ title: kind, html: '<p>x</p>', kind }).kind, kind);
+  assert.strictEqual(art.create({ title: 'odd', html: '<p>x</p>', kind: 'spreadsheet' }).kind, 'page');
+});

@@ -91,10 +91,10 @@ export class ChatController {
     for (const part of splitArtifacts(text)) {
       if (part.type === "artifact") {
         wrap.appendChild(createArtifactView({
-          title: part.title, html: part.html, complete: part.complete, sources: sources || [], kind: part.kind,
+          title: part.title, html: part.html, spec: part.spec, error: part.error, complete: part.complete, sources: sources || [], kind: part.kind,
           onCite: ({ page }) => window.dispatchEvent(new CustomEvent("navigate-pdf-page", { detail: { page } })),
           onKeep: async (file) => {
-            const saved = await window.electronAPI.createArtifact({ title: part.title, html: file.html, kind: part.kind, sources: sources || [] });
+            const saved = await window.electronAPI.createArtifact({ title: part.title, html: file.html, spec: file.spec, state: file.state, kind: part.kind, sources: sources || [] });
             this.onStatus(`Saved "${saved.title}" to Artifacts.`);
           },
           onSave: (file) => window.electronAPI.saveTextFile({ defaultPath: `${file.title.replace(/[\\/:*?"<>|]+/g, "-")}.html`, content: file.content, filters: [{ name: "HTML page", extensions: ["html"] }] })

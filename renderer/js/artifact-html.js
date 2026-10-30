@@ -10,7 +10,9 @@ export function cleanTitle(raw) {
 const ENTITIES = { "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#39;": "'", "&#x27;": "'", "&apos;": "'" };
 const decode = (text) => String(text).replace(/&(?:amp|lt|gt|quot|apos|#39|#x27);/g, (m) => ENTITIES[m] ?? m);
 
-export const ARTIFACT_KINDS = ["page", "table", "chart", "slides", "document"];
+// The kinds an artifact can be (see artifact-spec.js for what each is). Kept in step with that list.
+export const ARTIFACT_KINDS = ["checklist", "steps", "quiz", "flashcards", "table", "chart", "diagram", "timeline", "document", "slides", "page"];
+const spec = () => globalThis.TKSpec;
 
 // The kind the model named, or a guess from what it wrote. Only used to label and filter; it never changes how a page is shown.
 export function artifactKind(declared, html) {
@@ -43,7 +45,16 @@ export function splitArtifacts(reply) {
     const title = /\btitle\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(match[1]);
     const type = /\btype\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(match[1]);
     const html = body.trim();
-    parts.push({ type: "artifact", title: cleanTitle(title ? title[1] ?? title[2] : ""), html, kind: artifactKind(type ? type[1] ?? type[2] : "", html), complete });
+    const kind = artifactKind(type ? type[1] ?? type[2] : "", html);
+    const part = { type: "artifact", title: cleanTitle(title ? title[1] ?? title[2] : ""), html, kind, complete };
+    // a kind drawn from data arrives as JSON; what cannot be read is shown as a note, never as a broken card
+    if (spec()?.isLive(kind)) {
+      const parsed = spec().parse(kind, html);
+      if (parsed.ok) { part.html = ""; part.spec = parsed.spec; }
+      else if (/<[a-z][\s\S]*>/i.test(html) && !/^\s*[{\[]/.test(html)) { /* written as a page, before these kinds were drawn from data: shown as a page */ }
+      else { part.html = ""; part.error = complete ? parsed.error : "This one was cut off before it was finished."; }
+    }
+    parts.push(part);
     cursor = complete ? closeAt + "</artifact>".length : text.length;
     open.lastIndex = cursor;
   }
