@@ -35,7 +35,7 @@ function makeShadow(root, overlay = {}) {
   return shadow;
 }
 
-function registerTexIpc({ ipcMain, dialog, shell, BrowserWindow, app, spaces, enginePath }) {
+function registerTexIpc({ ipcMain, dialog, shell, BrowserWindow, app, spaces, enginePath, onBuilt }) {
   const dataRoot = () => path.join(app.getPath('userData'), 'ThinkerTex');
   const projectsRoot = () => path.join(dataRoot(), 'projects');
   const buildsRoot = () => path.join(dataRoot(), 'builds');
@@ -154,7 +154,7 @@ function registerTexIpc({ ipcMain, dialog, shell, BrowserWindow, app, spaces, en
   // ---- compile and preview ----
   const buildDirFor = (p) => path.join(buildsRoot(), p.id);
 
-  handle('tex:compile', async (_e, id, options = {}) => {
+  async function runCompile(id, options = {}) {
     const p = project(id);
     if (!engineFound()) throw new Error('The ThinkerTex engine is not installed.');
     const offline = Boolean(options.onlyCached);
@@ -163,9 +163,14 @@ function registerTexIpc({ ipcMain, dialog, shell, BrowserWindow, app, spaces, en
       projectId: p.id, root: p.rootPath, mainFile: p.mainFile, buildDir: buildDirFor(p),
       mode: options.draft ? 'draft' : 'full', onlyCached: offline
     });
-    if (result.ok) spaces().updateProject(p.id, { lastBuiltAt: Date.now() });
+    if (result.ok) {
+      spaces().updateProject(p.id, { lastBuiltAt: Date.now() });
+      try { onBuilt?.(p.id); } catch { /* sharing must never break a build */ }
+    }
     return { ok: result.ok, problems: result.problems, durationMs: result.durationMs, timedOut: result.timedOut, cancelled: result.cancelled, superseded: Boolean(result.superseded), hasPdf: Boolean(result.pdfPath), log: result.log.slice(-60000) };
-  });
+  }
+
+  handle('tex:compile', (_e, id, options = {}) => runCompile(id, options));
 
   handle('tex:cancel', (_e, id) => (compiler ? compiler.cancel(text(id)) : false));
 
@@ -202,6 +207,9 @@ function registerTexIpc({ ipcMain, dialog, shell, BrowserWindow, app, spaces, en
       fs.rmSync(shadow, { recursive: true, force: true });
     }
   });
+
+  // for the sharing feature: a guest with edit rights can ask for a build
+  return { compileProject: (id) => runCompile(id, {}) };
 }
 
 module.exports = { registerTexIpc, makeShadow };

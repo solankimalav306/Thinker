@@ -23,6 +23,18 @@ function buildEditor() {
     legalComments: 'none'
   });
 
+  // the editor guests get in their browser when a project is shared for editing
+  esbuild.buildSync({
+    entryPoints: [path.join(__dirname, 'guest-editor-entry.js')],
+    outfile: path.join(outDir, 'guest-editor', 'guest-editor.js'),
+    bundle: true,
+    format: 'iife',
+    globalName: 'ThinkerGuestEditor',
+    minify: true,
+    target: 'es2020',
+    legalComments: 'none'
+  });
+
   const katexDir = path.join(root, 'node_modules', 'katex', 'dist');
   copy(path.join(katexDir, 'katex.min.js'), path.join(outDir, 'katex', 'katex.min.js'));
   copy(path.join(katexDir, 'katex.min.css'), path.join(outDir, 'katex', 'katex.min.css'));

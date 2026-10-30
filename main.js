@@ -16,6 +16,11 @@ const { openDatabase } = require('./database');
 const { createStore } = require('./store');
 const { createWorkspaces } = require('./workspaces');
 const { createArtifacts } = require('./artifacts');
+const { createRemoteServer } = require('./remote-server');
+const { createCollab } = require('./collab-docs');
+const Y = require('yjs');
+const awarenessProtocol = require('y-protocols/awareness');
+const os = require('os');
 const { registerTexIpc } = require('./tex-service');
 const { importLegacyData } = require('./legacy-import');
 const { handleLLMGenerate } = require('./llm-handler');
@@ -664,9 +669,120 @@ function registerIpcHandlers() {
   ipcMain.handle('conv:messages', (_event, id) => store.getMessages(String(id)));
   ipcMain.handle('conv:append', (_event, id, entry) => store.appendMessage(String(id), entry || {}));
 
+  // Thinker Remote: share one artifact or project on the local network. Off until asked.
+  const remote = createRemoteServer({ appRoot: __dirname });
+  let texApi = null;
+  const lanAddresses = () => Object.values(os.networkInterfaces()).flat()
+    .filter((i) => i && i.family === 'IPv4' && !i.internal).map((i) => i.address);
+  remote.events.on('change', () => {
+    for (const win of BrowserWindow.getAllWindows()) { try { win.webContents.send('remote:changed'); } catch { /* closing */ } }
+  });
+  app.on('before-quit', () => { remote.stop(); });
+  const remoteView = () => ({ running: remote.running, address: remote.address, lan: lanAddresses(), shares: remote.listShares() });
+  const shareLinks = (share) => {
+    const a = remote.address;
+    if (!a) return [];
+    const hosts = a.host === '127.0.0.1' ? ['127.0.0.1'] : lanAddresses();
+    return hosts.map((h) => `http://${h}:${a.port}/s/${share.token}/`);
+  };
+  ipcMain.handle('remote:status', () => {
+    const view = remoteView();
+    return { ...view, shares: view.shares.map((s) => ({ ...s, urls: shareLinks(s) })) };
+  });
+  ipcMain.handle('remote:share', async (_e, req) => {
+    const kind = String(req?.kind || '');
+    const ref = String(req?.id || '');
+    const local = req?.scope === 'local';
+    const ttlMs = Math.max(0.25, Math.min(Number(req?.hours) || 4, 24)) * 3600 * 1000;
+    let provider;
+    let title;
+    let collab = null;
+    if (kind === 'artifact') {
+      const found = artifacts().get(ref);
+      if (!found) throw new Error('That artifact no longer exists.');
+      title = found.title;
+      provider = { content: async () => ({ type: 'html', html: artifacts().get(ref)?.html || '' }) };
+    } else if (kind === 'tex') {
+      const found = spaces().getProject(ref);
+      if (!found) throw new Error('That project no longer exists.');
+      title = found.name;
+      if (req?.allowEdit) {
+        collab = createCollab({ root: found.rootPath, onError: (error) => console.error('[collab]', error.message) });
+      }
+      provider = {
+        compile: async () => {
+          const result = await texApi.compileProject(found.id);
+          if (result?.notReady) return result;
+          for (const win of BrowserWindow.getAllWindows()) { try { win.webContents.send('remote:built', { projectId: found.id, ok: result.ok, problems: result.problems, log: result.log, durationMs: result.durationMs }); } catch { /* closing */ } }
+          if (result.ok) remote.bumpRef('tex', found.id);
+          return result;
+        },
+        content: async () => ({
+          type: 'pdf',
+          file: path.join(app.getPath('userData'), 'ThinkerTex', 'builds', found.id, path.basename(found.mainFile).replace(/\.tex$/i, '.pdf'))
+        })
+      };
+    } else {
+      throw new Error('That cannot be shared.');
+    }
+    if (remote.running && remote.address.host === '127.0.0.1' && !local) await remote.stop();
+    await remote.start({ bindHost: local ? '127.0.0.1' : '0.0.0.0' });
+    const made = remote.createShare({ kind, title, ref, provider, ttlMs, collab, allowEdit: Boolean(req?.allowEdit && collab) });
+    return { ...made, urls: shareLinks({ token: made.token }), lan: lanAddresses(), local };
+  });
+  ipcMain.handle('remote:end', async (_e, id) => {
+    const ended = remote.endShare(String(id));
+    if (!remote.listShares().length) await remote.stop();
+    return ended;
+  });
+  ipcMain.handle('remote:stopAll', async () => { await remote.stop(); return true; });
+
+  // The host's own editor joins the shared copy of a file, so host and guests edit the same text.
+  const hostDocs = new Map(); // `${projectId}:${rel}` -> { entry, collab, off }
+  const hostKey = (projectId, rel) => `${projectId}:${rel}`;
+  ipcMain.handle('collab:open', (event, projectId, rel) => {
+    const collab = remote.collabFor('tex', String(projectId));
+    if (!collab) return null;
+    const key = hostKey(projectId, rel);
+    if (hostDocs.has(key)) { collab.release(hostDocs.get(key).entry); hostDocs.get(key).off(); hostDocs.delete(key); }
+    const entry = collab.open(String(rel));
+    const send = (channel, payload) => { try { if (!event.sender.isDestroyed()) event.sender.send(channel, payload); } catch { /* closing */ } };
+    const onUpdate = (update, origin) => { if (origin !== 'host') send('collab:update', { projectId, rel, update }); };
+    const onAwareness = ({ added, updated, removed }, origin) => {
+      if (origin === 'host') return;
+      send('collab:awareness', { projectId, rel, update: awarenessProtocol.encodeAwarenessUpdate(entry.awareness, added.concat(updated, removed)) });
+    };
+    entry.listeners.add(onUpdate);
+    entry.awareness.on('update', onAwareness);
+    hostDocs.set(key, { entry, collab, off: () => { entry.listeners.delete(onUpdate); entry.awareness.off('update', onAwareness); } });
+    return {
+      state: Y.encodeStateAsUpdate(entry.doc),
+      awareness: awarenessProtocol.encodeAwarenessUpdate(entry.awareness, [...entry.awareness.getStates().keys()])
+    };
+  });
+  ipcMain.handle('collab:update', (_e, projectId, rel, update) => {
+    const held = hostDocs.get(hostKey(projectId, rel));
+    if (held && !held.entry.dead) Y.applyUpdate(held.entry.doc, new Uint8Array(update), 'host');
+    return true;
+  });
+  ipcMain.handle('collab:awareness', (_e, projectId, rel, update) => {
+    const held = hostDocs.get(hostKey(projectId, rel));
+    if (held && !held.entry.dead) awarenessProtocol.applyAwarenessUpdate(held.entry.awareness, new Uint8Array(update), 'host');
+    return true;
+  });
+  ipcMain.handle('collab:close', (_e, projectId, rel) => {
+    const key = hostKey(projectId, rel);
+    const held = hostDocs.get(key);
+    if (!held) return false;
+    held.off();
+    held.collab.release(held.entry);
+    hostDocs.delete(key);
+    return true;
+  });
+
   // ThinkerTex: the engine ships next to the app when packaged, and in vendor/ while developing.
-  registerTexIpc({
-    ipcMain, dialog, shell, BrowserWindow, app, spaces,
+  texApi = registerTexIpc({
+    ipcMain, dialog, shell, BrowserWindow, app, spaces, onBuilt: (projectId) => remote.bumpRef('tex', projectId),
     enginePath: app.isPackaged ? path.join(process.resourcesPath, 'tectonic', 'tectonic.exe') : path.join(__dirname, 'vendor', 'tectonic', 'tectonic.exe')
   });
 

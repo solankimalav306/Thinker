@@ -1277,3 +1277,10 @@
 .ta-done.bad {
   color: var(--danger, #dc2626);
 }
+
+/* people editing along with you */
+.collab-badge {
+  background: color-mix(in srgb, var(--success, #16a34a) 16%, transparent);
+  color: var(--success, #16a34a);
+  font-weight: 600;
+}

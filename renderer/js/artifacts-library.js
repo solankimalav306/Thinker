@@ -2,6 +2,7 @@
 // A card opens the artifact in the same sealed frame the chat uses; citations still open the PDF at that page.
 import { timeAgo } from "./chat-groups.js";
 import { createArtifactView } from "./artifact-view.js";
+import { openShareDialog } from "./remote-share.js";
 
 const KIND_LABELS = { page: "Page", table: "Table", chart: "Chart", slides: "Slides", document: "Document" };
 const KIND_ICONS = { page: "fa-file-lines", table: "fa-table", chart: "fa-chart-simple", slides: "fa-display", document: "fa-file-word" };
@@ -140,7 +141,7 @@ export function createArtifactsLibrary({ container, api = window.electronAPI, op
       setStatus("Deleted.");
       showList();
     }, "Delete this artifact");
-    bar.append(name, where, del);
+    bar.append(name, where, button("Share", "btn", "fa-share-nodes", () => openShareDialog({ kind: "artifact", id: item.id, title: item.title, api, setStatus }), "Share this on your network"), del);
 
     const docs = (space?.documents || []).map((d) => ({ ...d, title: d.title.replace(/\.pdf$/i, "") }));
     const view = createArtifactView({

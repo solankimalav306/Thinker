@@ -1,7 +1,7 @@
 {
   "name": "thinker",
   "productName": "Thinker",
-  "version": "3.1.0",
+  "version": "3.3.0",
   "description": "AI-Powered PDF Reader",
   "main": "main.js",
   "scripts": {
@@ -48,6 +48,9 @@
       "workspaces.js",
       "artifacts.js",
       "artifact-export.js",
+      "remote-server.js",
+      "collab-docs.js",
+      "remote-web/**/*",
       "tex-log.js",
       "tex-compile.js",
       "artifact-protocol.js",
@@ -116,12 +119,18 @@
     "marked": "^11.1.1",
     "markmap-view": "^0.16.0",
     "mermaid": "^11.14.0",
-    "pdfjs-dist": "^3.11.174"
+    "pdfjs-dist": "^3.11.174",
+    "y-codemirror.next": "^0.3.5",
+    "y-websocket": "^2.1.0"
   },
   "dependencies": {
     "axios": "^1.15.2",
     "docx": "^9.5.1",
+    "lib0": "^0.2.99",
     "pdf-lib": "^1.17.1",
-    "pptxgenjs": "^3.12.0"
+    "pptxgenjs": "^3.12.0",
+    "ws": "^8.18.3",
+    "y-protocols": "^1.0.6",
+    "yjs": "^13.6.27"
   }
 }
