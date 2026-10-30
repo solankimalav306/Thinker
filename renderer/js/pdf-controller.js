@@ -1,3 +1,4 @@
+import { buildLinkLayer } from "./pdf-links.js";
 import { mostVisiblePage, anchorFromScroll, scrollFromAnchor, scaleAfterWheel, createWheelTurner } from "./page-geometry.js";
 
 export function toPdfSource(path) {
@@ -66,6 +67,7 @@ export class PdfController {
     this.onStatus = options.onStatus;
     this.onPathChange = options.onPathChange;
     this.onRendered = options.onRendered;
+    this.onOpenLink = options.onOpenLink || ((href) => window.electronAPI?.openDocumentLink?.(href));
     this.onViewChange = options.onViewChange;
     this.onLoadError = options.onLoadError;
     this.onPageRendered = options.onPageRendered;
@@ -626,6 +628,15 @@ export class PdfController {
     this.multiView.style.display = on ? "none" : "";
   }
 
+  // What a click on a link in the page does: a page link jumps, a web link is handed to the app, which asks first.
+  makeLinkLayer(page, viewport, textLayer) {
+    return buildLinkLayer({
+      page, viewport, textLayer, pdfDoc: this.pdfDoc,
+      onPage: (n) => this.jumpToPage(n),
+      onUrl: (href) => this.onOpenLink?.(href)
+    }).catch(() => null);
+  }
+
   async renderSingle(num) {
     this.setSingleModeDisplay(true);
 
@@ -656,6 +667,11 @@ export class PdfController {
     }).promise;
 
     this.applyHighlightsToLayer(this.textLayerDiv, this.pageNum);
+
+    // links in the page: the document's own and printed web addresses
+    this.pdfViewer.querySelector(":scope > .pdf-link-layer")?.remove();
+    const linkLayer = await this.makeLinkLayer(page, viewport, this.textLayerDiv);
+    if (linkLayer && this.pageNum === targetPage) this.pdfViewer.appendChild(linkLayer);
 
     this.onRendered({ annotationSupported: true, mode: "single", pageNum: this.pageNum });
   }
@@ -815,6 +831,9 @@ export class PdfController {
     card.replaceChildren(canvas, textLayer);
     card.dataset.state = "ready";
     this.applyHighlightsToLayer(textLayer, pageNum);
+    this.makeLinkLayer(page, viewport, textLayer).then((layer) => {
+      if (layer && gen === this.renderGen && card.isConnected && card.contains(textLayer)) card.appendChild(layer);
+    });
     this.onPageRendered?.({ card, pageNum, viewport, mode: this.viewMode });
   }
 

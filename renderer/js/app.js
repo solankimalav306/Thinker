@@ -1313,6 +1313,16 @@ async function boot() {
   annotation.bindEvents();
   snip.bindEvents();
 
+  // A link in an answer, a note or anywhere else in the app: web and mail addresses open in the browser after a confirmation.
+  document.addEventListener("click", (event) => {
+    const anchor = event.target instanceof Element ? event.target.closest("a[href]") : null;
+    if (!anchor || anchor.classList.contains("pdf-link")) return;
+    const href = anchor.getAttribute("href") || "";
+    if (!/^(https?:|mailto:)/i.test(href)) return;
+    event.preventDefault();
+    window.electronAPI.openDocumentLink(href);
+  });
+
   window.addEventListener("navigate-pdf-page", (event) => {
     const pageNum = event.detail.page;
     if (pageNum && pdf && pdf.hasDocument()) {

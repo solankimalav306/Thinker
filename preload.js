@@ -98,6 +98,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getGlossaryTerms: () => ipcRenderer.invoke('glossary:get'),
 
   openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
+  openDocumentLink: (url) => ipcRenderer.invoke('shell:openDocumentLink', url),
   // The real path of a file dropped onto the window (File.path no longer exists in current Electron).
   getPathForFile: (file) => { try { return webUtils.getPathForFile(file) || ''; } catch { return ''; } },
   setTitleBarTheme: (theme) => ipcRenderer.invoke('theme:set', theme),

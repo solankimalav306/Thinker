@@ -312,3 +312,36 @@ body.snipping-active .pdf-viewer {
 .pdf-page-card[data-state="ready"]::after {
   content: none;
 }
+
+/* Links in a page: invisible until the pointer is over them, above the text and below the marking tools */
+.pdf-link-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 25;
+  pointer-events: none;
+}
+
+.pdf-link {
+  position: absolute;
+  display: block;
+  border-radius: 2px;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: background var(--dur-fast, 0.12s) ease, box-shadow var(--dur-fast, 0.12s) ease;
+}
+
+.pdf-link:hover,
+.pdf-link:focus-visible {
+  background: rgba(79, 70, 229, 0.14);
+  box-shadow: 0 0 0 1px rgba(79, 70, 229, 0.55);
+  outline: none;
+}
+
+body.drawing-active .pdf-link,
+body.snipping-active .pdf-link,
+body.sticky-placement-mode .pdf-link,
+body[data-tool="pen"] .pdf-link,
+body[data-tool="highlighter"] .pdf-link,
+body[data-tool="eraser"] .pdf-link {
+  pointer-events: none;
+}

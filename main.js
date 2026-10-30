@@ -629,6 +629,30 @@ function registerIpcHandlers() {
   });
 
   // Help links open in the default browser, but only for a short list of known HTTPS pages.
+  // A link inside a document or an answer. The app never opens one silently: a window of its own shows the full
+  // address first, and only web and mail addresses are accepted at all.
+  ipcMain.handle('shell:openDocumentLink', async (event, value) => {
+    let url;
+    try { url = new URL(String(value)); } catch { return false; }
+    if (!['http:', 'https:', 'mailto:'].includes(url.protocol) || url.username || url.password || url.href.length > 2000) return false;
+    // automated tests (development runs only) record the link instead of answering the window
+    if (!app.isPackaged && process.env.THINKER_TEST_LINK_LOG) { fs.appendFileSync(process.env.THINKER_TEST_LINK_LOG, `${url.href}\n`); return true; }
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const { response } = await dialog.showMessageBox(win, {
+      type: 'question',
+      buttons: ['Open in browser', 'Cancel'],
+      defaultId: 1,
+      cancelId: 1,
+      noLink: true,
+      title: 'Open link',
+      message: 'Open this link in your browser?',
+      detail: url.href.length > 400 ? `${url.href.slice(0, 400)}…` : url.href
+    });
+    if (response !== 0) return false;
+    await shell.openExternal(url.href);
+    return true;
+  });
+
   ipcMain.handle('shell:openExternal', async (_event, url) => {
     if (!isAllowedExternalUrl(url)) return false;
     await shell.openExternal(String(url));
