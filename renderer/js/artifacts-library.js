@@ -24,7 +24,7 @@ function button(label, className, icon, onClick, title) {
   return b;
 }
 
-export function createArtifactsLibrary({ container, api = window.electronAPI, openPdfAt, setStatus, go }) {
+export function createArtifactsLibrary({ container, api = window.electronAPI, openPdfAt, setStatus, go, onItem = () => {} }) {
   let filter = { search: "", kind: "" };
   let spaces = [];
 
@@ -32,6 +32,7 @@ export function createArtifactsLibrary({ container, api = window.electronAPI, op
 
   async function showList() {
     go?.();
+    onItem({ kind: "artifact", id: null });
     container.textContent = "";
     const page = el("div", "lib-page");
     const head = el("div", "lib-head");
@@ -94,9 +95,11 @@ export function createArtifactsLibrary({ container, api = window.electronAPI, op
   }
 
   async function open(id) {
+    go?.();
     const item = await api.getArtifact(id);
     if (!item) { setStatus("That artifact no longer exists."); showList(); return; }
     spaces = await api.listWorkspaces().catch(() => spaces);
+    onItem({ kind: "artifact", id: item.id, title: item.title });
     const space = item.workspaceId ? await api.getWorkspace(item.workspaceId).catch(() => null) : null;
     container.textContent = "";
     const page = el("div", "lib-page");
@@ -112,6 +115,7 @@ export function createArtifactsLibrary({ container, api = window.electronAPI, op
       if (!next || next === item.title) { name.value = item.title; return; }
       const saved = await api.updateArtifact(item.id, { title: next });
       item.title = saved.title;
+      onItem({ kind: "artifact", id: item.id, title: saved.title });
       name.value = saved.title;
       setStatus("Renamed.");
     };
@@ -138,6 +142,7 @@ export function createArtifactsLibrary({ container, api = window.electronAPI, op
         return;
       }
       await api.deleteArtifact(item.id);
+      onItem({ kind: "artifact", id: item.id, gone: true });
       setStatus("Deleted.");
       showList();
     }, "Delete this artifact");

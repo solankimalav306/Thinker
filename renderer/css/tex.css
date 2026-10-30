@@ -1284,3 +1284,41 @@
   color: var(--success, #16a34a);
   font-weight: 600;
 }
+
+/* Preview above, Ask below, when both are open */
+.tex-agent.stacked {
+  flex: none;
+  height: var(--tex-agent-height, 45%);
+  min-height: 160px;
+  border-top: 1px solid var(--border);
+}
+
+.tex-vresizer {
+  flex: none;
+  height: 5px;
+  margin: -3px 0;
+  position: relative;
+  z-index: 2;
+  cursor: row-resize;
+}
+
+.tex-vresizer:hover,
+.tex-vresizer:active {
+  background: color-mix(in srgb, var(--primary) 45%, transparent);
+}
+
+.tex-vresizer[hidden] {
+  display: none;
+}
+
+/* folders in the file list */
+.tex-tree-dir {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.tex-tree-caret {
+  width: 0.8em;
+  color: var(--text-3);
+  font-size: 0.7em;
+}

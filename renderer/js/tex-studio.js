@@ -56,7 +56,7 @@ export function outlineOf(text) {
 }
 
 export function createTexStudio(deps) {
-  const { container, api = window.electronAPI, setStatus, go, getSpaces } = deps;
+  const { container, api = window.electronAPI, setStatus, go, getSpaces, onItem = () => {} } = deps;
   const tex = api.tex;
 
   const state = {
@@ -66,6 +66,8 @@ export function createTexStudio(deps) {
     spaces: [],
     path: null,
     buffers: new Map(), // path -> { text, saved }
+    collapsed: new Set(), // folders shown closed in the file list
+    rightShow: { preview: true, agent: false },
     mode: "code",
     auto: true,
     problems: [],
@@ -91,6 +93,7 @@ export function createTexStudio(deps) {
   // ================================================================================== home
   async function showHome() {
     state.view = "home";
+    onItem({ kind: "tex", id: null });
     await detachCollab();
     await flushAll();
     go();
@@ -148,6 +151,7 @@ export function createTexStudio(deps) {
       open.disabled = project.missing;
       const forget = btn("", "btn icon-btn", "fa-xmark", async () => {
         await call(tex.forget(project.id));
+        onItem({ kind: "tex", id: project.id, gone: true });
         setStatus(`${project.name} removed from this list. Its files were not deleted.`);
         renderProjectList();
       }, `Remove ${project.name} from this list (keeps the files)`);
@@ -289,12 +293,15 @@ export function createTexStudio(deps) {
       state.files = opened.files;
       state.spaces = opened.spaces;
       state.buffers = new Map();
+      state.collapsed = new Set(opened.files.filter((f) => f.type === "dir").map((f) => f.path));
+      expandTo(opened.project.mainFile || "main.tex");
       state.problems = [];
       state.log = "";
       state.lastOk = null;
       state.pdfLoaded = false;
       state.view = "studio";
       go();
+      onItem({ kind: "tex", id: state.project.id, title: state.project.name });
       buildStudioDom();
       renderTree();
       await openFile(state.project.mainFile || "main.tex");
@@ -379,13 +386,32 @@ export function createTexStudio(deps) {
 
     const rightPane = el("section", "tex-right");
     const tabs = el("div", "tex-right-tabs");
-    dom.tabPreview = btn("Preview", "tex-tab active", "fa-file-pdf", () => showRightTab("preview"));
-    dom.tabAgent = btn("Ask ThinkerTex", "tex-tab", "fa-wand-magic-sparkles", () => showRightTab("agent"));
+    // Preview and Ask can both be open at once (Preview above, Ask below); each button shows or hides its own panel
+    dom.tabPreview = btn("Preview", "tex-tab active", "fa-file-pdf", () => toggleRight("preview"), "Show or hide the PDF preview");
+    dom.tabAgent = btn("Ask ThinkerTex", "tex-tab", "fa-wand-magic-sparkles", () => toggleRight("agent"), "Show or hide the assistant beside the preview");
     tabs.append(dom.tabPreview, dom.tabAgent);
     dom.previewMount = el("div", "tex-preview");
     dom.agentMount = el("div", "tex-agent");
     dom.agentMount.hidden = true;
-    rightPane.append(tabs, dom.previewMount, dom.agentMount);
+    dom.rightSplit = el("div", "tex-vresizer");
+    dom.rightSplit.setAttribute("role", "separator");
+    dom.rightSplit.setAttribute("aria-orientation", "horizontal");
+    dom.rightSplit.hidden = true;
+    dom.rightSplit.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      const startY = event.clientY;
+      const startHeight = dom.agentMount.getBoundingClientRect().height;
+      const total = rightPane.getBoundingClientRect().height;
+      const move = (e) => {
+        const next = Math.max(160, Math.min(startHeight + (startY - e.clientY), total - 160));
+        dom.studio.style.setProperty("--tex-agent-height", `${Math.round(next)}px`);
+      };
+      const up = () => { document.removeEventListener("mousemove", move); document.removeEventListener("mouseup", up); document.body.style.userSelect = ""; };
+      document.body.style.userSelect = "none";
+      document.addEventListener("mousemove", move);
+      document.addEventListener("mouseup", up);
+    });
+    rightPane.append(tabs, dom.previewMount, dom.rightSplit, dom.agentMount);
 
     body.append(side, makeResizer("--tex-side-width", side, false), edit, makeResizer("--tex-right-width", rightPane, true), rightPane);
 
@@ -442,22 +468,45 @@ export function createTexStudio(deps) {
   }
 
   // ---------------------------------------------------------------------------- files and tree
+  // open every folder on the way to a file, so the file is visible in the list
+  function expandTo(path) {
+    const parts = String(path || "").split("/");
+    for (let i = 1; i < parts.length; i += 1) state.collapsed.delete(parts.slice(0, i).join("/"));
+  }
+
   function renderTree() {
     dom.tree.textContent = "";
     if (!state.files.length) {
       dom.tree.append(el("p", "tex-side-empty", "No files yet."));
       return;
     }
+    // a file is hidden while any folder above it is closed
+    const hiddenByFolder = (path) => {
+      const parts = path.split("/");
+      for (let i = 1; i < parts.length; i += 1) if (state.collapsed.has(parts.slice(0, i).join("/"))) return true;
+      return false;
+    };
     state.files.forEach((file) => {
+      if (hiddenByFolder(file.path)) return;
       const depth = file.path.split("/").length - 1;
-      const row = el("div", "tex-tree-row" + (file.path === state.path ? " active" : ""));
+      const isDir = file.type === "dir";
+      const closed = isDir && state.collapsed.has(file.path);
+      const row = el("div", "tex-tree-row" + (file.path === state.path ? " active" : "") + (isDir ? " tex-tree-dir" : ""));
       row.style.paddingLeft = `${8 + depth * 14}px`;
       row.setAttribute("role", "treeitem");
+      if (isDir) row.setAttribute("aria-expanded", String(!closed));
       const name = file.path.split("/").pop();
-      const icon = file.type === "dir" ? "fa-folder" : file.type === "image" ? "fa-image" : file.path === state.project.mainFile ? "fa-file-code" : "fa-file-lines";
+      const icon = isDir ? (closed ? "fa-folder" : "fa-folder-open") : file.type === "image" ? "fa-image" : file.path === state.project.mainFile ? "fa-file-code" : "fa-file-lines";
+      if (isDir) row.append(el("i", `fa-solid fa-chevron-${closed ? "right" : "down"} tex-tree-caret`));
       row.append(el("i", `fa-regular ${icon}`), el("span", "tex-tree-name", name));
       if (file.path === state.project.mainFile) row.append(el("small", "tex-main-badge", "main"));
       row.title = file.path;
+      if (isDir) {
+        const toggle = () => { if (state.collapsed.has(file.path)) state.collapsed.delete(file.path); else state.collapsed.add(file.path); renderTree(); };
+        row.addEventListener("click", toggle);
+        row.tabIndex = 0;
+        row.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } });
+      }
       if (file.type === "text") row.addEventListener("click", () => openFile(file.path));
       if (file.type === "image") row.addEventListener("dblclick", () => insertImage(file.path));
       const actions = el("span", "tex-tree-actions");
@@ -488,6 +537,7 @@ export function createTexStudio(deps) {
       return;
     }
     state.path = path;
+    expandTo(path);
     const buffer = currentBuffer();
     await detachCollab();
     code?.reset(buffer.text);
@@ -1038,13 +1088,31 @@ export function createTexStudio(deps) {
     agent?.fixErrors?.();
   }
 
+  // opens a panel (never closes one) and puts the cursor there
   function showRightTab(which) {
-    const isAgent = which === "agent";
-    dom.previewMount.hidden = isAgent;
-    dom.agentMount.hidden = !isAgent;
-    dom.tabPreview.classList.toggle("active", !isAgent);
-    dom.tabAgent.classList.toggle("active", isAgent);
-    if (isAgent) agent?.focus?.();
+    state.rightShow[which === "agent" ? "agent" : "preview"] = true;
+    applyRight();
+    if (which === "agent") agent?.focus?.();
+  }
+
+  // the buttons above the right-hand side show or hide their own panel; one always stays open
+  function toggleRight(which) {
+    const key = which === "agent" ? "agent" : "preview";
+    const other = key === "agent" ? "preview" : "agent";
+    if (state.rightShow[key] && !state.rightShow[other]) state.rightShow[other] = true;
+    else state.rightShow[key] = !state.rightShow[key];
+    applyRight();
+    if (state.rightShow.agent && key === "agent") agent?.focus?.();
+  }
+
+  function applyRight() {
+    const { preview, agent: ask } = state.rightShow;
+    dom.previewMount.hidden = !preview;
+    dom.agentMount.hidden = !ask;
+    dom.rightSplit.hidden = !(preview && ask);
+    dom.agentMount.classList.toggle("stacked", preview && ask);
+    dom.tabPreview.classList.toggle("active", preview);
+    dom.tabAgent.classList.toggle("active", ask);
   }
 
   return {

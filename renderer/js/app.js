@@ -234,6 +234,43 @@ let stickyPlacementPoint = null;
 let chatVisible = window.innerWidth >= 1360;
 let apiProfiles = [];
 const tabViewState = new Map();
+// Open Thinkspaces, ThinkerTex projects and artifacts sit in the tab strip next to the PDFs.
+const itemTabs = []; // { key, kind, id, title }
+let activeItemKey = null;
+const ITEM_VIEW = { space: "spaces", tex: "tex", artifact: "artifacts" };
+const ITEM_ICON = { space: "fa-layer-group", tex: "fa-pen-nib", artifact: "fa-shapes" };
+const ITEM_NAME = { space: "Thinkspace", tex: "project", artifact: "artifact" };
+const itemOpeners = { open: {}, list: {} }; // filled in once the three areas exist
+
+// The three areas tell us which item they are showing: an item, or null for their list page.
+function onItem({ kind, id, title, gone }) {
+  const key = id ? `${kind}:${id}` : null;
+  if (gone && key) {
+    const at = itemTabs.findIndex((t) => t.key === key);
+    if (at > -1) itemTabs.splice(at, 1);
+    if (activeItemKey === key) activeItemKey = null;
+  } else if (key) {
+    const found = itemTabs.find((t) => t.key === key);
+    if (found) found.title = title || found.title;
+    else itemTabs.push({ key, kind, id, title: title || ITEM_NAME[kind] });
+    activeItemKey = key;
+  } else {
+    activeItemKey = null;
+  }
+  renderTabs();
+}
+
+function closeItemTab(item) {
+  const at = itemTabs.findIndex((t) => t.key === item.key);
+  if (at > -1) itemTabs.splice(at, 1);
+  if (activeItemKey === item.key) {
+    activeItemKey = null;
+    itemOpeners.list[item.kind]?.(); // leaves the project/space/artifact and shows that area's list
+  } else {
+    renderTabs();
+  }
+}
+
 const tabActionHandlers = {
   onActivate: null,
   onHome: null,
@@ -497,6 +534,30 @@ function renderTabs(
       }
     });
 
+    elements.pdfTabs.appendChild(tab);
+  });
+
+  itemTabs.forEach((item) => {
+    const active = activeItemKey === item.key && currentView === ITEM_VIEW[item.kind];
+    const tab = document.createElement("button");
+    tab.type = "button";
+    tab.className = `pdf-tab item-tab ${active ? "active" : ""}`;
+    tab.dataset.kind = item.kind;
+    const title = document.createElement("span");
+    title.className = "tab-title";
+    const icon = document.createElement("i");
+    icon.className = `fa-solid ${ITEM_ICON[item.kind]}`;
+    title.append(icon, document.createTextNode(` ${item.title}`));
+    title.title = `${ITEM_NAME[item.kind]}: ${item.title}`;
+    tab.appendChild(title);
+    const close = document.createElement("button");
+    close.className = "tab-close";
+    close.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+    close.title = "Close tab";
+    close.addEventListener("click", (event) => { event.stopPropagation(); closeItemTab(item); });
+    tab.appendChild(close);
+    tab.addEventListener("click", () => { if (!active) itemOpeners.open[item.kind]?.(item.id); });
+    tab.addEventListener("auxclick", (event) => { if (event.button === 1) { event.preventDefault(); closeItemTab(item); } });
     elements.pdfTabs.appendChild(tab);
   });
 
@@ -1590,7 +1651,7 @@ async function boot() {
   elements.navHelp.addEventListener("click", showHelp);
 
   // ThinkerTex
-  const texStudio = createTexStudio({ container: elements.texRoot, setStatus, go: showTex });
+  const texStudio = createTexStudio({ container: elements.texRoot, setStatus, go: showTex, onItem });
   elements.navTex.addEventListener("click", () => texStudio.show());
   document.addEventListener("visibilitychange", () => { if (document.hidden) texStudio.flush(); });
   window.addEventListener("thinker:status", (event) => setStatus(String(event.detail || "")));
@@ -1607,7 +1668,8 @@ async function boot() {
     openProject: (id) => texStudio.openProject(id),
     newProject: (workspaceId) => texStudio.showNewProject(workspaceId),
     setStatus,
-    go: showSpaces
+    go: showSpaces,
+    onItem
   });
   elements.navSpaces.addEventListener("click", () => spaces.showList());
 
@@ -1619,8 +1681,11 @@ async function boot() {
       window.dispatchEvent(new CustomEvent("navigate-pdf-page", { detail: { page } }));
     },
     setStatus,
-    go: showArtifacts
+    go: showArtifacts,
+    onItem
   });
+  itemOpeners.open = { space: (id) => spaces.showDetail(id), tex: (id) => texStudio.openProject(id), artifact: (id) => artifactsLibrary.open(id) };
+  itemOpeners.list = { space: () => spaces.showList(), tex: () => texStudio.showHome(), artifact: () => artifactsLibrary.showList() };
   elements.navArtifacts.addEventListener("click", () => artifactsLibrary.showList());
   window.addEventListener("thinker:home-shown", () => spaces.refreshHome().catch(() => {}));
   spaces.refreshHome().catch(() => {});

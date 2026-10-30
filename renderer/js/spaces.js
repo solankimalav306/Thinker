@@ -34,7 +34,7 @@ function countLabel(space) {
   return parts.join(" · ");
 }
 
-export function createSpaces({ container, homeRow, api = window.electronAPI, openPdf, openPdfAt, openProject, newProject, setStatus, go }) {
+export function createSpaces({ container, homeRow, api = window.electronAPI, openPdf, openPdfAt, openProject, newProject, setStatus, go, onItem = () => {} }) {
   let currentId = null;
   let armedDelete = false;
 
@@ -89,6 +89,7 @@ export function createSpaces({ container, homeRow, api = window.electronAPI, ope
   async function showList() {
     currentId = null;
     go();
+    onItem({ kind: "space", id: null });
     const spaces = await api.listWorkspaces();
     container.textContent = "";
     const page = el("div", "space-page");
@@ -124,6 +125,7 @@ export function createSpaces({ container, homeRow, api = window.electronAPI, ope
       return showList();
     }
     api.markWorkspaceOpened(id);
+    onItem({ kind: "space", id, title: space.name });
     container.textContent = "";
     const page = el("div", "space-page");
     page.style.setProperty("--space-color", space.color || COLORS[Math.abs(hash(space.id)) % COLORS.length]);
@@ -225,6 +227,7 @@ export function createSpaces({ container, homeRow, api = window.electronAPI, ope
         return;
       }
       await api.deleteWorkspace(id);
+      onItem({ kind: "space", id, gone: true });
       setStatus("Thinkspace deleted. Your PDFs and files were not touched.");
       showList();
     });
