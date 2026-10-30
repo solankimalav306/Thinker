@@ -1,0 +1,111 @@
+{
+  "summary": {
+    "model": "gemini-3.5-flash-lite",
+    "when": "2026-10-29T19:04:21.873Z",
+    "runs": 6,
+    "correct": 5,
+    "wrongAttributions": 1,
+    "byKind": {
+      "one-document": "0/1",
+      "conflict": "1/1",
+      "each-document": "1/1",
+      "compare": "1/1",
+      "no-bleed": "1/1",
+      "unanswerable": "1/1"
+    },
+    "medianMs": 5694,
+    "attributionChecked": 5
+  },
+  "results": [
+    {
+      "id": "S1",
+      "kind": "one-document",
+      "run": 1,
+      "question": "What is the muster time limit?",
+      "answer": "The documents disagree on the muster time limit:\n\n* **Safety Bulletin 2024** states that all crew must reach their muster station within 8 minutes of the alarm [Safety Bulletin 2024, page 2].\n* **Operations Manual 2023** does not mention a specific time limit, only noting that the muster station is where the crew assembles in an emergency [Operations Manual 2023, page 2].",
+      "correct": false,
+      "problems": [
+        "forbidden /disagree|conflict|contradict/",
+        "cites the wrong document: Operations Manual 2023"
+      ],
+      "cited": [
+        "Safety Bulletin 2024",
+        "Operations Manual 2023"
+      ],
+      "wrongAttribution": true,
+      "ms": 6571
+    },
+    {
+      "id": "S3",
+      "kind": "conflict",
+      "run": 1,
+      "question": "How often are lifeboat drills held according to each document?",
+      "answer": "Based on the provided documents, the frequency of lifeboat drills differs:\n\n* **Safety Bulletin 2024**: Lifeboat drills are held every 14 days (effective 1 March 2024) [Safety Bulletin 2024, page 2].\n* **Operations Manual 2023**: Lifeboat drills are held every 30 days [Operations Manual 2023, page 2]. *(Note: The Safety Bulletin 2024 notes that it changes some rules in this manual [Safety Bulletin 2024, page 1].)*\n\nThe **Port Authority Handbook** does not mention lifeboat drills.",
+      "correct": true,
+      "problems": [],
+      "cited": [
+        "Safety Bulletin 2024",
+        "Operations Manual 2023"
+      ],
+      "wrongAttribution": false,
+      "ms": 5585
+    },
+    {
+      "id": "S9",
+      "kind": "each-document",
+      "run": 1,
+      "question": "Summarise each document in one sentence.",
+      "answer": "Here is a one-sentence summary for each document:\n\n* **Operations Manual 2023:** Issued in January 2023 by Harbor Lights Shipping, this internal manual covers drills, fuel planning, and crew rules for the company's 14 vessels [Operations Manual 2023, page 1].\n* **Safety Bulletin 2024:** Issued in March 2024, this bulletin outlines updates that change certain rules previously established in the 2023 Operations Manual [Safety Bulletin 2024, page 1].\n* **Port Authority Handbook:** Published by the Port Authority, this handbook outlines the rules for vessels calling at the port of Rotterdam [Port Authority Handbook, page 1].",
+      "correct": true,
+      "problems": [],
+      "cited": [
+        "Operations Manual 2023",
+        "Safety Bulletin 2024",
+        "Port Authority Handbook"
+      ],
+      "wrongAttribution": false,
+      "ms": 5694
+    },
+    {
+      "id": "S10",
+      "kind": "compare",
+      "run": 1,
+      "question": "Where do the Operations Manual and the Safety Bulletin disagree?",
+      "answer": "The *Operations Manual 2023* and the *Safety Bulletin 2024* disagree on the frequency of lifeboat drills and fire extinguisher inspections:\n\n* **Lifeboat drills:** The *Operations Manual 2023* states they are held every 30 days [Operations Manual 2023, page 2], whereas the *Safety Bulletin 2024* changes this to every 14 days [Safety Bulletin 2024, page 2].\n* **Fire extinguisher inspections:** The *Operations Manual 2023* states they are inspected every 6 months [Operations Manual 2023, page 2], whereas the *Safety Bulletin 2024* changes this to every month [Safety Bulletin 2024, page 2].\n\nAdditionally, the *Safety Bulletin 2024* introduces a new rule requiring all crew to reach their muster station within 8 minutes of the alarm [Safety Bulletin 2024, page 2], which is not mentioned in the *Operations Manual 2023*.",
+      "correct": true,
+      "problems": [],
+      "cited": [
+        "Operations Manual 2023",
+        "Safety Bulletin 2024"
+      ],
+      "wrongAttribution": false,
+      "ms": 6714
+    },
+    {
+      "id": "S11",
+      "kind": "no-bleed",
+      "run": 1,
+      "question": "How often are fire extinguishers inspected now?",
+      "answer": "Fire extinguishers are now inspected every month [Safety Bulletin 2024, page 2]. (Previously, they were inspected every 6 months according to the *Operations Manual 2023, page 2*).",
+      "correct": true,
+      "problems": [],
+      "cited": [
+        "Safety Bulletin 2024"
+      ],
+      "wrongAttribution": false,
+      "ms": 5359
+    },
+    {
+      "id": "S12",
+      "kind": "unanswerable",
+      "run": 1,
+      "question": "What is the port fee at Singapore?",
+      "answer": "I couldn't find that in these documents.",
+      "correct": true,
+      "problems": [],
+      "cited": [],
+      "wrongAttribution": false,
+      "ms": 5300
+    }
+  ]
+}

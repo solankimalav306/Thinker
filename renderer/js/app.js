@@ -26,6 +26,9 @@ import { runTour } from "./tour-engine.js";
 import { buildTours } from "./tours.js";
 import { createOnboarding, TASKS, progress, nextTask } from "./onboarding.js";
 import { renderHelp, openGuide } from "./help.js";
+import { createSpaces } from "./spaces.js";
+import { createArtifactsLibrary } from "./artifacts-library.js";
+import { createTexStudio } from "./tex-studio.js";
 import { loadSettings, getSetting, setSetting, onSettingChange } from "./settings-registry.js";
 import { registerAllSettings } from "./settings-definitions.js";
 import { renderPreferences } from "./preferences-panel.js";
@@ -65,10 +68,21 @@ const elements = {
   welcomeSettingsBtn: document.getElementById("welcome-settings-btn"),
   navHome: document.getElementById("nav-home"),
   navReader: document.getElementById("nav-reader"),
+  navSpaces: document.getElementById("nav-spaces"),
+  navTex: document.getElementById("nav-tex"),
+  texScreen: document.getElementById("tex-screen"),
+  texRoot: document.getElementById("tex-root"),
+  spacesScreen: document.getElementById("spaces-screen"),
+  artifactsScreen: document.getElementById("artifacts-screen"),
+  artifactsContent: document.getElementById("artifacts-content"),
+  navArtifacts: document.getElementById("nav-artifacts"),
+  spacesContent: document.getElementById("spaces-content"),
+  spaceRow: document.getElementById("space-row"),
   navSettings: document.getElementById("nav-settings"),
   navOutline: document.getElementById("nav-outline"),
   navThumbs: document.getElementById("nav-thumbs"),
   navChat: document.getElementById("nav-chat"),
+  toggleSidebar: document.getElementById("toggle-sidebar"),
   chatPanel: document.getElementById("chat-panel"),
   aiCapabilitiesBtn: document.getElementById("ai-capabilities-btn"),
   aiCapabilitiesModal: document.getElementById("ai-capabilities-modal"),
@@ -265,6 +279,9 @@ function syncLayoutToggles() {
   elements.welcomeScreen.classList.toggle("visible", currentView === "home");
   elements.settingsScreen.classList.toggle("visible", currentView === "settings");
   elements.helpScreen.classList.toggle("visible", currentView === "help");
+  elements.spacesScreen.classList.toggle("visible", currentView === "spaces");
+  elements.artifactsScreen.classList.toggle("visible", currentView === "artifacts");
+  elements.texScreen.classList.toggle("visible", currentView === "tex");
   elements.readerLayout.classList.toggle("visible", isReader);
   elements.readerLayout.classList.toggle("sidebar-hidden", !showSidebar);
   elements.readerSidebar.classList.toggle("hidden", !showSidebar);
@@ -277,6 +294,9 @@ function syncLayoutToggles() {
   elements.navReader.classList.toggle("active", currentView === "reader");
   elements.navSettings.classList.toggle("active", currentView === "settings");
   elements.navHelp.classList.toggle("active", currentView === "help");
+  elements.navSpaces.classList.toggle("active", currentView === "spaces");
+  elements.navArtifacts.classList.toggle("active", currentView === "artifacts");
+  elements.navTex.classList.toggle("active", currentView === "tex");
   elements.navOutline.classList.toggle("active", showSidebar && sidebarPanel === "outline");
   elements.navThumbs.classList.toggle("active", showSidebar && sidebarPanel === "thumbs");
   elements.navGlossary.classList.toggle("active", showSidebar && sidebarPanel === "glossary");
@@ -284,6 +304,7 @@ function syncLayoutToggles() {
   elements.navHistory?.classList.toggle("active", showSidebar && sidebarPanel === "history");
   elements.navMindmaps?.classList.toggle("active", showSidebar && sidebarPanel === "mindmaps");
   elements.navChat?.classList.toggle("active", showChat);
+  elements.toggleSidebar?.classList.toggle("active", showSidebar);
 
   elements.glossaryBlock?.classList.toggle("visible", showSidebar && sidebarPanel === "glossary");
   elements.notesBlock?.classList.toggle("visible", showSidebar && sidebarPanel === "notes");
@@ -318,7 +339,26 @@ function showWelcome() {
   setHomeGreeting();
   syncLayoutToggles();
   renderTabs();
+  window.dispatchEvent(new CustomEvent("thinker:home-shown"));
   refreshTokenDashboard(elements, elements.tokenUsageProfileFilter?.value || "all");
+}
+
+function showTex() {
+  currentView = "tex";
+  syncLayoutToggles();
+  renderTabs();
+}
+
+function showArtifacts() {
+  currentView = "artifacts";
+  syncLayoutToggles();
+  renderTabs();
+}
+
+function showSpaces() {
+  currentView = "spaces";
+  syncLayoutToggles();
+  renderTabs();
 }
 
 function showHelp() {
@@ -1548,6 +1588,42 @@ async function boot() {
     setStatus("Hidden. You can bring it back from Help.");
   });
   elements.navHelp.addEventListener("click", showHelp);
+
+  // ThinkerTex
+  const texStudio = createTexStudio({ container: elements.texRoot, setStatus, go: showTex });
+  elements.navTex.addEventListener("click", () => texStudio.show());
+  document.addEventListener("visibilitychange", () => { if (document.hidden) texStudio.flush(); });
+  window.addEventListener("thinker:status", (event) => setStatus(String(event.detail || "")));
+
+  // Thinkspaces
+  const spaces = createSpaces({
+    container: elements.spacesContent,
+    homeRow: elements.spaceRow,
+    openPdf: (path) => openTab(path),
+    openPdfAt: async (path, page) => {
+      await openTab(path);
+      window.dispatchEvent(new CustomEvent("navigate-pdf-page", { detail: { page } }));
+    },
+    openProject: (id) => texStudio.openProject(id),
+    newProject: (workspaceId) => texStudio.showNewProject(workspaceId),
+    setStatus,
+    go: showSpaces
+  });
+  elements.navSpaces.addEventListener("click", () => spaces.showList());
+
+  // Artifacts
+  const artifactsLibrary = createArtifactsLibrary({
+    container: elements.artifactsContent,
+    openPdfAt: async (path, page) => {
+      await openTab(path);
+      window.dispatchEvent(new CustomEvent("navigate-pdf-page", { detail: { page } }));
+    },
+    setStatus,
+    go: showArtifacts
+  });
+  elements.navArtifacts.addEventListener("click", () => artifactsLibrary.showList());
+  window.addEventListener("thinker:home-shown", () => spaces.refreshHome().catch(() => {}));
+  spaces.refreshHome().catch(() => {});
   renderHelp(elements.helpContent, {
     run: runHelpAction,
     openLink: (url) => window.electronAPI.openExternal(url)
@@ -1895,6 +1971,11 @@ async function boot() {
     elements.chatInput.value = "Generate a comprehensive mind map of this document.";
     elements.chatInput.focus();
     setStatus("Ask the AI to generate a map.");
+  });
+
+  elements.toggleSidebar.addEventListener("click", () => {
+    sidebarVisible = !sidebarVisible;
+    showReader();
   });
 
   elements.navChat.addEventListener("click", () => {

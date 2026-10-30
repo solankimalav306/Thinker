@@ -1,5 +1,22 @@
 # Plan: ThinkerTex (LaTeX studio inside Thinkspaces)
 
+## Status (2026-10-30, branch `v3`)
+Built and verified in the running app against the real compiler and the real model:
+- Phases 0 to 2 and most of 3 and 4: engine spike; compile service; projects (templates, open a folder or
+  a .tex file, optional Thinkspace); the studio with file tree, outline, CodeMirror editor with error
+  markers, Recompile and Auto, a live preview that keeps its place, a problems list with plain-language hints.
+- **Visual editor** (the "normal" editor): edits the same file as the code view. Headings, paragraphs
+  (bold, italic, code, maths, citation chips), lists and equations are editable; tables, figures and
+  anything unusual stay as source blocks. Whatever you do not touch is written back byte for byte.
+- **Agent**: writes, compiles a copy to check, repairs itself up to three times, then shows a diff to
+  Apply (one undo step) or Reject. Lesson learned: LaTeX inside JSON corrupts (`` is a backspace), so the
+  agent uses a plain marker format.
+**Installer verified (3.0.0):** on a clean profile the installed app finds its bundled compiler, offers the
+one-time setup, completes it (about 3 minutes, 41 MB of packages), compiles (11.7 s the first time, about 1 s
+after), shows the preview, runs the Visual view and the agent, and answers a Thinkspace question.
+Not done yet: SyncTeX, BibTeX/biber builds, templates beyond the five, an offline-bundle option, and
+checking the Thinkspace-PDF sources option against a real Thinkspace.
+
 Thinker today is for **reading**. ThinkerTex makes it a place to **write** too. It is an Overleaf-style
 editor with live PDF preview and an AI agent that writes LaTeX using the same model and key as the chat.
 ThinkerTex is a **tool in its own right**, not a part of Thinkspaces. A LaTeX project can live anywhere:
@@ -128,6 +145,34 @@ templates (article, IEEE, ACM, beamer, a thesis class) and list what fails.
 - Only the project folder is readable; absolute and `..` paths in `\input` and `\includegraphics` are refused.
 - AI-written code runs under exactly the same rules as hand-written code.
 - In local-only mode, builds use `--only-cached` and never touch the network.
+
+## Spike results (2026-10-29, Windows 11, real engine)
+Engine: Tectonic 0.17.0+20260731 (x86_64 MSVC build from the project's "continuous" release; the zip's
+SHA-256 is `5e26562191c9cdc89e9ebfcd6fa683121efbfc2a2293048993091e6936e858fb`). It is run through
+`tex-compile.js` exactly as the app will run it. `node scripts/tex-spike.js` repeats the measurements.
+
+| Measurement | Result |
+|---|---|
+| Size | `tectonic.exe` 52.5 MB (21 MB zipped); expect roughly +25 MB on the installer |
+| First use, empty cache ("prepare") | **200 s** on this connection; cache grows to **41.5 MB** |
+| Simple article, packages cached | **0.4 s** |
+| Maths + table + hyperref document, first time | 12 s (a few more packages fetched) |
+| Same document, packages cached | **0.8 s** |
+| Offline (`--only-cached`) after prepare | works, 0.4 s and 0.8 s |
+| A broken document | fails in 0.2 s with `main.tex:4 Undefined control sequence` and a plain-language hint |
+
+What this decides:
+- **Bundle the engine** (about +25 MB) and ship no packages. Do **not** treat the first compile as a normal
+  build: with the usual 60 s limit it is killed. A one-time **"Set up ThinkerTex"** step runs `prepare` with
+  a 10-minute limit and a progress message, then everything is fast and works offline.
+- Keep the package cache in Thinker's own data folder (the engine honours `TECTONIC_CACHE_DIR`) so it can be
+  shown, cleared and moved, and so a local-only mode can promise "no network" with `--only-cached`.
+- Packages that were not fetched during setup are fetched the first time a document uses them (a few
+  seconds); in local-only mode the error should say which package is missing.
+- The release is a rolling "continuous" build, so pin the engine by hash in the repo's build notes and
+  re-test when updating it. Tectonic is MIT licensed; ship its licence text with the installer.
+- Still to measure: SyncTeX output, bibliography (BibTeX/biber) builds, a 100-page document, and real
+  templates (IEEE, ACM, Beamer, a thesis class).
 
 ## Evaluation (objective, since a compile either works or does not)
 - **Compile rate**: 40 tasks (article, table, equation, TikZ, bibliography, Beamer, two-column) through

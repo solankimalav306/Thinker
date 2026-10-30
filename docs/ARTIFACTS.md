@@ -1,0 +1,75 @@
+# Artifacts: AI-written HTML in the chat and a library of kept ones (2026-10-30)
+
+When you ask for a table, timeline, flashcards, study guide or diagram, the agent can answer with a small
+styled document (an **artifact**) instead of plain text. It is written as HTML and CSS, shown in the chat,
+can be opened larger, copied or saved as an HTML file, and every citation in it is checked.
+
+Artifacts work in the **Thinkspace chat** and the **single-PDF chat**. Interactive artifacts and saving an artifact into a Thinkspace as a PDF document come later.
+
+## The Artifacts library (phase 2)
+- **Keep what you like**: the bookmark on a chat card saves the artifact on its own, apart from the chat, with the sources it
+  was given so its citations still check out. Saving never changes or deletes the chat.
+- **Artifacts** in the left rail opens the library: a grid with search by title and a filter by kind (page, table, chart,
+  slides, document). Opening one shows it in the same sealed frame; rename it, link it to a Thinkspace (or none), save it as an
+  HTML file, or delete it (press twice). Deleting a Thinkspace keeps its artifacts.
+- **Kinds**: the model labels each artifact (`type="table|chart|slides|document|page"`), or the kind is guessed from the content.
+  Charts are inline SVG or `tk-bar` rows, slides are 16:9 `tk-slide` cards, documents use `tk-doc`.
+- Stored in the database (migration 3, table `artifacts`), tests in `tests/artifacts.test.js`.
+- **Present** a deck (arrow keys, Escape) and **export** as HTML, PDF, PNG, Word (.docx) or PowerPoint (.pptx). PDF and PNG are drawn in a
+  hidden window with no scripts, no network and no preload. Word and PowerPoint are built in the main process from plain blocks
+  (`artifact-blocks.js` reads the cleaned HTML; `artifact-export.js` writes the file), never from the HTML itself.
+  Charts and any `<svg>` are exported as a picture. Citations are removed from exports.
+- The **single-PDF chat** now supports artifacts too; the open document's name is the title its citations use.
+
+## Navigation
+The rail holds only the big tools: Home, Reader, Thinkspaces, ThinkerTex, Artifacts, then Help and Settings. The panels that
+belong to an open PDF (Contents, Pages, Notes, Glossary, Mind maps, History) are tabs at the top of the reader's side panel,
+shown or hidden with the panel button in the toolbar, and chat is the Ask button in the toolbar.
+
+## How it works
+1. The prompt tells the model to use an artifact **only** when asked for a visual document by name, and gives
+   it a small design kit of classes (`tk-card`, `tk-grid`, `tk-table`, `tk-badge`, `tk-callout`, `tk-timeline`,
+   `tk-steps`, `tk-stat`, `tk-bar`, `<details>` for flashcards). Plain questions, including comparisons
+   ("how often... according to each document") stay plain text.
+2. The reply may contain text plus `<artifact title="...">...</artifact>`. The chat finds the blocks and shows each in a frame.
+3. The backend returns the **sources the answer was given** (document and page).
+4. In the app the HTML is cleaned (DOMPurify), every `data-cite="Title|page"` is checked against those sources,
+   and the result is sent into a sandboxed frame that cleans it again.
+
+## Safety model
+- **Sandbox**: `sandbox="allow-scripts"` only (no same-origin, no popups, forms or navigation). The frame cannot read the app.
+  Scripts are allowed solely so the frame's own bridge can run; the page's policy refuses everything else.
+- **Own protocol**: a sandboxed frame may not load local files, so the frame page and its two scripts come from
+  `thinker-artifact://frame/…` (`artifact-protocol.js`), which serves **three whitelisted files** and sends the policy
+  as a response header: no connections, no frames, no forms, images and fonts as data only.
+- **Cleaning**: no script, iframe, object, embed, form, input, button, link, meta, base, audio, video or `foreignObject`;
+  no event handlers; links and images only as `#` or data images; only five `data-` attributes survive.
+  Input is cut at 200,000 characters.
+- **Citations**: a reference the answer was not given is shown dashed and does nothing. Verified ones open the PDF at that page.
+- **Actions back to the app** are a fixed list: open a cited page, copy text. Nothing else is accepted.
+- **Labelled**: every card says "AI-generated".
+
+## What was tested
+- `scripts/ui-artifact-hostile.mjs` runs inside the real app (and the installed build): 18 hostile samples (script tags,
+  `onerror`, `javascript:` links, SVG `onload`, iframe/object/embed, forms posting away, CSS `@import` and `url()`,
+  `<link>`/meta refresh/`<base>`, remote images, a fake full-screen "enter your API key" overlay, SVG with script and
+  `foreignObject`, `ontoggle`, two mutation-XSS payloads, a `data:` HTML image, abusable `data-` attributes, handlers on
+  everything, and a 500,000-character input). Result: **no script ran, nothing reached the network, nothing escaped the frame.**
+  The same run checks a normal artifact, citation gating, theming, save and Open larger.
+- Unit tests: 10 for parsing and citation checking (`tests/artifact-html.test.js`), 2 backend.
+- With the real model (`evals/run-space-eval.mjs`, questions S13 to S15 plus the 12 earlier): a comparison table, flashcards
+  and a timeline were produced when asked, with **no invented citations and no script**, and plain questions did not become
+  artifacts. 14 of 15 pass; the one failure is the known S1 habit of mentioning a silent document.
+- The screen check found two real problems that were then fixed: a reply showing as raw HTML (a bad pattern in my own edit),
+  and tables crushing to one letter per line in the narrow chat panel.
+
+## Limits to know
+- Artifacts cost more output than plain text, so the model is told to use them sparingly.
+- A model can still write something misleading *inside* the safe frame (visual spoofing). The label, the removal of forms
+  and inputs, and the fact that nothing can leave the frame are the mitigations.
+- The free-tier model key limits roughly 7 questions per minute (each question uses two model calls); the evaluation is paced for that.
+
+## Next
+1. Save an artifact into the Thinkspace as a PDF document so it can be read and marked up.
+2. "Make this a LaTeX document" and "Make slides from this Thinkspace" (hand an artifact or sources to ThinkerTex).
+3. Interactive artifacts (quizzes, calculators) in a second tier that you allow per message, still with no network.

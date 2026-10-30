@@ -1,5 +1,7 @@
 import { recordTokenUsage, updateTokenTracker } from "./token-usage.js";
 import { escapeHtml, renderMarkdown } from "./safe-html.js";
+import { splitArtifacts } from "./artifact-html.js";
+import { createArtifactView } from "./artifact-view.js";
 import { groupConversations, timeAgo, messageCountLabel, friendlyAgentError } from "./chat-groups.js";
 
 const DEFAULT_CHAT_MODEL = "gemini-3.5-flash-lite";
@@ -76,7 +78,42 @@ export class ChatController {
     this.clearAttachment();
   }
 
+  // The name the document goes by in citations: its file name without ".pdf".
+  documentTitle() {
+    return (this.activePdfPath || "").split(/[/\\]/).pop().replace(/\.pdf$/i, "") || "Document";
+  }
+
+  // A reply that holds artifacts: plain text and sealed artifact cards, in order.
+  appendArtifactReply(text, sources) {
+    const wrap = document.createElement("div");
+    wrap.className = "bot-msg bot-artifact-reply";
+    for (const part of splitArtifacts(text)) {
+      if (part.type === "artifact") {
+        wrap.appendChild(createArtifactView({
+          title: part.title, html: part.html, complete: part.complete, sources: sources || [], kind: part.kind,
+          onCite: ({ page }) => window.dispatchEvent(new CustomEvent("navigate-pdf-page", { detail: { page } })),
+          onKeep: async (file) => {
+            const saved = await window.electronAPI.createArtifact({ title: part.title, html: file.html, kind: part.kind, sources: sources || [] });
+            this.onStatus(`Saved "${saved.title}" to Artifacts.`);
+          },
+          onSave: (file) => window.electronAPI.saveTextFile({ defaultPath: `${file.title.replace(/[\\/:*?"<>|]+/g, "-")}.html`, content: file.content, filters: [{ name: "HTML page", extensions: ["html"] }] })
+        }));
+      } else {
+        const piece = document.createElement("div");
+        piece.className = "artifact-text";
+        piece.innerHTML = markdownToHtml(part.text);
+        wrap.appendChild(piece);
+      }
+    }
+    this.chatHistory.appendChild(wrap);
+    this.chatHistory.scrollTop = this.chatHistory.scrollHeight;
+  }
+
   appendMessage(sender, text, image = null, usage = null) {
+    if (sender === "Bot" && !image && /<artifact\b/i.test(text)) {
+      this.appendArtifactReply(text, usage?.sources);
+      return;
+    }
     const msg = document.createElement("div");
     msg.className = sender === "You" ? "user-msg" : "bot-msg";
 
@@ -328,7 +365,7 @@ export class ChatController {
       if (entry.role === "user") {
         this.appendUserMessage(entry.question || entry.text || "", entry.quote || "", null);
       } else {
-        this.appendMessage("Bot", entry.text || "");
+        this.appendMessage("Bot", entry.text || "", null, entry.sources ? { sources: entry.sources } : null);
       }
     });
     this.renderConversationBar();
@@ -815,7 +852,9 @@ export class ChatController {
         instructions: (await this.getInstructions?.(this.conversationId)) || [],
         context: contextText,
         messages: this.entries.slice(-10),
-        parts: parts
+        parts: parts,
+        artifacts: true,
+        docTitle: this.documentTitle()
       });
 
       clearInterval(ticker);
@@ -854,7 +893,8 @@ export class ChatController {
         promptTokens: agentRes.usage?.prompt_tokens || 0,
         responseTokens: agentRes.usage?.response_tokens || 0,
         actions: isInteractiveIntent ? (agentRes.actions || []) : [],
-        evaluation: agentRes.evaluation || null
+        evaluation: agentRes.evaluation || null,
+        sources: (agentRes.sources || []).map((s) => ({ doc: s.doc, page: s.page }))
       };
 
       if (stillOpen()) {
@@ -878,7 +918,8 @@ export class ChatController {
       const botEntry = {
         role: "assistant",
         text: replyText,
-        ts: Date.now()
+        ts: Date.now(),
+        sources: botMetadata.sources
       };
       if (stillOpen()) this.entries.push(botEntry);
       await this.persistEntry(botEntry, sentTo);

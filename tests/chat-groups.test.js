@@ -56,3 +56,27 @@ test('provider errors become one plain sentence with a next step', async () => {
   assert.match(friendlyAgentError(''), /did not send an answer/);
   assert.match(friendlyAgentError('something odd'), /^The AI request failed: something odd/);
 });
+
+test('citations in an answer become buttons for the right document and page', async () => {
+  const { splitCitations } = await import('../renderer/js/chat-groups.js');
+  const docs = [{ title: 'Handbook', path: 'a.pdf' }, { title: 'Legal notes', path: 'b.pdf' }];
+  const parts = splitCitations('Fuel is 42 t/day [Handbook, page 5]. Law differs [Legal notes, page 2; Handbook, p. 9] done.', docs);
+  assert.deepStrictEqual(parts.map((p) => (p.cite ? `${p.cite.doc.title}:${p.cite.page}` : p.text)), ['Fuel is 42 t/day ', 'Handbook:5', '. Law differs ', 'Legal notes:2', 'Handbook:9', ' done.']);
+});
+
+test('citations that are not ours stay as text, and titles match loosely', async () => {
+  const { splitCitations } = await import('../renderer/js/chat-groups.js');
+  const docs = [{ title: 'Annual Report 2024.pdf', path: 'r.pdf' }];
+  assert.deepStrictEqual(splitCitations('See [Page 3] and [Unknown, page 4].', docs).map((p) => p.text ?? 'CITE').join(''), 'See [Page 3] and [Unknown, page 4].');
+  const loose = splitCitations('[annual report 2024, page 7]', docs);
+  assert.strictEqual(loose[0].cite.page, 7);
+  assert.deepStrictEqual(splitCitations('no citations here', docs), [{ text: 'no citations here' }]);
+  assert.deepStrictEqual(splitCitations('', docs), []);
+});
+
+test('"pages 1 and 2" and "pp. 3" count as citations too', async () => {
+  const { splitCitations } = await import('../renderer/js/chat-groups.js');
+  const docs = [{ title: 'Safety Bulletin 2024', path: 's.pdf' }];
+  const parts = splitCitations('Every 14 days [Safety Bulletin 2024, pages 1 and 2] and [Safety Bulletin 2024, pp. 3].', docs);
+  assert.deepStrictEqual(parts.filter((p) => p.cite).map((p) => p.cite.page), [1, 3]);
+});

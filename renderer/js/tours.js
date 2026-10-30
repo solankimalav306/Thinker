@@ -28,7 +28,7 @@ export function buildTours(ctx) {
       id: "rail",
       target: ".activity-bar",
       title: "Your toolbox",
-      body: "Home, Reader and Settings are always here. Once a document is open, panels for Contents, Pages, Notes, Glossary, Mind maps and History join them.",
+      body: "Your tools are here: Reader for PDFs, Thinkspaces to group them, ThinkerTex for writing LaTeX, and Artifacts for tables, charts and slides you keep. The panels for an open PDF (Contents, Notes and the rest) are tabs inside the reader.",
       placement: "right"
     },
     {
@@ -81,10 +81,10 @@ export function buildTours(ctx) {
     },
     {
       id: "panels",
-      target: "#nav-notes",
+      target: ".panel-tabs",
       title: "Notes, glossary and mind maps",
-      body: "Notes keeps what you save from chats. Defined words build your glossary. Mind maps draw the structure of a document. They all live in these panels.",
-      placement: "right"
+      body: "These tabs belong to the open PDF: Contents, page thumbnails, Notes, Glossary, Mind maps and History. The button at the top left hides or shows them.",
+      placement: "bottom"
     },
     {
       id: "chat",

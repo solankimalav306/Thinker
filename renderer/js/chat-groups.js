@@ -75,3 +75,30 @@ export function friendlyAgentError(raw) {
   }
   return `The AI request failed: ${text.slice(0, 200)}`;
 }
+
+// Splits an answer into text and citation parts: "[Handbook, page 3; Notes, page 1]" becomes two citations.
+export function splitCitations(text, docs) {
+  const byTitle = (title) => {
+    const wanted = title.trim().toLowerCase();
+    return docs.find((d) => d.title.toLowerCase() === wanted) || docs.find((d) => d.title.toLowerCase().startsWith(wanted) || wanted.startsWith(d.title.toLowerCase()));
+  };
+  const parts = [];
+  let last = 0;
+  const group = /\[([^\[\]]*?\b(?:pages?|pp?\.)\s*\d+[^\[\]]*?)\]/gi;
+  for (const match of text.matchAll(group)) {
+    const cites = [];
+    let ok = true;
+    for (const piece of match[1].split(";")) {
+      const m = /^\s*(.+?),\s*(?:pages?|pp?\.)\s*(\d+)/i.exec(piece);
+      const doc = m ? byTitle(m[1]) : null;
+      if (!doc) { ok = false; break; }
+      cites.push({ doc, page: Number(m[2]), label: `${doc.title}, p. ${m[2]}` });
+    }
+    if (!ok) continue; // not one of ours (for example "[Page 3]"): leave it as plain text
+    if (match.index > last) parts.push({ text: text.slice(last, match.index) });
+    cites.forEach((c) => parts.push({ cite: c }));
+    last = match.index + match[0].length;
+  }
+  if (last < text.length) parts.push({ text: text.slice(last) });
+  return parts;
+}

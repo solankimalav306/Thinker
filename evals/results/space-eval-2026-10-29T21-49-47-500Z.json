@@ -1,0 +1,121 @@
+{
+  "summary": {
+    "model": "gemini-3.5-flash-lite",
+    "when": "2026-10-29T21:49:47.499Z",
+    "runs": 7,
+    "correct": 6,
+    "wrongAttributions": 1,
+    "byKind": {
+      "one-document": "1/2",
+      "only-in-one": "1/1",
+      "conflict": "1/1",
+      "which-document": "1/1",
+      "no-bleed": "1/1",
+      "unanswerable": "1/1"
+    },
+    "medianMs": 5330,
+    "attributionChecked": 6
+  },
+  "results": [
+    {
+      "id": "S1",
+      "kind": "one-document",
+      "run": 1,
+      "question": "What is the muster time limit?",
+      "answer": "The *Safety Bulletin 2024* states that all crew must reach their muster station within 8 minutes of the alarm [Safety Bulletin 2024, page 2], while the *Operations Manual 2023* does not specify a time limit for mustering [Operations Manual 2023, page 2].",
+      "correct": false,
+      "problems": [
+        "cites the wrong document: Operations Manual 2023"
+      ],
+      "cited": [
+        "Safety Bulletin 2024",
+        "Operations Manual 2023"
+      ],
+      "wrongAttribution": true,
+      "ms": 6027
+    },
+    {
+      "id": "S2",
+      "kind": "only-in-one",
+      "run": 1,
+      "question": "Is a pilot required for a 180 metre vessel?",
+      "answer": "Yes, a pilot is mandatory for any vessel longer than 150 metres [Port Authority Handbook, page 2].",
+      "correct": true,
+      "problems": [],
+      "cited": [
+        "Port Authority Handbook"
+      ],
+      "wrongAttribution": false,
+      "ms": 5795
+    },
+    {
+      "id": "S3",
+      "kind": "conflict",
+      "run": 1,
+      "question": "How often are lifeboat drills held according to each document?",
+      "answer": "According to the documents, lifeboat drills are held every 14 days [Safety Bulletin 2024, page 2] and every 30 days [Operations Manual 2023, page 2].",
+      "correct": true,
+      "problems": [],
+      "cited": [
+        "Safety Bulletin 2024",
+        "Operations Manual 2023"
+      ],
+      "wrongAttribution": false,
+      "ms": 5330
+    },
+    {
+      "id": "S4",
+      "kind": "which-document",
+      "run": 1,
+      "question": "Which document mentions pilotage?",
+      "answer": "Pilotage is mentioned in the Port Authority Handbook [Port Authority Handbook, page 2].",
+      "correct": true,
+      "problems": [],
+      "cited": [
+        "Port Authority Handbook"
+      ],
+      "wrongAttribution": false,
+      "ms": 4789
+    },
+    {
+      "id": "S5",
+      "kind": "one-document",
+      "run": 1,
+      "question": "What is the port fee for a container ship, and where does it come from?",
+      "answer": "The port fee for a container ship is 12,400 EUR per call [Port Authority Handbook, page 2], and it comes from the Port Authority Handbook for vessels calling at the port of Rotterdam, published by the Port Authority [Port Authority Handbook, page 1].",
+      "correct": true,
+      "problems": [],
+      "cited": [
+        "Port Authority Handbook"
+      ],
+      "wrongAttribution": false,
+      "ms": 5302
+    },
+    {
+      "id": "S6",
+      "kind": "no-bleed",
+      "run": 1,
+      "question": "How many tonnes of fuel does a container ship burn per day at 14 knots?",
+      "answer": "At 14 knots, a container ship burns 42 tonnes of fuel per day [Operations Manual 2023, page 3].",
+      "correct": true,
+      "problems": [],
+      "cited": [
+        "Operations Manual 2023"
+      ],
+      "wrongAttribution": false,
+      "ms": 5176
+    },
+    {
+      "id": "S7",
+      "kind": "unanswerable",
+      "run": 1,
+      "question": "What do the documents say about ballast water treatment?",
+      "answer": "I couldn't find that in these documents.",
+      "correct": true,
+      "problems": [],
+      "cited": [],
+      "wrongAttribution": false,
+      "ms": 5826
+    }
+  ]
+}

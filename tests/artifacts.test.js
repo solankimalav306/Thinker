@@ -1,0 +1,64 @@
+const test = require('node:test');
+const assert = require('node:assert');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { openDatabase, currentVersion, MIGRATIONS } = require('../database');
+const { createStore } = require('../store');
+const { createWorkspaces } = require('../workspaces');
+const { createArtifacts } = require('../artifacts');
+
+function fresh() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-art-'));
+  const store = createStore(openDatabase(dir));
+  return { store, art: createArtifacts(store), ws: createWorkspaces(store) };
+}
+
+test('the artifacts table is created by the latest migration', () => {
+  const { store } = fresh();
+  assert.strictEqual(currentVersion(store.db), MIGRATIONS[MIGRATIONS.length - 1].version);
+  assert.ok(store.db.prepare("SELECT name FROM sqlite_master WHERE name = 'artifacts'").get());
+});
+
+test('saving, reading back and listing newest first', async () => {
+  const { art } = fresh();
+  const a = art.create({ title: '  Rules   table ', html: '<table></table>', kind: 'table', sources: [{ doc: 'Guide', page: 3 }, { doc: '' }] });
+  assert.strictEqual(a.title, 'Rules table');
+  assert.deepStrictEqual(a.sources, [{ doc: 'Guide', page: 3 }]);
+  await new Promise((r) => setTimeout(r, 5));
+  const b = art.create({ title: 'Plan', html: '<p>x</p>', kind: 'nonsense' });
+  assert.strictEqual(b.kind, 'page');
+  assert.deepStrictEqual(art.list().map((x) => x.id), [b.id, a.id]);
+  assert.strictEqual(art.list()[0].html, undefined, 'the list does not carry the page bodies');
+  assert.strictEqual(art.get(a.id).html, '<table></table>');
+});
+
+test('empty and oversized artifacts are refused', () => {
+  const { art } = fresh();
+  assert.throws(() => art.create({ title: 'x', html: '   ' }), /empty/);
+  assert.throws(() => art.create({ title: 'x', html: 'a'.repeat(200001) }), /too large/);
+});
+
+test('search and kind filters; wildcard characters are taken literally', () => {
+  const { art } = fresh();
+  art.create({ title: '100% done', html: '<p>1</p>', kind: 'chart' });
+  art.create({ title: 'Other', html: '<p>2</p>', kind: 'slides' });
+  assert.deepStrictEqual(art.list({ search: '100%' }).map((x) => x.title), ['100% done']);
+  assert.strictEqual(art.list({ search: '%' }).length, 1);
+  assert.deepStrictEqual(art.list({ kind: 'slides' }).map((x) => x.title), ['Other']);
+});
+
+test('rename, link to a Thinkspace; deleting the Thinkspace keeps the artifact', () => {
+  const { art, ws } = fresh();
+  const space = ws.createWorkspace({ name: 'Thesis' });
+  const a = art.create({ title: 'A', html: '<p>1</p>', workspaceId: space.id });
+  assert.strictEqual(a.workspaceId, space.id);
+  assert.strictEqual(art.update(a.id, { title: 'Renamed' }).title, 'Renamed');
+  assert.strictEqual(art.update(a.id, { workspaceId: 'missing' }).workspaceId, null);
+  art.update(a.id, { workspaceId: space.id });
+  ws.deleteWorkspace(space.id);
+  assert.strictEqual(art.get(a.id).workspaceId, null);
+  assert.strictEqual(art.remove(a.id), true);
+  assert.strictEqual(art.get(a.id), null);
+  assert.throws(() => art.update('nope', { title: 'x' }), /no longer exists/);
+});

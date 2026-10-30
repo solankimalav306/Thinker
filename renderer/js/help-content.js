@@ -23,6 +23,50 @@ export const GUIDES = [
     action: { label: "Tour the reader", run: "tour:reader" }
   },
   {
+    id: "spaces",
+    icon: "fa-layer-group",
+    title: "Group your work in a Thinkspace",
+    summary: "Keep related PDFs and writing projects together, for a paper, a course or a case.",
+    steps: [
+      "Click Spaces on the left, then New Thinkspace. Give it a name; click the name any time to change it.",
+      "Choose Add PDFs, or drop PDF files onto the page. Use the arrows to put them in the order you want.",
+      "Open adds a document to the reader. Remove takes it out of the Thinkspace only; the file is never deleted.",
+      "A document can be in several Thinkspaces, and a Thinkspace can have ThinkerTex writing projects too.",
+      "Ask the chat beside the documents anything across all of them. Citations such as [Safety Bulletin, p. 2] are buttons that open that PDF at that page.",
+      "Ask for a table, timeline, flashcards or a study guide and the answer appears as a styled card. Open it larger, copy it, or export it. A dashed reference means it could not be checked against the sources."
+    ],
+    tip: "Deleting a Thinkspace never deletes your PDFs or your writing."
+  },
+  {
+    id: "artifacts",
+    icon: "fa-shapes",
+    title: "Keep tables, charts and slides as Artifacts",
+    summary: "Ask in a chat for a table, chart, timeline, flashcards, slides or a one-page summary, then keep it and take it with you.",
+    steps: [
+      "Ask for it by name in the reader chat or in a Thinkspace chat, for example: Make a comparison table, or Make slides from this.",
+      "The answer appears as a card marked AI-generated. Citations on it open the PDF at that page.",
+      "Press the bookmark on the card to keep it. Kept artifacts live under Artifacts on the left, apart from the chat they came from.",
+      "There you can search, filter by kind, rename, link to a Thinkspace, or delete.",
+      "Press the download icon to export as an HTML page, PDF, PNG image, Word document or PowerPoint. A deck also has a Present button: arrow keys move between slides and Escape ends it."
+    ],
+    tip: "Charts and slides are drawn from the document, but check the numbers: a model can still get one wrong."
+  },
+  {
+    id: "tex",
+    icon: "fa-pen-nib",
+    title: "Write LaTeX with ThinkerTex",
+    summary: "Write a paper with a live PDF beside it, in code or in a normal writing view, with an AI that writes and checks LaTeX.",
+    steps: [
+      "Click TeX on the left, then New project, and pick a template. Or open a folder or a .tex file you already have.",
+      "The first time, choose Set up now: ThinkerTex downloads the LaTeX packages it needs (about 40 MB). After that it works offline.",
+      "Write in Code, or switch to Visual to edit like a normal document: headings, bold, lists, equations, citations.",
+      "Press Recompile (or Ctrl+Enter) to see the PDF. Turn on Auto to update it a moment after you stop typing.",
+      "Problems appear at the bottom in plain words. Click one to jump to its line, or choose Fix with AI.",
+      "Open Ask ThinkerTex and describe what you want. It tries the change on a copy, compiles it, and shows you the difference. Nothing changes until you press Apply."
+    ],
+    tip: "A project can live anywhere: on its own, in any folder, or inside a Thinkspace, where the AI can also use that Thinkspace's PDFs."
+  },
+  {
     id: "model",
     icon: "fa-plug",
     title: "Connect an AI model",
@@ -43,7 +87,7 @@ export const GUIDES = [
     title: "Ask questions and read the answers",
     summary: "Chat about the open document and check where each answer came from.",
     steps: [
-      "Open the chat from the rail (the Chat button) and type a question. Press Enter to send.",
+      "Open the chat with the Ask button in the toolbar and type a question. Press Enter to send.",
       "Select text in the document first to ask about just that passage; it appears above the box as a quote.",
       "Answers name their pages, like Page 3. Click one to jump straight to it.",
       "Document + AI may add general knowledge, always marked AI Knowledge. Document only sticks strictly to your PDF and says so when it can't find something.",
@@ -140,6 +184,9 @@ export const SHORTCUTS = [
   { keys: ["Ctrl", "S"], does: "Save your marks into a new PDF" },
   { keys: ["Ctrl", "W"], does: "Close the current tab (middle-click on a tab works too)" },
   { keys: ["Ctrl", "Tab"], does: "Switch to the next tab" },
+  { keys: ["Ctrl", "Enter"], does: "Compile the LaTeX project (in ThinkerTex)" },
+  { keys: ["Ctrl", "B", "I"], does: "Bold and italic in a LaTeX project" },
+  { keys: ["Ctrl", "/"], does: "Comment or uncomment lines in the LaTeX code view" },
   { keys: ["Tab"], does: "Move between buttons and fields, with a visible focus ring" }
 ];
 

@@ -84,13 +84,20 @@ async function handleLLMGenerate(_event, rawPayload) {
   const apiKey = String(profile.key || profile.apiKey || payload?.apiKey || "").trim();
   const endpointUrl = normalizeUrl(profile.url || payload?.url || "");
   const parts = Array.isArray(payload?.parts) ? payload.parts : [];
+  // Long answers (a whole LaTeX section) need more room than a short reply. Callers may ask for more.
+  const maxTokens = Math.max(64, Math.min(Number(payload?.maxTokens) || 512, 16000));
+  const system = typeof payload?.system === "string" ? payload.system.slice(0, 20000) : "";
+  const wantJson = payload?.json === true;
+  const signal = AbortSignal.timeout(Number(payload?.timeoutMs) > 0 ? Math.min(Number(payload.timeoutMs), 300000) : 120000);
 
   try {
     if (format === "openai" || format === "openai-compatible") {
       const endpoint = endpointUrl || DEFAULT_OPENAI_URL;
       const body = {
         model,
+        max_tokens: maxTokens,
         messages: [
+          ...(system ? [{ role: "system", content: system }] : []),
           {
             role: "user",
             content: toOpenAIContent(parts)
@@ -104,7 +111,8 @@ async function handleLLMGenerate(_event, rawPayload) {
           "Content-Type": "application/json",
           ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {})
         },
-        body: JSON.stringify(body)
+        body: JSON.stringify(body),
+        signal
       });
 
       const responseText = await readResponseText(response);
@@ -131,8 +139,10 @@ async function handleLLMGenerate(_event, rawPayload) {
       },
       body: JSON.stringify({
         contents: [{ parts: geminiParts }],
-        generationConfig: { maxOutputTokens: 512 }
-      })
+        ...(system ? { systemInstruction: { parts: [{ text: system }] } } : {}),
+        generationConfig: { maxOutputTokens: maxTokens, ...(wantJson ? { responseMimeType: "application/json" } : {}) }
+      }),
+      signal
     });
 
     const responseText = await readResponseText(response);
@@ -141,10 +151,12 @@ async function handleLLMGenerate(_event, rawPayload) {
     }
 
     const parsed = safeJsonParse(responseText);
-    const text = parsed?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    // Join every text part except the model's private "thought" parts.
+    const text = (parsed?.candidates?.[0]?.content?.parts || []).filter((p) => p && typeof p.text === "string" && !p.thought).map((p) => p.text).join("") || "";
     const usage = parsed?.usageMetadata || null;
     return { ok: true, text, usage };
   } catch (error) {
+    if (error?.name === "TimeoutError" || error?.name === "AbortError") return { ok: false, error: "The AI service took too long to answer (timed out)." };
     return { ok: false, error: error?.message || "LLM request failed." };
   }
 }

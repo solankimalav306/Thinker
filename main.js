@@ -1,4 +1,6 @@
-const { app, BrowserWindow, ipcMain, dialog, Menu, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, shell, protocol } = require('electron');
+const artifactProtocol = require('./artifact-protocol');
+artifactProtocol.registerScheme(protocol);
 const path = require('path');
 const { pathToFileURL } = require('url');
 const fs = require('fs');
@@ -12,6 +14,9 @@ const axios = require('axios');
 const { initStorage, migrateProfileSecrets, getItemSync, setItemSync, removeItemSync, getItemDirect } = require('./app-storage');
 const { openDatabase } = require('./database');
 const { createStore } = require('./store');
+const { createWorkspaces } = require('./workspaces');
+const { createArtifacts } = require('./artifacts');
+const { registerTexIpc } = require('./tex-service');
 const { importLegacyData } = require('./legacy-import');
 const { handleLLMGenerate } = require('./llm-handler');
 const { resolveSecrets, hasUnresolvedSecret, KEY_UNLOCK_ERROR } = require('./secrets');
@@ -21,6 +26,10 @@ const { writeRealAnnotations } = require('./pdf-annotations');
 // ── Backend process handle (so we can kill it cleanly on exit) ──────────────
 let backendProcess = null;
 let store = null;
+let workspaces = null;
+const spaces = () => (workspaces ||= createWorkspaces(store));
+let artifactLib = null;
+const artifacts = () => (artifactLib ||= createArtifacts(store));
 
 // ── Backend address: random free port + per-launch token, chosen at startup ──
 let BACKEND_PORT = 0;
@@ -46,6 +55,14 @@ async function backendPost(route, data, signal) {
   const body = { ...data };
   if ('pdfId' in body && !PDF_ID_PATTERN.test(String(body.pdfId))) {
     throw new Error('Invalid document id');
+  }
+  if ('docs' in body) {
+    // a Thinkspace question searches several documents: each needs a real content hash and a plain title
+    const docs = Array.isArray(body.docs) ? body.docs.slice(0, 12) : [];
+    body.docs = docs.map((d) => {
+      if (!d || !PDF_ID_PATTERN.test(String(d.pdfId))) throw new Error('Invalid document id');
+      return { pdfId: String(d.pdfId), title: String(d.title || 'Untitled').replace(/[\r\n\[\]]+/g, ' ').trim().slice(0, 120) };
+    });
   }
   if ('storagePath' in body) body.storagePath = app.getPath('userData');
   // Slower than any normal answer, but finite: a stalled provider call must not hang the chat.
@@ -356,6 +373,107 @@ function registerIpcHandlers() {
     return canceled ? null : filePaths[0];
   });
 
+  ipcMain.handle('dialog:pickPdfs', async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+      filters: [{ name: 'PDF Files', extensions: ['pdf'] }],
+      properties: ['openFile', 'multiSelections']
+    });
+    return canceled ? [] : filePaths;
+  });
+
+  // Export an artifact as PDF, PNG, Word or PowerPoint. The page is only ever drawn in a hidden window that has no
+  // preload, a policy that refuses everything but styles and data images, and no way to leave the page.
+  const EXPORTS = {
+    pdf: { name: 'PDF document', ext: 'pdf' },
+    png: { name: 'PNG image', ext: 'png' },
+    docx: { name: 'Word document', ext: 'docx' },
+    pptx: { name: 'PowerPoint presentation', ext: 'pptx' }
+  };
+  const EXPORT_POLICY = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:">`;
+
+  async function renderExportPage(html, width) {
+    const win = new BrowserWindow({
+      show: false, width, height: 800, useContentSize: true,
+      webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true, partition: `artifact-export-${Date.now()}` }
+    });
+    win.webContents.session.webRequest.onBeforeRequest((details, callback) => callback({ cancel: !details.url.startsWith('data:') }));
+    win.webContents.on('will-navigate', (e) => e.preventDefault());
+    win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    const page = String(html).includes('<head>') ? String(html).replace('<head>', `<head>${EXPORT_POLICY}`) : `${EXPORT_POLICY}${html}`;
+    await win.loadURL(`data:text/html;charset=utf-8;base64,${Buffer.from(page).toString('base64')}`);
+    await win.webContents.insertCSS('::-webkit-scrollbar { display: none }');
+    return win;
+  }
+
+  async function capturePage(html, width = 900) {
+    const win = await renderExportPage(html, width);
+    try {
+      const height = await win.webContents.executeJavaScript('Math.ceil(document.documentElement.scrollHeight)');
+      win.setContentSize(width, Math.min(Math.max(height, 100), 8000));
+      await new Promise((r) => setTimeout(r, 150));
+      const image = await win.webContents.capturePage();
+      return image.toPNG();
+    } finally {
+      win.destroy();
+    }
+  }
+
+  ipcMain.handle('art:export', async (event, req) => {
+    try {
+      const format = String(req?.format || '');
+      const kind = EXPORTS[format];
+      if (!kind) return { ok: false, error: 'Unknown format' };
+      const html = String(req?.html || '');
+      if (!html.trim() || html.length > 2000000) return { ok: false, error: 'There is nothing to export.' };
+      const title = String(req?.title || 'artifact').slice(0, 120);
+
+      let data;
+      if (format === 'png') {
+        data = await capturePage(html);
+      } else if (format === 'pdf') {
+        const win = await renderExportPage(html, 900);
+        try {
+          data = await win.webContents.printToPDF({ printBackground: true, pageSize: 'A4', landscape: req?.kindOfArtifact === 'slides' });
+        } finally {
+          win.destroy();
+        }
+      } else {
+        const builders = require('./artifact-export');
+        const image = req?.withImage ? (await capturePage(html)).toString('base64') : '';
+        if (format === 'docx') {
+          const blocks = Array.isArray(req?.blocks) ? req.blocks.slice() : [];
+          if (image) blocks.push({ t: 'img', data: image });
+          data = await builders.buildDocx({ title, blocks });
+        } else {
+          const slides = Array.isArray(req?.slides) ? req.slides.map((x) => ({ ...x })) : [];
+          if (image && slides.length <= 1) {
+            if (!slides.length) slides.push({ title, bullets: [] });
+            slides[0].image = image;
+          }
+          data = await builders.buildPptx({ title, slides });
+        }
+      }
+
+      const win = BrowserWindow.fromWebContents(event.sender);
+      const safe = title.replace(/[\\/:*?"<>|]+/g, '-').trim() || 'artifact';
+      // automated tests (development runs only) name a folder instead of answering the dialog
+      const testDir = !app.isPackaged && process.env.THINKER_TEST_EXPORT_DIR;
+      const { canceled, filePath } = testDir
+        ? { canceled: false, filePath: path.join(testDir, `${safe}.${kind.ext}`) }
+        : await dialog.showSaveDialog(win, {
+          defaultPath: `${safe}.${kind.ext}`,
+          filters: [{ name: kind.name, extensions: [kind.ext] }]
+        });
+      if (canceled || !filePath) return { ok: false, canceled: true };
+      await fsPromises.writeFile(filePath, data);
+      return { ok: true, filePath };
+    } catch (error) {
+      console.error('Failed to export artifact:', error);
+      return { ok: false, error: error.message || 'Export failed' };
+    }
+  });
+
   ipcMain.handle('dialog:saveTextFile', async (event, payload) => {
     try {
       const win = BrowserWindow.fromWebContents(event.sender);
@@ -546,6 +664,40 @@ function registerIpcHandlers() {
   ipcMain.handle('conv:messages', (_event, id) => store.getMessages(String(id)));
   ipcMain.handle('conv:append', (_event, id, entry) => store.appendMessage(String(id), entry || {}));
 
+  // ThinkerTex: the engine ships next to the app when packaged, and in vendor/ while developing.
+  registerTexIpc({
+    ipcMain, dialog, shell, BrowserWindow, app, spaces,
+    enginePath: app.isPackaged ? path.join(process.resourcesPath, 'tectonic', 'tectonic.exe') : path.join(__dirname, 'vendor', 'tectonic', 'tectonic.exe')
+  });
+
+  // Thinkspaces and ThinkerTex projects. Every call validates its arguments; nothing here touches files.
+  const text = (v) => String(v ?? '');
+  const paths = (v) => (Array.isArray(v) ? v.map(text).slice(0, 500) : []);
+  ipcMain.handle('wsconv:list', (_e, id) => store.listWorkspaceConversations(text(id)));
+  ipcMain.handle('wsconv:create', (_e, id, fields) => store.createWorkspaceConversation(text(id), fields || {}));
+  ipcMain.handle('ws:list', () => spaces().listWorkspaces());
+  ipcMain.handle('ws:get', (_e, id) => spaces().getWorkspace(text(id)));
+  ipcMain.handle('ws:create', (_e, fields) => spaces().createWorkspace(fields || {}));
+  ipcMain.handle('ws:update', (_e, id, patch) => spaces().updateWorkspace(text(id), patch || {}));
+  ipcMain.handle('ws:delete', (_e, id) => spaces().deleteWorkspace(text(id)));
+  ipcMain.handle('ws:opened', (_e, id) => { spaces().markOpened(text(id)); return true; });
+  ipcMain.handle('ws:addDocuments', (_e, id, files) => spaces().addDocuments(text(id), paths(files)));
+  ipcMain.handle('ws:removeDocument', (_e, id, docId) => spaces().removeDocument(text(id), text(docId)));
+  ipcMain.handle('ws:reorderDocuments', (_e, id, order) => spaces().reorderDocuments(text(id), paths(order)));
+  ipcMain.handle('ws:forDocument', (_e, docId) => spaces().workspacesForDocument(text(docId)));
+  ipcMain.handle('art:list', (_e, filter) => artifacts().list(filter || {}));
+  ipcMain.handle('art:get', (_e, id) => artifacts().get(text(id)));
+  ipcMain.handle('art:create', (_e, fields) => artifacts().create(fields || {}));
+  ipcMain.handle('art:update', (_e, id, patch) => artifacts().update(text(id), patch || {}));
+  ipcMain.handle('art:delete', (_e, id) => artifacts().remove(text(id)));
+  ipcMain.handle('proj:list', () => spaces().listProjects());
+  ipcMain.handle('proj:get', (_e, id) => spaces().getProject(text(id)));
+  ipcMain.handle('proj:update', (_e, id, patch) => spaces().updateProject(text(id), patch || {}));
+  ipcMain.handle('proj:forget', (_e, id) => spaces().forgetProject(text(id)));
+  ipcMain.handle('proj:link', (_e, workspaceId, projectId) => spaces().linkProject(text(workspaceId), text(projectId)));
+  ipcMain.handle('proj:unlink', (_e, workspaceId, projectId) => spaces().unlinkProject(text(workspaceId), text(projectId)));
+  ipcMain.handle('proj:forProject', (_e, id) => spaces().workspacesForProject(text(id)));
+
   // Custom AI instructions, layered global -> document -> conversation
   ipcMain.handle('ins:list', (_event, scope, scopeId) => store.listInstructions(scope || null, scopeId || null));
   ipcMain.handle('ins:save', (_event, fields) => store.saveInstruction(fields || {}));
@@ -558,6 +710,10 @@ function registerIpcHandlers() {
     const docId = pdfPath ? store.docIdForPath(pdfPath) : null;
     if (docId) layers.push(...store.listInstructions('document', docId).filter((i) => i.enabled));
     const conversation = conversationId ? store.getConversation(String(conversationId)) : null;
+    // a Thinkspace chat also gets the Thinkspace's own instructions, between the global and the chat's
+    if (conversation?.workspaceId) {
+      layers.splice(layers.length, 0, ...store.listInstructions('workspace', conversation.workspaceId).filter((i) => i.enabled));
+    }
     const result = layers.map(({ scope, title, body }) => ({ scope, title, body }));
     if (conversation?.instructions?.trim()) {
       result.push({ scope: 'conversation', title: '', body: conversation.instructions });
@@ -823,6 +979,7 @@ if (!gotTheLock) {
 
   // ── App startup flow ─────────────────────────────────────────────────────────
   app.whenReady().then(async () => {
+    artifactProtocol.handleScheme(protocol, __dirname);
     // Hide application menu in production to prevent keyboard shortcut DevTools access
     if (app.isPackaged) {
       Menu.setApplicationMenu(null);

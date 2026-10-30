@@ -1,0 +1,134 @@
+/* The Artifacts screen: a grid of kept artifacts and a page for one. */
+
+.artifacts-screen {
+  display: none;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.artifacts-screen.visible {
+  display: block;
+}
+
+.lib-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  width: min(1040px, 100%);
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-6) var(--space-10);
+}
+
+.lib-head,
+.lib-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.lib-title {
+  margin: 0;
+  font-size: var(--text-3xl, 2rem);
+  line-height: 1.1;
+}
+
+.lib-lead {
+  margin: var(--space-1) 0 0;
+  color: var(--text-3);
+}
+
+.lib-search,
+.lib-rename {
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.lib-search {
+  width: min(280px, 100%);
+}
+
+.lib-rename {
+  flex: 1;
+  min-width: 160px;
+  font-weight: 600;
+}
+
+.lib-kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.lib-kinds .ta-chip.active {
+  border-color: var(--primary);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.lib-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: var(--space-4);
+}
+
+.lib-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+}
+
+.lib-card:hover,
+.lib-card:focus-visible {
+  border-color: var(--primary);
+  transform: translateY(-1px);
+}
+
+.lib-card-icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-md);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.lib-card-title {
+  overflow-wrap: anywhere;
+}
+
+.lib-card-meta {
+  color: var(--text-3);
+  font-size: 0.85rem;
+}
+
+.lib-empty {
+  grid-column: 1 / -1;
+  padding: var(--space-8);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+  text-align: center;
+  color: var(--text-3);
+}
+
+.lib-empty h3 {
+  margin: 0 0 var(--space-2);
+  color: var(--text);
+}

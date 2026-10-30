@@ -1,0 +1,104 @@
+{
+  "summary": {
+    "model": "gemini-3.5-flash-lite",
+    "when": "2026-10-29T19:08:23.169Z",
+    "runs": 6,
+    "correct": 6,
+    "wrongAttributions": 0,
+    "byKind": {
+      "outside": "2/2",
+      "each-document": "2/2",
+      "compare": "2/2"
+    },
+    "medianMs": 6290,
+    "attributionChecked": 4
+  },
+  "results": [
+    {
+      "id": "S8",
+      "kind": "outside",
+      "run": 1,
+      "question": "What is the capital of France?",
+      "answer": "I couldn't find that in these documents.",
+      "correct": true,
+      "problems": [],
+      "cited": [],
+      "wrongAttribution": false,
+      "ms": 6140
+    },
+    {
+      "id": "S8",
+      "kind": "outside",
+      "run": 2,
+      "question": "What is the capital of France?",
+      "answer": "I couldn't find that in these documents.",
+      "correct": true,
+      "problems": [],
+      "cited": [],
+      "wrongAttribution": false,
+      "ms": 10903
+    },
+    {
+      "id": "S9",
+      "kind": "each-document",
+      "run": 1,
+      "question": "Summarise each document in one sentence.",
+      "answer": "* **Operations Manual 2023**: This internal manual issued by Harbor Lights Shipping covers drills, fuel planning, and crew rules for its 14-vessel fleet [Operations Manual 2023, page 1].\n* **Safety Bulletin 2024**: Issued to all Harbor Lights vessels, this bulletin updates certain rules originally established in the 2023 Operations Manual [Safety Bulletin 2024, page 1].\n* **Port Authority Handbook**: This document outlines the rules for vessels calling at the port of Rotterdam, as published by the Port Authority [Port Authority Handbook, page 1].",
+      "correct": true,
+      "problems": [],
+      "cited": [
+        "Operations Manual 2023",
+        "Safety Bulletin 2024",
+        "Port Authority Handbook"
+      ],
+      "wrongAttribution": false,
+      "ms": 5678
+    },
+    {
+      "id": "S9",
+      "kind": "each-document",
+      "run": 2,
+      "question": "Summarise each document in one sentence.",
+      "answer": "- **Operations Manual 2023**: Issued in January 2023 by Harbor Lights Shipping, this internal manual outlines drills, fuel planning, and crew rules for the fleet of 14 vessels [Operations Manual 2023, page 1], specifying that lifeboat drills occur every 30 days, fire extinguishers are inspected every 6 months [Operations Manual 2023, page 2], and slow steaming requires approval from the Operations Desk [Operations Manual 2023, page 3].\n- **Safety Bulletin 2024**: Issued in March 2024 to update the *Operations Manual 2023*, this bulletin revises safety procedures by requiring lifeboat drills every 14 days, monthly fire extinguisher inspections, and a maximum muster time of 8 minutes [Safety Bulletin 2024, page 1, 2].\n- **Port Authority Handbook**: Published by the Port Authority, this handbook outlines the rules for vessels calling at the port of Rotterdam [Port Authority Handbook, page 1].",
+      "correct": true,
+      "problems": [],
+      "cited": [
+        "Operations Manual 2023",
+        "Safety Bulletin 2024",
+        "Port Authority Handbook"
+      ],
+      "wrongAttribution": false,
+      "ms": 8734
+    },
+    {
+      "id": "S10",
+      "kind": "compare",
+      "run": 1,
+      "question": "Where do the Operations Manual and the Safety Bulletin disagree?",
+      "answer": "The *Operations Manual 2023* and the *Safety Bulletin 2024* disagree on the following points:\n\n* **Lifeboat drill frequency:** The *Operations Manual 2023* states that lifeboat drills are held every 30 days [Operations Manual 2023, page 2], whereas the *Safety Bulletin 2024* states they are held every 14 days [Safety Bulletin 2024, page 2].\n* **Fire extinguisher inspection frequency:** The *Operations Manual 2023* states that fire extinguishers are inspected every 6 months [Operations Manual 2023, page 2], whereas the *Safety Bulletin 2024* states they are inspected every month [Safety Bulletin 2024, page 2].",
+      "correct": true,
+      "problems": [],
+      "cited": [
+        "Operations Manual 2023",
+        "Safety Bulletin 2024"
+      ],
+      "wrongAttribution": false,
+      "ms": 5978
+    },
+    {
+      "id": "S10",
+      "kind": "compare",
+      "run": 2,
+      "question": "Where do the Operations Manual and the Safety Bulletin disagree?",
+      "answer": "The Operations Manual 2023 and the Safety Bulletin 2024 disagree on the frequency of lifeboat drills and fire extinguisher inspections:\n\n* **Lifeboat drills:** The *Operations Manual 2023* states that lifeboat drills are held every 30 days [Operations Manual 2023, page 2], whereas the *Safety Bulletin 2024* states they are held every 14 days [Safety Bulletin 2024, page 2].\n* **Fire extinguisher inspections:** The *Operations Manual 2023* states that fire extinguishers are inspected every 6 months [Operations Manual 2023, page 2], whereas the *Safety Bulletin 2024* states they are inspected every month [Safety Bulletin 2024, page 2].",
+      "correct": true,
+      "problems": [],
+      "cited": [
+        "Operations Manual 2023",
+        "Safety Bulletin 2024"
+      ],
+      "wrongAttribution": false,
+      "ms": 6290
+    }
+  ]
+}
