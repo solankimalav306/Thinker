@@ -26,6 +26,13 @@ The rail holds only the big tools: Home, Reader, Thinkspaces, ThinkerTex, Artifa
 belong to an open PDF (Contents, Pages, Notes, Glossary, Mind maps, History) are tabs at the top of the reader's side panel,
 shown or hidden with the panel button in the toolbar, and chat is the Ask button in the toolbar.
 
+## Asking for one
+Say "artifact" (or "web page") and you get one, whatever the subject: a plan, the steps of an assignment, a summary. Naming a table, chart,
+timeline, checklist, flashcards, slides, diagram or "step-by-step" also gets one. In the single-PDF chat the request first goes through a
+router that sorts requests into answer, notes, highlight, mind map and so on; "make ... with steps" used to be sorted as **notes** and ended up in
+the Notes panel. Now, with artifacts on, a request that says "artifact" always goes to the answer, and a named visual document beats notes,
+highlights, comments, definitions and web search (a mind map still gets its own mind map). "Take notes on this" is still notes.
+
 ## How it works
 1. The prompt tells the model to use an artifact **only** when asked for a visual document by name, and gives
    it a small design kit of classes (`tk-card`, `tk-grid`, `tk-table`, `tk-badge`, `tk-callout`, `tk-timeline`,

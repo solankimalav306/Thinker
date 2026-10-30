@@ -72,7 +72,7 @@ MULTI_RULES = (
 )
 
 
-ARTIFACT_RULES = """You may answer with an ARTIFACT: a small styled document shown beside the chat. Use one ONLY when the user explicitly asks for a visual document: words like "make a table", "comparison table", "timeline", "flashcards", "study guide", "cheat sheet", "checklist", "diagram", "chart", "graph", "slides" or "one-page summary". Any other question gets a plain-text answer, including questions that compare documents ("how often... according to each document", "which document...", "where do they disagree"), short factual questions, and summaries.
+ARTIFACT_RULES = """You may answer with an ARTIFACT: a small styled document shown beside the chat. If the user says "artifact" (or "web page"), ALWAYS answer with one, whatever the subject: a plan, steps, a summary, a guide. Otherwise use one ONLY when the user explicitly asks for a visual document: words like "make a table", "comparison table", "timeline", "flashcards", "study guide", "cheat sheet", "checklist", "diagram", "chart", "graph", "slides" or "one-page summary". Any other question gets a plain-text answer, including questions that compare documents ("how often... according to each document", "which document...", "where do they disagree"), short factual questions, and summaries.
 Format: one short sentence of plain text, then exactly one block:
 <artifact title="Short title" type="table">
 ...HTML...

@@ -9,7 +9,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 from services.retrieval import retrieval_service, pages_service, retrieval_multi
 from utils.page_refs import extract_page_refs
-from utils.intents import constrain_intent
+from utils.intents import constrain_intent, apply_artifact_intent
 from utils.sources import sources_from_hits
 from services.dictionary import dictionary_service
 from duckduckgo_search import DDGS
@@ -571,6 +571,10 @@ Return ONLY the intent label (one of: ask, define, highlight, note, mindmap, sea
             break
 
     intent = constrain_intent(intent, normalize_mode(state.get("mode")), multi=bool(state.get("docs")))
+    routed = intent
+    intent = apply_artifact_intent(intent, state.get("user_query", ""), bool(state.get("artifacts")))
+    if intent != routed:
+        print(f"[supervisor_node] Asked for an artifact: '{routed}' became '{intent}'", flush=True)
     print(f"[supervisor_node] Final intent: '{intent}'", flush=True)
     
     # Retrieve RAG context with token-saving dynamic context reduction
