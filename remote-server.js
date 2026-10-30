@@ -11,6 +11,8 @@ const fs = require('fs');
 const http = require('http');
 const path = require('path');
 const { EventEmitter } = require('events');
+const { WebSocketServer } = require('ws');
+const { connect: connectDoc } = require('./collab-docs');
 
 const WEB = {
   '/guest.html': { file: ['remote-web', 'guest.html'], type: 'text/html; charset=utf-8' },
@@ -34,6 +36,7 @@ const DEFAULT_TTL_MS = 4 * 60 * 60 * 1000;
 const IP_FAILS = 5;
 const IP_WINDOW_MS = 10 * 60 * 1000;
 const SHARE_FAILS = 25;
+const MAX_SOCKETS = 12;
 
 const sameText = (a, b) => {
   const x = Buffer.from(String(a));
@@ -56,7 +59,7 @@ function createRemoteServer({ appRoot, now = () => Date.now() } = {}) {
   const read = (parts) => fs.promises.readFile(path.join(appRoot, ...parts));
 
   // ---- shares -------------------------------------------------------------------------------------
-  function createShare({ kind, title, ref, provider, ttlMs = DEFAULT_TTL_MS }) {
+  function createShare({ kind, title, ref, provider, ttlMs = DEFAULT_TTL_MS, collab = null, allowEdit = false }) {
     if (!['artifact', 'tex'].includes(kind)) throw new Error('That cannot be shared.');
     if (!provider || typeof provider.content !== 'function') throw new Error('Nothing to share.');
     const share = {
@@ -65,18 +68,24 @@ function createRemoteServer({ appRoot, now = () => Date.now() } = {}) {
       pin: String(crypto.randomInt(0, 1000000)).padStart(6, '0'),
       kind, title: String(title || 'Shared').slice(0, 120), ref: ref ?? null, provider,
       version: 1, createdAt: now(), expiresAt: now() + Math.max(60 * 1000, Math.min(ttlMs, 24 * 60 * 60 * 1000)),
-      failed: 0, locked: false, watchers: new Set()
+      failed: 0, locked: false, watchers: new Set(),
+      collab: kind === 'tex' ? collab : null, allowEdit: Boolean(allowEdit && kind === 'tex' && collab), sockets: new Set(), editPin: null
     };
+    if (share.allowEdit) {
+      do { share.editPin = String(crypto.randomInt(0, 1000000)).padStart(6, '0'); } while (share.editPin === share.pin);
+    }
     shares.set(share.id, share);
     byToken.set(share.token, share);
     notify();
-    return { id: share.id, token: share.token, pin: share.pin, expiresAt: share.expiresAt };
+    return { id: share.id, token: share.token, pin: share.pin, editPin: share.editPin, expiresAt: share.expiresAt };
   }
 
   function endShare(id) {
     const share = shares.get(String(id));
     if (!share) return false;
     for (const res of share.watchers) { try { res.write('event: ended\ndata: 1\n\n'); res.end(); } catch { /* gone */ } }
+    for (const socket of [...share.sockets]) { try { socket.close(1000, 'ended'); } catch { /* gone */ } }
+    try { share.collab?.destroy(); } catch { /* nothing to save */ }
     shares.delete(share.id);
     byToken.delete(share.token);
     for (const [sid, s] of sessions) if (s.shareId === share.id) sessions.delete(sid);
@@ -86,8 +95,8 @@ function createRemoteServer({ appRoot, now = () => Date.now() } = {}) {
 
   function listShares() {
     return [...shares.values()].map((s) => ({
-      id: s.id, kind: s.kind, title: s.title, ref: s.ref, token: s.token, pin: s.pin,
-      expiresAt: s.expiresAt, guests: s.watchers.size, locked: s.locked
+      id: s.id, kind: s.kind, title: s.title, ref: s.ref, token: s.token, pin: s.pin, editPin: s.editPin, allowEdit: s.allowEdit,
+      expiresAt: s.expiresAt, guests: s.watchers.size, editors: s.sockets.size, locked: s.locked
     }));
   }
 
@@ -148,7 +157,8 @@ function createRemoteServer({ appRoot, now = () => Date.now() } = {}) {
     if (share.locked) return json(res, 423, { error: 'This share is locked. Ask the host to start a new one.' });
     let pin = '';
     try { pin = String(JSON.parse(await readBody(req)).pin ?? '').trim(); } catch { return json(res, 400, { error: 'Bad request.' }); }
-    if (!/^\d{6}$/.test(pin) || !sameText(pin, share.pin)) {
+    const role = /^\d{6}$/.test(pin) ? (share.editPin && sameText(pin, share.editPin) ? 'edit' : (sameText(pin, share.pin) ? 'view' : null)) : null;
+    if (!role) {
       const f = failures.get(ip) || { count: 0, since: now() };
       f.count += 1;
       failures.set(ip, f);
@@ -158,8 +168,8 @@ function createRemoteServer({ appRoot, now = () => Date.now() } = {}) {
     }
     failures.delete(ip);
     const sid = crypto.randomBytes(24).toString('hex');
-    sessions.set(sid, { shareId: share.id, expires: Math.min(now() + SESSION_MS, share.expiresAt) });
-    return json(res, 200, { ok: true }, { 'set-cookie': `tr_session=${sid}; Path=/s/${share.token}; HttpOnly; SameSite=Strict; Max-Age=${Math.floor(SESSION_MS / 1000)}` });
+    sessions.set(sid, { shareId: share.id, role, expires: Math.min(now() + SESSION_MS, share.expiresAt) });
+    return json(res, 200, { ok: true, role }, { 'set-cookie': `tr_session=${sid}; Path=/s/${share.token}; HttpOnly; SameSite=Strict; Max-Age=${Math.floor(SESSION_MS / 1000)}` });
   }
 
   async function handle(req, res) {
@@ -194,7 +204,26 @@ function createRemoteServer({ appRoot, now = () => Date.now() } = {}) {
     const session = sessionFor(req, share);
     if (!session) return json(res, 401, { error: 'Enter the code first.' });
 
-    if (req.method === 'GET' && rest === '/api/info') return json(res, 200, { kind: share.kind, title: share.title, version: share.version, expiresAt: share.expiresAt });
+    if (req.method === 'GET' && rest === '/api/info') return json(res, 200, { kind: share.kind, title: share.title, version: share.version, expiresAt: share.expiresAt, role: session.role, live: Boolean(share.collab), canEdit: session.role === 'edit' });
+    if (req.method === 'GET' && rest === '/api/files') {
+      if (!share.collab) return json(res, 404, { error: 'Nothing to edit here.' });
+      return json(res, 200, { files: share.collab.listFiles() });
+    }
+    if (req.method === 'POST' && rest === '/api/compile') {
+      if (session.role !== 'edit' || !share.collab || typeof share.provider.compile !== 'function') return json(res, 403, { error: 'You can only look at this.' });
+      if (share.compiling || now() - (share.lastCompile || 0) < 3000) return json(res, 429, { error: 'A build is already running or just finished.' });
+      share.compiling = true;
+      try {
+        share.collab.flushAll();
+        const result = await share.provider.compile();
+        share.lastCompile = now();
+        return json(res, 200, { ok: Boolean(result?.ok), problems: (result?.problems || []).slice(0, 10).map((p) => ({ severity: p.severity, file: p.file, line: p.line, message: String(p.message || '').slice(0, 300) })) });
+      } catch {
+        return json(res, 502, { error: 'The build could not run right now.' });
+      } finally {
+        share.compiling = false;
+      }
+    }
     if (req.method === 'GET' && rest === '/api/content') {
       let content;
       try { content = await share.provider.content(); } catch { return json(res, 502, { error: 'That could not be loaded right now.' }); }
@@ -219,11 +248,57 @@ function createRemoteServer({ appRoot, now = () => Date.now() } = {}) {
     return notFound(res);
   }
 
+  // ---- live editing (WebSocket) -----------------------------------------------------------------------
+  const wss = new WebSocketServer({ noServer: true, maxPayload: 2 * 1024 * 1024 });
+
+  function upgrade(req, socket, head) {
+    const deny = (code, text) => {
+      try { socket.write(['HTTP/1.1 ' + code + ' ' + text, 'Connection: close', 'Content-Length: 0', '', ''].join('\r\n')); } catch { /* gone */ }
+      socket.destroy();
+    };
+    let url;
+    try { url = new URL(req.url, 'http://x'); } catch { return deny(400, 'Bad Request'); }
+    const parts = url.pathname.split('/').filter(Boolean);
+    if (parts[0] !== 's' || parts[2] !== 'ws') return deny(404, 'Not Found');
+    const share = byToken.get(parts[1]);
+    if (!share || share.expiresAt <= now() || !share.collab) return deny(404, 'Not Found');
+    const session = sessionFor(req, share);
+    if (!session) return deny(401, 'Unauthorized');
+    // a page on another site must not be able to open this connection with the guest's cookie
+    if (req.headers.origin) {
+      let same = false;
+      try { same = new URL(req.headers.origin).host === req.headers.host; } catch { same = false; }
+      if (!same) return deny(403, 'Forbidden');
+    }
+    if (share.sockets.size >= MAX_SOCKETS) return deny(429, 'Too Many Requests');
+    let entry;
+    try { entry = share.collab.open(url.searchParams.get('file')); } catch { return deny(404, 'Not Found'); }
+    wss.handleUpgrade(req, socket, head, (ws) => {
+      const conn = connectDoc(entry, { role: session.role, send: (m) => { if (ws.readyState === 1) ws.send(m); } });
+      share.sockets.add(ws);
+      notify();
+      ws.isAlive = true;
+      ws.on('pong', () => { ws.isAlive = true; });
+      const beat = setInterval(() => { if (!ws.isAlive) return ws.terminate(); ws.isAlive = false; try { ws.ping(); } catch { /* gone */ } return undefined; }, 30000);
+      beat.unref?.();
+      ws.on('message', (data, isBinary) => { if (isBinary) conn.message(data); });
+      ws.on('close', () => {
+        clearInterval(beat);
+        conn.close();
+        try { share.collab.release(entry); } catch { /* already closed */ }
+        share.sockets.delete(ws);
+        notify();
+      });
+      ws.on('error', () => {});
+    });
+  }
+
   // ---- lifecycle ----------------------------------------------------------------------------------
   function start({ bindHost = '0.0.0.0', bindPort = 0 } = {}) {
     if (server) return Promise.resolve({ port, host });
     return new Promise((resolve, reject) => {
       const s = http.createServer((req, res) => { handle(req, res).catch(() => { try { send(res, 500, 'Error', { 'content-type': 'text/plain' }); } catch { /* closed */ } }); });
+      s.on('upgrade', upgrade);
       s.once('error', reject);
       s.listen(bindPort, bindHost, () => {
         server = s; port = s.address().port; host = bindHost;
