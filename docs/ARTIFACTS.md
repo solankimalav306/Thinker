@@ -73,6 +73,23 @@ written as pages still show as pages.
 **Not done yet:** a free-form interactive page (the model's own HTML and script, run only after you click Run, in a stricter frame); showing data-based
 artifacts on a shared guest page; checking every export for each kind.
 
+## Web pages (Claude-style artifacts, 2026-10-31)
+Asking for web-based notes, a study site, dashboard, tracker, calculator or "a web page" goes to a separate builder in the graph
+(`artifact` node, kind `page`; `utils/artifacts.py` `_PAGE_RULES`). The model writes ONE complete HTML document with its own CSS and
+JavaScript (lists of contents, search, tick-offs, quizzes, charts with the bundled d3, anything the request needs). Progress is saved
+through a small helper: `tk.state` on start and `tk.save(object)` after a change. Citations are `<a class="tk-cite" data-cite="Title|N">`
+and always read "Page N" (a raw `Title|N` label is rewritten); references that were not in the answer's sources are dashed and dead.
+
+**Changing one**: "add a quiz section to it" re-sends the latest artifact of the chat (`previous_artifact`) with the request, and the
+reply is the whole updated artifact, as Claude does.
+
+**Running it**: a page with scripts is NOT cleaned into a static card. It runs in `artifact-live.html` (sandbox `allow-scripts`, opaque
+origin) whose header policy allows inline scripts and nothing else: `connect-src 'none'`, images only as data, no frames, forms, media,
+objects, workers or eval. Beyond the policy: frame navigation away from `thinker-artifact:` is blocked (`will-frame-navigate`), WebRTC
+is limited to proxied UDP, and any request started by an artifact frame to a non-artifact address is cancelled (`webRequest`). The frame
+sends a heartbeat; a page that stops answering for 9 seconds is removed with a "Run it again" button. Cards say the page runs its own code
+in a sealed frame. A script page exports only as an HTML file (with a stand-in for `tk`); the other formats need a static page.
+
 ## Safety model
 - **Sandbox**: `sandbox="allow-scripts"` only (no same-origin, no popups, forms or navigation). The frame cannot read the app.
   Scripts are allowed solely so the frame's own bridge can run; the page's policy refuses everything else.

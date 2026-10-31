@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from utils.artifacts import KINDS, LIVE, build_reply, decide, extract_json, finalize, identify, prompt_for, split_reply, validate
+from utils.artifacts import KINDS, LIVE, build_reply, decide, extract_json, finalize, identify, previous_artifact, prompt_for, split_reply, validate
 
 
 # ---- deciding that an artifact is wanted, and which -------------------------------------------------------------
@@ -80,7 +80,8 @@ def test_each_kind_has_its_own_short_instructions():
         sizes[kind] = len(text)
     quiz = prompt_for("quiz")
     assert "answer" in quiz and "flashcards" not in quiz.lower() and '"groups"' not in quiz   # only its own shape
-    assert max(sizes.values()) < 2600   # well under the old catch-all kit
+    assert max(v for k, v in sizes.items() if k != "page") < 2600   # well under the old catch-all kit
+    assert sizes["page"] < 5000   # a whole web page needs more guidance, still bounded
 
 
 # ---- checking the data ---------------------------------------------------------------------------------------
@@ -176,3 +177,25 @@ def test_page_and_slides_are_passed_through_as_written():
     assert extract_json('{"a": 1}') == {"a": 1}
     with pytest.raises(ValueError):
         extract_json("nothing")
+
+
+def test_page_prompt_asks_for_a_full_page_with_scripts_and_state():
+    text = prompt_for("page", "Field Guide")
+    assert "tk.save" in text and "tk.state" in text and "lib/d3.min.js" in text and "NO network" in text
+
+
+def test_editing_the_previous_artifact_resends_it():
+    messages = [{"role": "assistant", "text": "Here.\n" + '<artifact title="Notes" type="page">' + "\n<!doctype html><html><body><h1>Hi</h1></body></html>\n</artifact>"}]
+    before = previous_artifact(messages)
+    assert before[0] == "page" and before[1] == "Notes"
+    text = prompt_for("page", "", before)
+    assert "CHANGING an artifact" in text and "<h1>Hi</h1>" in text
+    assert decide("note", "add a quiz section to it", True, None, "page") == ("artifact", "page")
+    assert decide("ask", "what is a vector?", True, None, "page")[0] != "artifact"
+
+
+def test_finalize_page_keeps_a_real_page_and_rejects_a_stub():
+    html = "<!doctype html><html><body><h1>Study notes</h1><p>" + "word " * 40 + "</p><script>1</script></body></html>"
+    out = finalize("page", "Sure.\n" + '<artifact title="Notes" type="page">' + "\n" + html + "\n</artifact>")
+    assert 'type="page"' in out and "<script>" in out
+    assert "<artifact" not in finalize("page", '<artifact title="x" type="page">hi</artifact>')

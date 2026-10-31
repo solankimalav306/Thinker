@@ -20,13 +20,32 @@ const FRAME_CSP = [
   "frame-src 'none'"
 ].join('; ');
 
+// A full web page the AI wrote may run its own scripts, so it gets a policy that allows inline scripts and
+// nothing else: still no connections, no images from anywhere, no frames, no forms, no workers, no eval.
+const LIVE_CSP = [
+  "default-src 'none'",
+  `script-src ${SCHEME}: 'unsafe-inline'`,
+  "style-src 'unsafe-inline'",
+  'img-src data:',
+  `font-src data: ${SCHEME}:`,
+  "connect-src 'none'",
+  "media-src 'none'",
+  "object-src 'none'",
+  "base-uri 'none'",
+  "form-action 'none'",
+  "frame-src 'none'"
+].join('; ');
+
 // URL path -> file (relative to the app folder) and type. Anything not listed is refused.
 const FILES = {
   '/artifact-frame.html': { file: path.join('renderer', 'artifact-frame.html'), type: 'text/html; charset=utf-8' },
   '/artifact-bridge.js': { file: path.join('renderer', 'js', 'artifact-bridge.js'), type: 'text/javascript; charset=utf-8' },
   '/purify.min.js': { file: path.join('renderer', 'vendor', 'dompurify', 'purify.min.js'), type: 'text/javascript; charset=utf-8' },
   '/katex.min.js': { file: path.join('renderer', 'vendor', 'katex', 'katex.min.js'), type: 'text/javascript; charset=utf-8' },
-  '/artifact-components.js': { file: path.join('renderer', 'js', 'artifact-components.js'), type: 'text/javascript; charset=utf-8' }
+  '/artifact-components.js': { file: path.join('renderer', 'js', 'artifact-components.js'), type: 'text/javascript; charset=utf-8' },
+  '/artifact-live.html': { file: path.join('renderer', 'artifact-live.html'), type: 'text/html; charset=utf-8', csp: LIVE_CSP },
+  '/artifact-live-bridge.js': { file: path.join('renderer', 'js', 'artifact-live-bridge.js'), type: 'text/javascript; charset=utf-8' },
+  '/lib/d3.min.js': { file: path.join('renderer', 'vendor', 'd3', 'd3.min.js'), type: 'text/javascript; charset=utf-8' }
 };
 
 // Must run before the app is ready.
@@ -55,7 +74,7 @@ function handleScheme(protocol, appRoot) {
       const body = await fs.readFile(path.join(appRoot, entry.file));
       return new Response(body, {
         status: 200,
-        headers: { 'content-type': entry.type, 'content-security-policy': FRAME_CSP, 'x-content-type-options': 'nosniff', 'cache-control': 'no-store' }
+        headers: { 'content-type': entry.type, 'content-security-policy': entry.csp || FRAME_CSP, 'x-content-type-options': 'nosniff', 'cache-control': 'no-store' }
       });
     } catch {
       return new Response('Not found', { status: 404, headers: { 'content-type': 'text/plain' } });
@@ -63,4 +82,4 @@ function handleScheme(protocol, appRoot) {
   });
 }
 
-module.exports = { SCHEME, FRAME_CSP, FILES, lookup, registerScheme, handleScheme };
+module.exports = { SCHEME, FRAME_CSP, LIVE_CSP, FILES, lookup, registerScheme, handleScheme };

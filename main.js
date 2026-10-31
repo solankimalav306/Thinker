@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, Menu, shell, protocol } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, shell, protocol, session } = require('electron');
 const artifactProtocol = require('./artifact-protocol');
 artifactProtocol.registerScheme(protocol);
 const path = require('path');
@@ -1064,6 +1064,13 @@ app.on('web-contents-created', (event, contents) => {
     if (!url.startsWith(appPages)) navEvent.preventDefault();
   });
   contents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  // A page an AI wrote may run scripts inside its sealed frame. It must not be able to send the frame anywhere,
+  // nor open a peer connection that could carry data out.
+  contents.on('will-frame-navigate', (navEvent) => {
+    const from = navEvent.frame && navEvent.frame.url;
+    if (from && from.startsWith('thinker-artifact:') && !navEvent.url.startsWith('thinker-artifact:') && navEvent.url !== 'about:blank') navEvent.preventDefault();
+  });
+  try { contents.setWebRTCIPHandlingPolicy('disable_non_proxied_udp'); } catch { /* older builds */ }
 
   if (app.isPackaged) {
     contents.on('before-input-event', (e, input) => {
@@ -1125,6 +1132,13 @@ if (!gotTheLock) {
   // ── App startup flow ─────────────────────────────────────────────────────────
   app.whenReady().then(async () => {
     artifactProtocol.handleScheme(protocol, __dirname);
+    // nothing started by an artifact frame may go to the network
+    session.defaultSession.webRequest.onBeforeRequest((details, callback) => {
+      let url = '';
+      try { url = (details.frame && details.frame.url) || ''; } catch { /* frame may be gone */ }
+      const allowed = /^(thinker-artifact:|data:|blob:|about:)/.test(details.url) || details.url.startsWith('devtools:');
+      callback({ cancel: url.startsWith('thinker-artifact:') && !allowed });
+    });
     // Hide application menu in production to prevent keyboard shortcut DevTools access
     if (app.isPackaged) {
       Menu.setApplicationMenu(null);

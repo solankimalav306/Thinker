@@ -86,7 +86,7 @@ Rules for the HTML:
 - Keep it under about 1,200 words, self-contained, and readable on a narrow panel."""
 
 
-def build_ask_prompt(*, doc_info="", history="", context="", selected_text="", question="", mode="auto", instructions=None, multi=False, artifacts=False, doc_title="", artifact_kind="") -> str:
+def build_ask_prompt(*, doc_info="", history="", context="", selected_text="", question="", mode="auto", instructions=None, multi=False, artifacts=False, doc_title="", artifact_kind="", previous_artifact=None) -> str:
     rules = MODE_RULES[normalize_mode(mode)]
     if multi:
         rules = rules.replace("in this document", "in these documents").replace("the document context", "the context")
@@ -100,7 +100,7 @@ def build_ask_prompt(*, doc_info="", history="", context="", selected_text="", q
     if artifact_kind:
         # making an artifact: only the instructions for that one kind
         from utils.artifacts import prompt_for
-        parts.append(prompt_for(artifact_kind, "" if multi else doc_title))
+        parts.append(prompt_for(artifact_kind, "" if multi else doc_title, previous_artifact))
     elif artifacts:
         parts.append(ARTIFACT_RULES)
         if doc_title and not multi:

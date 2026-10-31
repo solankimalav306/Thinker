@@ -72,6 +72,10 @@
       return;
     }
     root.innerHTML = window.DOMPurify.sanitize(String(data.html || "").slice(0, 200000), CONFIG);
+    // a chip whose label is the raw reference ("Doc|8") reads "Page 8"
+    root.querySelectorAll("[data-cite]").forEach(function (chip) {
+      if (chip.textContent.indexOf("|") >= 0) chip.textContent = "Page " + chip.getAttribute("data-cite").slice(chip.getAttribute("data-cite").lastIndexOf("|") + 1);
+    });
     if (window.TKComponents) { try { window.TKComponents.mathify(root); } catch (e) { /* maths is a nicety */ } }
     measure();
   }

@@ -41,6 +41,27 @@ function loadKitCss() {
 }
 
 // Progress inside a chat card is remembered on this computer, keyed by the content, so reopening the chat keeps your ticks.
+let mathCssPromise = null;
+const loadMathCss = () => (mathCssPromise ||= fetch("vendor/katex/katex.min.css").then((r) => r.text()).catch(() => ""));
+
+// A full web page (it has scripts or is a whole document) runs in its own sealed frame instead of being cleaned into a static card.
+export const isScriptPage = (kind, html) => kind === "page" && /<script\b|<!doctype|<html\b/i.test(String(html || ""));
+
+// the references a script page cites, checked against what the answer was given
+function checkHtmlCitations(html, sources) {
+  const allowed = new Set((sources || []).map((s) => `${String(s.doc).trim().toLowerCase()}|${Number(s.page)}`));
+  const valid = [];
+  const bad = [];
+  for (const m of String(html).matchAll(/data-cite\s*=\s*"([^"]*)"/g)) {
+    const c = m[1];
+    const at = c.lastIndexOf("|");
+    const doc = c.slice(0, at).trim();
+    const page = parseInt(c.slice(at + 1), 10);
+    if (at > 0 && allowed.has(`${doc.toLowerCase()}|${page}`)) valid.push({ doc, page }); else bad.push(c);
+  }
+  return { valid, bad: [...new Set(bad)], invalid: new Set(bad).size };
+}
+
 const hashOf = (text) => { let h = 5381; for (let i = 0; i < text.length; i += 1) h = ((h * 33) ^ text.charCodeAt(i)) >>> 0; return h.toString(36); };
 function recall(key) { try { return JSON.parse(localStorage.getItem(key) || "null") || {}; } catch { return {}; } }
 function remember(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* storage is a convenience */ } }
@@ -100,7 +121,7 @@ function iconButton(icon, title, onClick) {
 }
 
 // A frame showing `html`. It reports its height and relays the few actions it is allowed to.
-function mountFrame({ html, valid, onCite, minHeight = 80, maxHeight, label, extraCss = "", fixed = false, kind = "", spec = null, state = null, citeMap = null, onState = null }) {
+function mountFrame({ html, valid, onCite, minHeight = 80, maxHeight, label, extraCss = "", fixed = false, kind = "", spec = null, state = null, citeMap = null, onState = null, script = null }) {
   const frame = document.createElement("iframe");
   frame.className = "art-iframe";
   frame.title = label;
@@ -109,11 +130,19 @@ function mountFrame({ html, valid, onCite, minHeight = 80, maxHeight, label, ext
   frame.setAttribute("sandbox", "allow-scripts");
   frame.setAttribute("referrerpolicy", "no-referrer");
   frame.style.height = `${minHeight}px`;
-  frame.src = "thinker-artifact://frame/artifact-frame.html";
+  const FRAME_URL = script ? "thinker-artifact://frame/artifact-live.html" : "thinker-artifact://frame/artifact-frame.html";
+  frame.src = FRAME_URL;
+  let lastBeat = Date.now();
+  let stalled = null;
 
   const cites = new Set(valid.map((c) => `${c.doc.toLowerCase()}|${c.page}`));
 
   const send = async () => {
+    if (script) {
+      lastBeat = Date.now();
+      frame.contentWindow?.postMessage({ type: "run", html, state: state || {}, bad: script.bad, css: await loadMathCss(), tokens: readTokens() }, "*");
+      return;
+    }
     const css = (await loadKitCss()) + extraCss;
     const fit = !maxHeight || fixed;
     frame.contentWindow?.postMessage(spec ? { type: "render", kind, spec, state: state || {}, cites: citeMap || {}, css, tokens: readTokens(), fit } : { type: "render", html, css, tokens: readTokens(), fit }, "*");
@@ -124,8 +153,9 @@ function mountFrame({ html, valid, onCite, minHeight = 80, maxHeight, label, ext
     if (event.source !== frame.contentWindow) return;
     const data = event.data || {};
     if (data.type === "ready") send();
+    else if (data.type === "beat") lastBeat = Date.now();
     else if (data.type === "state" && data.value && typeof data.value === "object") onState?.(data.value);
-    else if (data.type === "height" && Number.isFinite(data.value) && !fixed) {
+    else if (data.type === "height" && Number.isFinite(data.value) && !fixed && !(script && script.fillHeight)) {
       const limit = maxHeight ? maxHeight() : Infinity;
       frame.style.height = `${Math.max(minHeight, Math.min(Math.ceil(data.value), limit))}px`;
     } else if (data.type === "action") {
@@ -141,6 +171,23 @@ function mountFrame({ html, valid, onCite, minHeight = 80, maxHeight, label, ext
     }
   };
   window.addEventListener("message", onMessage);
+
+  // a page that stops answering (a runaway loop) is taken away so it cannot freeze the app
+  if (script) {
+    const watch = setInterval(() => {
+      if (!frame.isConnected && !stalled) { clearInterval(watch); return; }
+      if (stalled || Date.now() - lastBeat < 9000) return;
+      const note = el("div", "art-empty");
+      note.append(document.createTextNode("This page stopped responding, so it was stopped. "));
+      const again = el("button", "art-more", "Run it again");
+      again.type = "button";
+      again.addEventListener("click", () => { lastBeat = Date.now(); stalled = null; note.replaceWith(frame); frame.src = FRAME_URL; });
+      note.append(again);
+      stalled = note;
+      frame.replaceWith(note);
+      frame.src = "about:blank";
+    }, 3000);
+  }
 
   const retheme = new MutationObserver(() => frame.contentWindow?.postMessage({ type: "theme", tokens: readTokens() }, "*"));
   retheme.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
@@ -172,9 +219,15 @@ export function createArtifactView({ title, html, spec = null, error = "", compl
     return box;
   }
 
+  const scriptPage = !live && isScriptPage(kind, html);
   let checked;
   let citeInfo = null;
-  if (live) {
+  let scriptInfo = null;
+  if (scriptPage) {
+    // the page is kept exactly as written: it runs in a frame that cannot reach anything, so it is not cleaned into a static card
+    scriptInfo = checkHtmlCitations(html, sources);
+    checked = { html: String(html).slice(0, 200000), valid: scriptInfo.valid, invalid: scriptInfo.invalid };
+  } else if (live) {
     citeInfo = checkSpecCitations(kind, spec, sources);
     // the plain version is what exports, copies and the library work from
     checked = { html: specToHtml(kind, spec), valid: citeInfo.valid, invalid: citeInfo.invalid };
@@ -193,17 +246,20 @@ export function createArtifactView({ title, html, spec = null, error = "", compl
   const liveFrame = live ? { kind, spec, cites: citeInfo.map, getState: () => current, onState: saveState } : null;
 
   const inline = mountFrame({
-    html: checked.html, valid: checked.valid, onCite, label: title, maxHeight: inTab ? undefined : () => Math.max(300, window.innerHeight * 0.7), minHeight: inTab ? 240 : 80,
-    ...(live ? { kind, spec, state: current, citeMap: citeInfo.map, onState: saveState } : {})
+    html: checked.html, valid: checked.valid, onCite, label: title, maxHeight: inTab ? undefined : () => Math.max(360, window.innerHeight * 0.7), minHeight: inTab ? 240 : (scriptPage ? 360 : 80),
+    ...(live ? { kind, spec, state: current, citeMap: citeInfo.map, onState: saveState } : {}),
+    ...(scriptPage ? { state: current, onState: saveState, script: { bad: scriptInfo.bad, fillHeight: inTab } } : {})
   });
+  if (scriptPage && inTab) inline.style.height = "max(640px, 80vh)";
   box.append(inline);
+  if (scriptPage) box.append(el("p", "art-note", "This page runs its own code in a sealed frame: it cannot connect to the internet or reach your files."));
   if (!complete) box.append(el("p", "art-note", "The reply was cut off, so this may be unfinished."));
   if (checked.invalid) box.append(el("p", "art-note", `${checked.invalid} reference${checked.invalid === 1 ? "" : "s"} could not be checked against the sources and ${checked.invalid === 1 ? "is" : "are"} shown dashed.`));
 
   // "Open larger" is a tab of its own when the app can open one, and a window over the page otherwise
   const openBig = () => (onOpenTab
     ? onOpenTab({ title, html: live ? "" : checked.html, spec: live ? spec : null, kind, state: current, sources: sources || [], onCite, onKeep })
-    : openLarge({ title, checked, onCite, live: liveFrame }));
+    : openLarge({ title, checked, onCite, live: liveFrame, script: scriptPage ? { bad: scriptInfo.bad, state: current, onState: saveState } : null }));
   if (!inTab) {
     const foot = el("div", "art-foot");
     const bigger = el("button", "art-more");
@@ -234,7 +290,7 @@ export function createArtifactView({ title, html, spec = null, error = "", compl
   );
   const slides = live ? [] : slideHtml(checked.html);
   if (slides.length) tools.prepend(iconButton("fa-display", "Present as slides", () => openPresent({ title, slides, onCite })));
-  tools.append(exportMenu({ title, checked, kind, onSave }));
+  tools.append(exportMenu({ title, checked, kind, onSave, scriptPage }));
   return box;
 }
 
@@ -304,7 +360,7 @@ function openPresent({ title, slides, onCite }) {
 }
 
 // A small menu of ways to take an artifact out of the app.
-function exportMenu({ title, checked, kind, onSave }) {
+function exportMenu({ title, checked, kind, onSave, scriptPage = false }) {
   const wrap = el("span", "art-menu-wrap");
   const trigger = iconButton("fa-download", "Export", () => {
     menu.hidden = !menu.hidden;
@@ -328,7 +384,9 @@ function exportMenu({ title, checked, kind, onSave }) {
   const clean = () => withoutCites(checked.html);
   const standalone = async (tokens) => standaloneDocument(title, clean(), await loadKitCss(), tokens);
 
-  const items = [
+  // a page with scripts is saved as written (with a stand-in for the app's save helper); the other formats need a static page
+  const withShim = (page) => (/<head[^>]*>/i.test(page) ? page.replace(/<head[^>]*>/i, (m) => `${m}<script>window.tk=window.tk||{state:{},save(){},copy(){}}</script>`) : `<script>window.tk={state:{},save(){},copy(){}}</script>${page}`);
+  const items = scriptPage ? [["HTML page", "fa-code", async () => onSave?.({ title, content: withShim(withoutCites(checked.html)) })]] : [
     ["HTML page", "fa-code", async () => onSave?.({ title, content: await standalone(readTokens()) })],
     ["PDF", "fa-file-pdf", async () => notify(await api().exportArtifact({ format: "pdf", title, html: await standalone({}), kindOfArtifact: kind }), "PDF")],
     ["Image (PNG)", "fa-image", async () => notify(await api().exportArtifact({ format: "png", title, html: await standalone({}) }), "image")],
@@ -355,7 +413,7 @@ function exportMenu({ title, checked, kind, onSave }) {
   return wrap;
 }
 
-function openLarge({ title, checked, onCite, live = null }) {
+function openLarge({ title, checked, onCite, live = null, script = null }) {
   const overlay = el("div", "art-overlay");
   overlay.setAttribute("role", "dialog");
   overlay.setAttribute("aria-modal", "true");
@@ -368,7 +426,8 @@ function openLarge({ title, checked, onCite, live = null }) {
   bar.append(heading, close);
   const frame = mountFrame({
     html: checked.html, valid: checked.valid, onCite: (c) => { done(); onCite?.(c); }, label: title, minHeight: 200, maxHeight: () => window.innerHeight * 0.82,
-    ...(live ? { kind: live.kind, spec: live.spec, state: live.getState(), citeMap: live.cites, onState: live.onState } : {})
+    ...(live ? { kind: live.kind, spec: live.spec, state: live.getState(), citeMap: live.cites, onState: live.onState } : {}),
+    ...(script ? { state: script.state, onState: script.onState, script: { bad: script.bad, fillHeight: false } } : {})
   });
   panel.append(bar, frame);
   overlay.append(panel);

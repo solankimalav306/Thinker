@@ -9,7 +9,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 from services.retrieval import retrieval_service, pages_service, retrieval_multi
 from utils.page_refs import extract_page_refs
-from utils.artifacts import decide as decide_artifact, finalize as finalize_artifact, schema_hint, KINDS as ARTIFACT_KINDS
+from utils.artifacts import decide as decide_artifact, finalize as finalize_artifact, previous_artifact, schema_hint, KINDS as ARTIFACT_KINDS
 from utils.intents import constrain_intent
 from utils.sources import sources_from_hits
 from services.dictionary import dictionary_service
@@ -584,7 +584,8 @@ Return ONLY the intent label (one of: ask, define, highlight, note, mindmap, sea
 
     intent = constrain_intent(intent, normalize_mode(state.get("mode")), multi=bool(state.get("docs")))
     routed = intent
-    intent, artifact_kind = decide_artifact(intent, state.get("user_query", ""), bool(state.get("artifacts")), llm_kind)
+    before = previous_artifact(state.get("messages")) if state.get("artifacts") else None
+    intent, artifact_kind = decide_artifact(intent, state.get("user_query", ""), bool(state.get("artifacts")), llm_kind, before[0] if before else None)
     if intent == "artifact":
         print(f"[supervisor_node] Artifact wanted ({artifact_kind}); the router had said '{routed}'", flush=True)
     print(f"[supervisor_node] Final intent: '{intent}'", flush=True)
@@ -723,6 +724,7 @@ def artifact_node(state: AgentState):
         multi=bool(state.get("docs")),
         doc_title=state.get("doc_title") or "",
         artifact_kind=kind,
+        previous_artifact=previous_artifact(state.get("messages")) if kind == (previous_artifact(state.get("messages")) or ("",))[0] else None,
     )
     response = invoke_llm_tracked(llm, state, prompt, node=f"artifact_{kind}", messages=[HumanMessage(content=[{"type": "text", "text": prompt}])])
 

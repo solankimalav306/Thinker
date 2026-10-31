@@ -23,7 +23,7 @@ KINDS = {
     "timeline": ("Timeline", "events in order", True),
     "document": ("Document", "a written report or summary", True),
     "slides": ("Slides", "a slide deck", False),
-    "page": ("Web page", "any page: a calculator, a game, anything else", False),
+    "page": ("Web page", "a full interactive web page: a notes site, a tracker, a dashboard, a calculator, anything", False),
 }
 LIVE = {k for k, v in KINDS.items() if v[2]}
 
@@ -37,6 +37,7 @@ _VERB = re.compile(r"\b(make|create|build|generate|give|show|draw|write|prepare|
 # Words that name a kind, in the order they win. A document or report alone is not a request for an artifact
 # (that is a summary, or notes); it only counts when the person also says "artifact".
 _KIND_WORDS = [
+    ("page", r"\b(web[- ]?based|web ?sites?|web ?apps?|interactive (?:notes|guide|dashboard|study|site)|study site|dashboard|tracker)\b"),
     ("quiz", r"\b(quiz|quizzes|test me|mcqs?|multiple[- ]choice|practice (?:questions|test)|exam questions)\b"),
     ("flashcards", r"\b(flash ?cards?|revision cards?|memori[sz]e)\b"),
     ("slides", r"\b(slides?|slide ?deck|presentation|powerpoint)\b"),
@@ -53,7 +54,7 @@ _KIND_RE = [(kind, re.compile(pattern, re.I)) for kind, pattern in _KIND_WORDS]
 # kinds a person may ask for plainly, without saying "artifact"; the vaguer ones need the word
 _NEEDS_THE_WORD = {"document", "steps", "checklist", "table", "page"}
 # but these read as unmistakable when put with a verb of making
-_PLAIN_WITH_VERB = {"steps": r"\b(step[- ]by[- ]step|walk ?through|roadmap|study plan|plan of|action plan)\b", "checklist": r"\b(check ?lists?|to-do|todo|task list)\b",
+_PLAIN_WITH_VERB = {"page": r"\b(web[- ]?based|web ?sites?|web ?apps?|interactive (?:notes|guide|dashboard|study|site)|study site|dashboard|tracker)\b", "steps": r"\b(step[- ]by[- ]step|walk ?through|roadmap|study plan|plan of|action plan)\b", "checklist": r"\b(check ?lists?|to-do|todo|task list)\b",
                     "table": r"\b(tables?|comparison table)\b", "document": r"\b(one[- ]page(?:r)?|cheat ?sheet)\b"}
 _PLAIN_RE = {k: re.compile(v, re.I) for k, v in _PLAIN_WITH_VERB.items()}
 
@@ -75,7 +76,23 @@ def identify(query):
 _OTHER_ROUTES = {"ask", "note", "highlight", "comment", "define", "search"}
 
 
-def decide(intent, query, enabled, llm_kind=None):
+_EDIT = re.compile(r"\b(add|remove|delete|change|update|edit|modify|rewrite|shorten|expand|fix|improve|rename|replace|include|redo|rework|restyle|reorder|translate)\b", re.I)
+_REFERS = re.compile(r"\b(it|this|that|these|the (?:artifact|page|quiz|table|checklist|steps|notes|chart|diagram|timeline|slides|cards|flashcards|document|section|site|dashboard|tracker)|section|question|card|row|column)\b", re.I)
+
+
+def previous_artifact(messages):
+    """The latest artifact an earlier answer in this chat made: (kind, title, body), or None."""
+    for message in reversed(list(messages or [])):
+        if not isinstance(message, dict) or message.get("role") not in ("assistant", "bot"):
+            continue
+        found = split_reply(message.get("text") or "")
+        if found:
+            kind = (re.search(r"""\btype\s*=\s*["']?(\w+)""", re.search(r"<artifact\b[^>]*>", message.get("text") or "", re.I).group(0)) or [None, "page"])[1].lower()
+            return (kind if kind in KINDS else "page"), found[1], found[2]
+    return None
+
+
+def decide(intent, query, enabled, llm_kind=None, previous_kind=None):
     """(route, kind): "artifact" and its kind when one is wanted, otherwise the route unchanged.
 
     Saying "artifact" always gets one. Naming a kind and asking for it to be made gets one too, ahead of notes,
@@ -88,9 +105,12 @@ def decide(intent, query, enabled, llm_kind=None):
     if llm_kind not in KINDS:
         llm_kind = None
     if found["explicit"]:
-        return "artifact", kind or llm_kind or "document"
+        return "artifact", kind or llm_kind or previous_kind or "document"
     if intent == "mindmap":
         return intent, None
+    # "add a quiz section to it": changing the artifact that was just made
+    if previous_kind and intent in _OTHER_ROUTES and _EDIT.search(str(query or "")) and _REFERS.search(str(query or "")):
+        return "artifact", previous_kind
     if kind and found["verb"] and found["plain"] and intent in _OTHER_ROUTES:
         return "artifact", kind
     if llm_kind and found["verb"] and intent in _OTHER_ROUTES:
@@ -142,22 +162,57 @@ Prefer these ready-made classes (they match the app's look and theme): tk-card, 
 {extra}
 Cite sources only as <a class="tk-cite" data-cite="Exact document title|page number">label</a>, and only for passages in the context. Write maths as LaTeX between dollar signs. Keep it under about 1,000 words."""
 
+_PAGE_RULES = """You are building ONE artifact: a complete, self-contained WEB PAGE (HTML, CSS and JavaScript in a single file) that the person will use inside the app, made from the document context below.
+
+Build a real, useful, polished tool, not a text dump. Choose the shape that fits the request:
+- notes or a summary become a navigable study site: a sticky table of contents, collapsible sections, a search box that filters, highlighted key terms, tick-off checklists, and a short quiz at the end;
+- a plan or assignment becomes a tracker with steps, progress and deadlines;
+- numbers become a dashboard with charts and a sortable table;
+- a concept becomes an interactive diagram, a step-through, or a small simulation with sliders;
+- anything else: whatever tool serves it best (a calculator, a glossary, a comparison picker).
+Content comes ONLY from the context. Do not invent facts, numbers, dates or page numbers. Mark anything from general knowledge as such.
+
+Output exactly one block, nothing after it:
+<artifact title="A short title" type="page">
+<!doctype html> ... one complete HTML document ... </html>
+</artifact>
+Start with one short plain sentence before the block. No markdown fences.
+
+Technical rules:
+- All CSS in a <style> block, all JavaScript in one <script> at the end of <body>. Plain JavaScript, no frameworks, no build step. Under about 700 lines.
+- It runs in a sealed frame with NO network: no fetch, XMLHttpRequest, WebSocket, external URLs, web fonts or remote images. Draw with CSS and inline SVG. alert, confirm, prompt, window.open, eval, new Function and document.write do not work.
+- Available libraries (load only if you need them): <script src="lib/d3.min.js"></script> for charts and diagrams. Maths between dollar signs, like $x^2$, is typeset for you.
+- Progress is saved for the person: read the saved object from `tk.state` when the page starts (it may be empty) and call `tk.save(object)` after each change (ticks, answers, notes the person typed). Do not use localStorage.
+- Colours: use the CSS variables the app provides so light and dark both work: --tk-bg, --tk-surface, --tk-sunken, --tk-text, --tk-text-2, --tk-text-3, --tk-border, --tk-primary, --tk-on-primary, --tk-good, --tk-warn, --tk-bad. Set body { background: var(--tk-bg); color: var(--tk-text); font-family: system-ui }.
+- Make it responsive (it may be only 340px wide in a side panel or the full width of a tab), keyboard friendly and readable: real <button>s and <label>s, visible focus, contrast, comfortable spacing, a clear visual hierarchy.
+- Cite the source for every claim taken from the document, as <a class="tk-cite" data-cite="Exact document title|page number">Page N</a>. The visible label is only "Page N" and the attribute is the document title, a bar and the page number. Only cite passages that appear in the context."""
+
+
 _HTML_EXTRA = {
     "slides": "Make 4 to 10 slides. Each slide is <section class=\"tk-slide\"> holding one <h2> and at most five short points.",
     "page": "Make it a clear, self-contained page that serves the request.",
 }
 
 
-def prompt_for(kind, doc_title=""):
-    """The instructions that go with the question when making an artifact of this kind. Only this kind's shape is included."""
+def prompt_for(kind, doc_title="", previous=None):
+    """The instructions that go with the question when making an artifact of this kind. Only this kind's shape is included.
+
+    `previous` is the artifact being changed, when the person is editing one: (kind, title, body). The reply is then the whole updated artifact.
+    """
     label, hint, live = KINDS.get(kind, KINDS["document"])
-    if not live:
+    if kind == "page":
+        text = _PAGE_RULES
+    elif not live:
         text = _HTML_RULES.format(label=label, hint=hint, kind=kind, extra=_HTML_EXTRA.get(kind, ""))
     else:
         shape, notes = _SHAPES[kind]
         text = _COMMON.format(label=label, hint=hint, kind=kind, shape=shape) + "\n" + notes
     if doc_title:
         text += f'\nThe only document is titled "{doc_title}", so cite as "{doc_title}|page number".'
+    if previous:
+        _kind, title, body = previous
+        text += (f'\n\nThe person is CHANGING an artifact that already exists. Return the complete updated artifact (same type, same overall design unless asked to change it), '
+                 f'with only the requested changes applied. Do not return a diff or a description.\nTitle: {title}\nCurrent artifact:\n{body[:60000]}')
     return text
 
 
@@ -342,6 +397,8 @@ def finalize(kind, reply, repair=None):
     version. When it still is not usable the person gets the model's words as plain text instead of a broken card.
     """
     reply = str(reply or "")
+    if kind == "page":
+        return _finalize_page(reply)
     if kind not in LIVE:
         return reply
     parts = split_reply(reply)
@@ -360,3 +417,18 @@ def finalize(kind, reply, repair=None):
             break
     # not usable: say what we have as words
     return re.sub(r"</?artifact[^>]*>", "", reply).strip() or "I could not make that. Please try asking again."
+
+
+def _finalize_page(reply):
+    """A web page is kept as written, once it is plainly a page: one block, with real HTML in it and a sensible size."""
+    parts = split_reply(reply)
+    if not parts:
+        return reply.strip() or "I could not make that. Please try asking again."
+    intro, title, body = parts
+    body = re.sub(r"^```(?:html)?\s*", "", body, flags=re.I)
+    body = re.sub(r"\s*```$", "", body)
+    if len(body) < 120 or not re.search(r"<(?:html|body|div|section|main|article|h1|h2|p)\b", body, re.I):
+        return re.sub(r"</?artifact[^>]*>", "", reply).strip() or "I could not make that. Please try asking again."
+    body = body[:180000].replace("</artifact", "<\\/artifact")
+    safe_title = re.sub(r'["<>&\n]', " ", title or "Web page").strip()[:80]
+    return f'{intro.strip() or "Here is your page."}\n<artifact title="{safe_title}" type="page">\n{body}\n</artifact>'
