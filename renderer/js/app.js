@@ -1732,6 +1732,8 @@ async function boot() {
   itemOpeners.open = { space: (id) => spaces.showDetail(id), tex: (id) => texStudio.openProject(id), artifact: (id) => artifactsLibrary.open(id) };
   itemOpeners.list = { space: () => spaces.showList(), tex: () => texStudio.showHome(), artifact: () => artifactsLibrary.showList() };
   elements.navArtifacts.addEventListener("click", () => artifactsLibrary.showList());
+  // "Open in a tab" on an artifact card in any chat
+  window.addEventListener("thinker:open-artifact", (event) => artifactsLibrary.openDraft(event.detail));
   window.addEventListener("thinker:home-shown", () => spaces.refreshHome().catch(() => {}));
   spaces.refreshHome().catch(() => {});
   renderHelp(elements.helpContent, {

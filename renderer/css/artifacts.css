@@ -195,3 +195,20 @@
 .share-pin { justify-content: space-between; padding: var(--space-2) var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-md); }
 .share-pin-text { display: flex; flex-direction: column; min-width: 0; }
 .share-pin-value { margin-left: auto; font-size: 1.5rem; }
+
+/* an artifact opened in a tab uses the room it has */
+.lib-page-wide {
+  width: min(1180px, 100%);
+}
+
+.lib-draft-title {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.lib-draft-note {
+  color: var(--text-3);
+  font-size: 0.85rem;
+}

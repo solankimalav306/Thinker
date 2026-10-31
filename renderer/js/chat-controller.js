@@ -93,6 +93,7 @@ export class ChatController {
         wrap.appendChild(createArtifactView({
           title: part.title, html: part.html, spec: part.spec, error: part.error, complete: part.complete, sources: sources || [], kind: part.kind,
           onCite: ({ page }) => window.dispatchEvent(new CustomEvent("navigate-pdf-page", { detail: { page } })),
+          onOpenTab: (payload) => window.dispatchEvent(new CustomEvent("thinker:open-artifact", { detail: payload })),
           onKeep: async (file) => {
             const saved = await window.electronAPI.createArtifact({ title: part.title, html: file.html, spec: file.spec, state: file.state, kind: part.kind, sources: sources || [] });
             this.onStatus(`Saved "${saved.title}" to Artifacts.`);

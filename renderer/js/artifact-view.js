@@ -115,7 +115,8 @@ function mountFrame({ html, valid, onCite, minHeight = 80, maxHeight, label, ext
 
   const send = async () => {
     const css = (await loadKitCss()) + extraCss;
-    frame.contentWindow?.postMessage(spec ? { type: "render", kind, spec, state: state || {}, cites: citeMap || {}, css, tokens: readTokens() } : { type: "render", html, css, tokens: readTokens() }, "*");
+    const fit = !maxHeight || fixed;
+    frame.contentWindow?.postMessage(spec ? { type: "render", kind, spec, state: state || {}, cites: citeMap || {}, css, tokens: readTokens(), fit } : { type: "render", html, css, tokens: readTokens(), fit }, "*");
   };
 
   const onMessage = (event) => {
@@ -153,7 +154,7 @@ export function standaloneDocument(title, html, css, tokens) {
   return `<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">\n<title>${safeTitle}</title>\n<style>:root{${vars}}\n${css}</style></head>\n<body><div id="root">${html}</div></body></html>\n`;
 }
 
-export function createArtifactView({ title, html, spec = null, error = "", complete = true, sources, onCite, onSave, onKeep, onState, state = null, kind = "page" }) {
+export function createArtifactView({ title, html, spec = null, error = "", complete = true, sources, onCite, onSave, onKeep, onState, state = null, kind = "page", onOpenTab = null, inTab = false }) {
   const live = Boolean(spec);
   const box = el("section", "art-frame");
   box.setAttribute("aria-label", `Artifact: ${title}`);
@@ -192,20 +193,26 @@ export function createArtifactView({ title, html, spec = null, error = "", compl
   const liveFrame = live ? { kind, spec, cites: citeInfo.map, getState: () => current, onState: saveState } : null;
 
   const inline = mountFrame({
-    html: checked.html, valid: checked.valid, onCite, label: title, maxHeight: () => Math.max(300, window.innerHeight * 0.7),
+    html: checked.html, valid: checked.valid, onCite, label: title, maxHeight: inTab ? undefined : () => Math.max(300, window.innerHeight * 0.7), minHeight: inTab ? 240 : 80,
     ...(live ? { kind, spec, state: current, citeMap: citeInfo.map, onState: saveState } : {})
   });
   box.append(inline);
   if (!complete) box.append(el("p", "art-note", "The reply was cut off, so this may be unfinished."));
   if (checked.invalid) box.append(el("p", "art-note", `${checked.invalid} reference${checked.invalid === 1 ? "" : "s"} could not be checked against the sources and ${checked.invalid === 1 ? "is" : "are"} shown dashed.`));
 
-  const foot = el("div", "art-foot");
-  const bigger = el("button", "art-more");
-  bigger.type = "button";
-  bigger.append(el("i", "fa-solid fa-up-right-and-down-left-from-center"), document.createTextNode(" Open larger"));
-  bigger.addEventListener("click", () => openLarge({ title, checked, onCite, live: liveFrame }));
-  foot.append(bigger);
-  box.append(foot);
+  // "Open larger" is a tab of its own when the app can open one, and a window over the page otherwise
+  const openBig = () => (onOpenTab
+    ? onOpenTab({ title, html: live ? "" : checked.html, spec: live ? spec : null, kind, state: current, sources: sources || [], onCite, onKeep })
+    : openLarge({ title, checked, onCite, live: liveFrame }));
+  if (!inTab) {
+    const foot = el("div", "art-foot");
+    const bigger = el("button", "art-more");
+    bigger.type = "button";
+    bigger.append(el("i", "fa-solid fa-up-right-and-down-left-from-center"), document.createTextNode(onOpenTab ? " Open in a tab" : " Open larger"));
+    bigger.addEventListener("click", openBig);
+    foot.append(bigger);
+    box.append(foot);
+  }
 
   if (onKeep) {
     const keep = iconButton("fa-bookmark", "Save to Artifacts", async () => {
@@ -221,8 +228,8 @@ export function createArtifactView({ title, html, spec = null, error = "", compl
     });
     tools.append(keep);
   }
+  if (!inTab) tools.append(iconButton("fa-up-right-and-down-left-from-center", onOpenTab ? "Open in a tab" : "Open larger", openBig));
   tools.append(
-    iconButton("fa-up-right-and-down-left-from-center", "Open larger", () => openLarge({ title, checked, onCite, live: liveFrame })),
     iconButton("fa-copy", live ? "Copy as text" : "Copy the HTML", () => navigator.clipboard?.writeText(live ? specToText(kind, spec) : checked.html).catch(() => {}))
   );
   const slides = live ? [] : slideHtml(checked.html);

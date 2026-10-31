@@ -51,6 +51,7 @@
   }
 
   function render(data) {
+    document.documentElement.style.overflowY = data.fit ? "hidden" : "";
     if (typeof data.css === "string") kitStyle.textContent = data.css.slice(0, 200000);
     applyTokens(data.tokens);
     // an interactive artifact arrives as data and is drawn by Thinker's own code

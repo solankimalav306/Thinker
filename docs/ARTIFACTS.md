@@ -43,6 +43,36 @@ highlights, comments, definitions and web search (a mind map still gets its own 
 4. In the app the HTML is cleaned (DOMPurify), every `data-cite="Title|page"` is checked against those sources,
    and the result is sent into a sandboxed frame that cleans it again.
 
+## Kinds, and how they are made (2026-10-31)
+An artifact is one of a short fixed list. Most are **drawn from data**: the model writes a small JSON description and Thinker's own code
+draws and runs it, so a to-do really ticks, a quiz scores you, flashcards flip, a table sorts, a diagram can be clicked. That is cheaper to
+produce, always looks right, can be checked before it is shown, and needs no code from the model. Maths between dollar signs is drawn with KaTeX.
+
+| Kind | What you get |
+|---|---|
+| checklist | tasks with progress and groups |
+| steps | a plan or guide, one step at a time, marked off as you go |
+| quiz | questions, instant feedback, a score and what to review |
+| flashcards | cards to flip, "got it" and "again" |
+| table | sortable and filterable |
+| chart | bar, line or pie, sized to the space |
+| diagram | a flowchart (left-to-right or top-to-bottom) or a mind map; click a box to read more |
+| timeline | events in order |
+| document | a written report |
+| slides, page | written as HTML (page-style) |
+
+**Workflow in the agent.** One step decides that an artifact is wanted and which kind: the words (saying "artifact", or naming a kind and asking for it
+to be made) or, when the words do not say, the router's own label `artifact:<kind>`. A separate step makes it, with the instructions for that kind only,
+checks the data, asks the model to repair it once if it is wrong, and otherwise gives you the words instead of a broken card. An ordinary question carries
+none of this in its prompt. (`agent-handler/utils/artifacts.py`, the `artifact` node in `graph.py`.)
+
+**Progress** (ticks, answers) is kept: on this computer for a card in a chat, and with the artifact in the library (database migration 4: `spec`, `state`).
+**Open in a tab** opens a card from any chat in a tab of its own (same view, all exports, Save to Artifacts) instead of a window. Older artifacts that were
+written as pages still show as pages.
+
+**Not done yet:** a free-form interactive page (the model's own HTML and script, run only after you click Run, in a stricter frame); showing data-based
+artifacts on a shared guest page; checking every export for each kind.
+
 ## Safety model
 - **Sandbox**: `sandbox="allow-scripts"` only (no same-origin, no popups, forms or navigation). The frame cannot read the app.
   Scripts are allowed solely so the frame's own bridge can run; the page's policy refuses everything else.

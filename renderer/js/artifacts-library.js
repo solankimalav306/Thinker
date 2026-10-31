@@ -96,7 +96,38 @@ export function createArtifactsLibrary({ container, api = window.electronAPI, op
     await draw();
   }
 
+  // An artifact from a chat that has not been saved: shown in a tab, with the same view, export and Save to Artifacts.
+  const drafts = new Map();
+  const hashOf = (text) => { let h = 5381; for (let i = 0; i < text.length; i += 1) h = ((h * 33) ^ text.charCodeAt(i)) >>> 0; return h.toString(36); };
+
+  function openDraft(payload) {
+    const id = `draft-${hashOf(`${payload.title}|${payload.kind}|${JSON.stringify(payload.spec || payload.html || "")}`)}`;
+    drafts.set(id, payload);
+    return open(id);
+  }
+
+  function showDraft(id) {
+    const d = drafts.get(id);
+    go?.();
+    onItem({ kind: "artifact", id, title: d.title });
+    container.textContent = "";
+    const page = el("div", "lib-page lib-page-wide");
+    const bar = el("div", "lib-bar");
+    bar.append(button("All artifacts", "btn", "fa-arrow-left", () => showList()));
+    const heading = el("div", "lib-draft-title");
+    heading.append(el("strong", "", d.title), el("span", "lib-draft-note", "Not saved yet. Use the bookmark on the card to keep it in Artifacts."));
+    bar.append(heading);
+    const view = createArtifactView({
+      title: d.title, html: d.html, spec: d.spec, kind: d.kind, state: d.state, sources: d.sources, inTab: true,
+      onCite: d.onCite, onKeep: d.onKeep,
+      onSave: (file) => api.saveTextFile({ defaultPath: `${safeName(file.title)}.html`, content: file.content, filters: [{ name: "HTML page", extensions: ["html"] }] })
+    });
+    page.append(bar, view);
+    container.append(page);
+  }
+
   async function open(id) {
+    if (drafts.has(id)) { showDraft(id); return; }
     go?.();
     const item = await api.getArtifact(id);
     if (!item) { setStatus("That artifact no longer exists."); showList(); return; }
@@ -104,7 +135,7 @@ export function createArtifactsLibrary({ container, api = window.electronAPI, op
     onItem({ kind: "artifact", id: item.id, title: item.title });
     const space = item.workspaceId ? await api.getWorkspace(item.workspaceId).catch(() => null) : null;
     container.textContent = "";
-    const page = el("div", "lib-page");
+    const page = el("div", "lib-page lib-page-wide");
 
     const bar = el("div", "lib-bar");
     bar.append(button("All artifacts", "btn", "fa-arrow-left", () => showList()));
@@ -160,6 +191,7 @@ export function createArtifactsLibrary({ container, api = window.electronAPI, op
       onState: (value) => api.updateArtifact(item.id, { state: value }).catch(() => {}),
       sources: item.sources,
       kind: item.kind,
+      inTab: true,
       onCite: ({ doc, page: n }) => {
         const d = docs.find((x) => x.title.toLowerCase() === doc.toLowerCase());
         if (d?.path) openPdfAt(d.path, n);
@@ -171,5 +203,5 @@ export function createArtifactsLibrary({ container, api = window.electronAPI, op
     container.append(page);
   }
 
-  return { showList, open };
+  return { showList, open, openDraft };
 }
