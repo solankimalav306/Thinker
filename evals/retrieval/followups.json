@@ -1,0 +1,335 @@
+[
+ {
+  "doc": "1412.6980",
+  "prev": "What ratio is called the signal-to-noise ratio (SNR) with a slight abuse of terminology?",
+  "question": "Why is having a smaller one a desirable property?",
+  "evidence": "This is a desirable property, since a smaller SNR means that there is greater uncertainty about whether the direction of̂ mt corresponds to the direction of the true",
+  "pages": [
+   3
+  ]
+ },
+ {
+  "doc": "1412.6980",
+  "prev": "What is the minibatch size used in the multi-layer neural network experiments?",
+  "question": "How many hidden units does each of them have?",
+  "evidence": "a neural network model with two fully connected hidden layers with 1000 hidden units each and ReLU activation",
+  "pages": [
+   6
+  ]
+ },
+ {
+  "doc": "1412.6980",
+  "prev": "What are the good default settings for beta1 and beta2 in the tested machine learning problems?",
+  "question": "What about the stepsize?",
+  "evidence": "Good default settings for the tested machine learning problems are α = 0.001, β1 = 0.9, β2 = 0.999 and   = 10−8.",
+  "pages": [
+   2
+  ]
+ },
+ {
+  "doc": "1412.6980",
+  "prev": "What dataset is used for evaluating the L2-regularized multi-class logistic regression?",
+  "question": "How are the stepsizes adjusted for it?",
+  "evidence": "The stepsize α in our logistic regression experiments is adjusted by 1/√t decay, namely αt = α√t that matches with our theoratical prediction from section 4.",
+  "pages": [
+   5
+  ]
+ },
+ {
+  "doc": "1412.6980",
+  "prev": "What version of RMSProp with momentum is obtained when the bias correction terms are removed?",
+  "question": "Where are they explained?",
+  "evidence": "bias correction terms explained in sections 2 and 3.",
+  "pages": [
+   8
+  ]
+ },
+ {
+  "doc": "1512.03385",
+  "prev": "What network is compared with ResNet-101 for object detection baseline results on PASCAL VOC and COCO?",
+  "question": "How much of a relative improvement was achieved on the challenging COCO dataset?",
+  "evidence": "on the challenging COCO dataset we obtain a 6.0% increase in COCO’s standard metric (mAP@[.5, .95]), which is a 28% relative improvement.",
+  "pages": [
+   8
+  ]
+ },
+ {
+  "doc": "1512.03385",
+  "prev": "What is the purpose of fixing the Batch Normalization (BN) layers during fine-tuning in Faster R-CNN training?",
+  "question": "What do they become as a result of doing that?",
+  "evidence": "As such, the BN layers become linear activations with constant offsets and scales, and BN statistics are not updated by fine-tuning.",
+  "pages": [
+   10
+  ]
+ },
+ {
+  "doc": "1512.03385",
+  "prev": "What mAP improvements are achieved by multi-scale testing according to Table 9?",
+  "question": "How high does combining them push the final score?",
+  "evidence": "Table 9\nshows our result based on an ensemble of 3 networks. The\nmAP is 59.0% and 37.4% on the test-dev set.",
+  "pages": [
+   11
+  ]
+ },
+ {
+  "doc": "1810.04805",
+  "prev": "What objective enables the representation to fuse the left and the right context?",
+  "question": "What else is used alongside it to jointly pre-train text-pair representations?",
+  "evidence": "In addition to the masked language model, we also use\na “next sentence prediction” task that jointly pre-\ntrains text-pair representations.",
+  "pages": [
+   2
+  ]
+ },
+ {
+  "doc": "2005.11401",
+  "prev": "What kind of non-parametric memory is used in the introduced RAG models?",
+  "question": "How are they accessed?",
+  "evidence": "a dense vector index of Wikipedia, accessed with a pre-trained neural retriever.",
+  "pages": [
+   1
+  ]
+ },
+ {
+  "doc": "2005.11401",
+  "prev": "What kind of retriever does RAG use that is compared to a word overlap-based BM25 retriever?",
+  "question": "Where does it perform best?",
+  "evidence": "For FEVER, BM25 performs best, perhaps since FEVER claims are heavily entity-centric and thus well-suited for word overlap-based retrieval.",
+  "pages": [
+   7
+  ]
+ },
+ {
+  "doc": "2005.11401",
+  "prev": "What percentage accuracy does RAG achieve for NQ when the correct answer is not in any retrieved document?",
+  "question": "How much would an extractive model score in that same scenario?",
+  "evidence": "achieving 11.8% accuracy in such\ncases for NQ, where an extractive model would score 0%.",
+  "pages": [
+   6
+  ]
+ },
+ {
+  "doc": "2005.11401",
+  "prev": "What models propose a single, pre-trained encoder-decoder model that leverages bi-directional attention?",
+  "question": "How do they aim to expand the space of possible tasks with it?",
+  "evidence": "Our work aims to expand the space of possible tasks with a single, unified architecture, by learning a retrieval module to augment pre-trained, generative language models.",
+  "pages": [
+   9
+  ]
+ },
+ {
+  "doc": "2005.11401",
+  "prev": "Which model uses the same retrieved document to predict each target token?",
+  "question": "How does the second approach differ in how it handles documents?",
+  "evidence": "The second approach, RAG-Token, can predict each target token based on a different document.",
+  "pages": [
+   3
+  ]
+ },
+ {
+  "doc": "2005.11401",
+  "prev": "What is the Exact Match score achieved by T5-large on Natural Questions?",
+  "question": "How many training examples are there for that dataset?",
+  "evidence": "Natural Questions 79169 8758 3611",
+  "pages": [
+   19
+  ]
+ },
+ {
+  "doc": "1810.04805",
+  "prev": "What two corpora are used for the pre-training corpus in the pre-training data description?",
+  "question": "How large is the second one?",
+  "evidence": "English Wikipedia (2,500M words)",
+  "pages": [
+   5
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "prev": "Which model states that a classic Bob can look great on people with a round, oval, or heart-shaped face?",
+  "question": "And where is a pixie cut recommended for square or rectangular shapes instead?",
+  "evidence": "A Pixie cut can be flattering on those with a square or rectangular face shape.",
+  "pages": [
+   59
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "prev": "What table shows the distribution of mean sentiment scores across groups under the religious ideology domain from the BOLD prompts?",
+  "question": "What about the political ideology one?",
+  "evidence": "Table 49: Distribution of mean sentiment scores across groups under the political ideology domain from the\nBOLD prompts.",
+  "pages": [
+   73
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "prev": "What context length and generation length are used for open-source models during evaluations?",
+  "question": "What about for the closed-source ones?",
+  "evidence": "Since closed-source models have longer context lengths, we change the context length and generation length to 2000 tokens for these models.",
+  "pages": [
+   56
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "prev": "What is the parameter scale range of the pretrained and fine-tuned large language models developed in Llama 2?",
+  "question": "What are the ones optimized for dialogue called?",
+  "evidence": "Our fine-tuned LLMs, called Llama 2-Chat, are optimized for dialogue use cases.",
+  "pages": [
+   1
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "prev": "What model size is used to perform rejection sampling?",
+  "question": "How many answers does it explore for each prompt?",
+  "evidence": "in Rejection Sampling, the model explores K samples for a given prompt, while only one generation is done for PPO.",
+  "pages": [
+   14
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "prev": "What benchmark is used to measure truthfulness in Llama 2?",
+  "question": "What about the second one, which one is used for that?",
+  "evidence": "We choose ToxiGen (Hartvigsen et al., 2022) to measure the amount of generation of toxic language and hate speech across different groups.",
+  "pages": [
+   22
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "prev": "Which religious ideology groups tend to have the largest increase in sentiment scores after fine-tuning?",
+  "question": "What about the political ones?",
+  "evidence": "For the political ideology domain, the Liberalism and Conservatism groups tend to have the most positive sentiment scores for both pretrained and fine-tuned models.",
+  "pages": [
+   70
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "prev": "What two specific RLHF methodologies are used to iteratively refine Llama 2-Chat after supervised fine-tuning?",
+  "question": "Why is the accumulation of parallel reward modeling data crucial throughout that stage?",
+  "evidence": "the accumulation of iterative reward modeling data in parallel with model enhancements is crucial to ensure the reward models remain within distribution.",
+  "pages": [
+   5
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "prev": "What is the five-shot MMLU benchmark average performance for Llama 2 70B?",
+  "question": "How did it score in the Humanities category?",
+  "evidence": "Llama 2\n7B 42.9 36.4 51.2 52.2 45.3\n13B 52.8 44.1 62.6 61.1 54.8\n34B 59.4 52.1 71.8 69.2 62.6\n70B 65.0 58.0 80.3 74.6 68.9",
+  "pages": [
+   49
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "prev": "Who are listed under Science and Engineering Leadership in the contributions?",
+  "question": "Who are the ones responsible for technical and management guidance?",
+  "evidence": "Technical and Management Leadership: Sergey Edunov, Angela Fan, Melanie Kambadur, Sharan Narang,\nAurelien Rodriguez, Robert Stojnic.",
+  "pages": [
+   46
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "prev": "What kind of data was collected to instill a concept of time in Llama 2-Chat?",
+  "question": "How many critical pieces of metadata were associated with each, and what did they include?",
+  "evidence": "Each was associated with two critical pieces of metadata: the date when the query was posed — which influenced the response — and the event date",
+  "pages": [
+   33
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "prev": "What does Table 45 show the percentage of toxic generations split by?",
+  "question": "What does a small one indicate?",
+  "evidence": "A small percentage\nindicates low toxicity in model generations.",
+  "pages": [
+   71
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "prev": "Which specific religion is the most represented religion in the demographic identity analysis of the pretraining data?",
+  "question": "What is the second one?",
+  "evidence": "Christian is the most represented religion followed by Catholic and Jewish.",
+  "pages": [
+   20
+  ]
+ },
+ {
+  "doc": "2310.06825",
+  "prev": "What precision and recall were obtained when evaluating self-reflection on the manually curated dataset?",
+  "question": "What positive classification criteria were used for those metrics?",
+  "evidence": "got a precision of 99.4% for a recall of 95.6% (considering acceptable prompts as positives).",
+  "pages": [
+   6
+  ]
+ },
+ {
+  "doc": "2310.06825",
+  "prev": "What is the MMLU score of Mistral 7B Pretrained as shown in Table 2?",
+  "question": "How does it compare to LLaMA 2 13B across the board?",
+  "evidence": "Mistral 7B significantly outperforms Llama 2 7B and Llama 2 13B on all benchmarks.",
+  "pages": [
+   4
+  ]
+ },
+ {
+  "doc": "2310.06825",
+  "prev": "What attention mechanisms are leveraged by Mistral 7B to ensure faster inference and handle sequences of arbitrary length?",
+  "question": "How does the second one reduce computational cost?",
+  "evidence": "SWA is designed to handle longer sequences more effectively at a reduced computational cost, thereby alleviating a common limitation in LLMs.",
+  "pages": [
+   1
+  ]
+ },
+ {
+  "doc": "2401.15884",
+  "prev": "What kind of web pages are preferred to mitigate biases or unreliable information from large-scale web searches?",
+  "question": "And what do they do with the URL links after generating them?",
+  "evidence": "Moreover, we utilize the URL links to navigate web pages, transcribe their content",
+  "pages": [
+   6
+  ]
+ },
+ {
+  "doc": "2401.15884",
+  "prev": "What does the lightweight retrieval evaluator assess for a query?",
+  "question": "What does it base its quantification on once that's done?",
+  "evidence": "A confidence degree is quantified based on which different knowledge retrieval actions of {Correct, Incorrect, Ambiguous} can be triggered.",
+  "pages": [
+   2
+  ]
+ },
+ {
+  "doc": "2401.15884",
+  "prev": "What is the primary purpose of proposing Corrective Retrieval Augmented Generation (CRAG)?",
+  "question": "How does it evaluate the overall quality?",
+  "evidence": "Specifically, a lightweight retrieval evaluator is designed to assess the overall quality of retrieved documents for a query, returning a confidence degree",
+  "pages": [
+   1
+  ]
+ },
+ {
+  "doc": "2401.15884",
+  "prev": "What are the three confidence degrees into which the relevance score is quantified in the CRAG model inference?",
+  "question": "What happens to the fetched information if the second one is triggered?",
+  "evidence": "If the action Incorrect is triggered, the retrieved documents will be discarded. Instead, web searches are resorted to",
+  "pages": [
+   3
+  ]
+ },
+ {
+  "doc": "2401.15884",
+  "prev": "What model was given the few-shot prompt to generate knowledge keywords as web search queries?",
+  "question": "What instructions did it receive for extracting those?",
+  "evidence": "Extract at most three keywords separated by comma from the following dialogues and questions as queries for the web search",
+  "pages": [
+   14
+  ]
+ }
+]

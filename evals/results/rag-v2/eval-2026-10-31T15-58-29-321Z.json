@@ -1,0 +1,139 @@
+{
+  "summary": {
+    "model": "gemini-3.5-flash-lite",
+    "when": "2026-10-31T15:58:29.320Z",
+    "runs": 5,
+    "correct": 4,
+    "byKind": {
+      "contradiction": "2/2",
+      "unanswerable": "2/3"
+    },
+    "citationOk": "100%",
+    "retrievalHit": "100%",
+    "medianMs": 5668,
+    "avgTokens": 964
+  },
+  "results": [
+    {
+      "id": "C1",
+      "kind": "contradiction",
+      "run": 1,
+      "mode": "auto",
+      "question": "How often are lifeboat drills held now?",
+      "answer": "Lifeboat drills are held every 14 days, effective from 1 March 2024 (shortened from the previous 30-day interval) [Page 3, Page 11].",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [
+        3,
+        11
+      ],
+      "citeOk": true,
+      "retrievedPages": [
+        3,
+        11,
+        8
+      ],
+      "retrievalHit": true,
+      "ms": 5859,
+      "tokens": 935
+    },
+    {
+      "id": "C2",
+      "kind": "contradiction",
+      "run": 1,
+      "mode": "auto",
+      "question": "Did the muster time limit change in the 2024 revision?",
+      "answer": "No, the muster time limit is unchanged in the 2024 revision [Page 11].",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [
+        11
+      ],
+      "citeOk": true,
+      "retrievedPages": [
+        11,
+        1,
+        7
+      ],
+      "retrievalHit": true,
+      "ms": 5362,
+      "tokens": 1005
+    },
+    {
+      "id": "U1",
+      "kind": "unanswerable",
+      "run": 1,
+      "mode": "auto",
+      "question": "What is the name of the company's chief executive?",
+      "answer": "The chief executive is not named in the document [Page 2].",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [
+        2
+      ],
+      "citeOk": null,
+      "retrievedPages": [
+        2,
+        12,
+        7
+      ],
+      "retrievalHit": true,
+      "ms": 5668,
+      "tokens": 946
+    },
+    {
+      "id": "U2",
+      "kind": "unanswerable",
+      "run": 1,
+      "mode": "auto",
+      "question": "What does the manual say about ballast water treatment?",
+      "answer": "Based on the provided document context, the manual does not contain any information regarding ballast water treatment.",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [],
+      "citeOk": null,
+      "retrievedPages": [
+        11,
+        10,
+        7
+      ],
+      "retrievalHit": null,
+      "ms": 5334,
+      "tokens": 987
+    },
+    {
+      "id": "U3",
+      "kind": "unanswerable",
+      "run": 1,
+      "mode": "auto",
+      "question": "What is the port fee at Hamburg?",
+      "answer": "The provided document does not contain information about the port fee at Hamburg. It only lists the standard port fees per call for Rotterdam (12,400 EUR), Singapore (9,800 USD), and Santos (7,150 USD) [Page 6].",
+      "intent": "ask",
+      "error": null,
+      "correct": false,
+      "problems": [
+        "forbidden /\\d{1,2},\\d{3}\\s*(EUR|USD)/"
+      ],
+      "cited": [
+        6
+      ],
+      "citeOk": null,
+      "retrievedPages": [
+        12,
+        6,
+        9
+      ],
+      "retrievalHit": true,
+      "ms": 5767,
+      "tokens": 948
+    }
+  ]
+}

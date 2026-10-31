@@ -1,4 +1,5 @@
 import { buildLinkLayer } from "./pdf-links.js";
+import { pageText } from "./page-text.js";
 import { mostVisiblePage, anchorFromScroll, scrollFromAnchor, scaleAfterWheel, createWheelTurner } from "./page-geometry.js";
 
 export function toPdfSource(path) {
@@ -249,7 +250,7 @@ export class PdfController {
       const page = await this.pdfDoc.getPage(i);
       const content = await page.getTextContent();
 
-      const text = content.items.map(item => item.str).join(" ");
+      const text = pageText(content);
 
       pagesText.push({
         page: i,

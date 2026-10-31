@@ -8,6 +8,8 @@ from langgraph.graph import StateGraph, END
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 from services.retrieval import retrieval_service, pages_service, retrieval_multi
+from utils.chunking import split_by_page
+from utils.followup import retrieval_query
 from utils.page_refs import extract_page_refs
 from utils.artifacts import decide as decide_artifact, finalize as finalize_artifact, previous_artifact, schema_hint, source_artifact, KINDS as ARTIFACT_KINDS
 from utils.intents import constrain_intent
@@ -591,35 +593,26 @@ Return ONLY the intent label (one of: ask, define, highlight, note, mindmap, sea
     print(f"[supervisor_node] Final intent: '{intent}'", flush=True)
     
     # Retrieve RAG context with token-saving dynamic context reduction
-    k_val = 3
-    summary_emb = cache.get("summary", {}).get("embedding")
-    if summary_emb and state["user_query"]:
-        try:
-            from embeddings import embed
-            q_emb = embed(["query: " + state["user_query"]])[0].tolist()
-            similarity = compute_similarity(q_emb, summary_emb)
-            print(f"[supervisor_node] Query vs Cache Similarity: {similarity:.4f}", flush=True)
-            # High semantic overlap: reduce RAG size to save tokens!
-            if similarity > 0.75:
-                k_val = 1
-                print(f"[supervisor_node] High similarity (>0.75) detected. Reducing RAG chunks to k=1.", flush=True)
-            elif similarity > 0.65:
-                k_val = 2
-                print(f"[supervisor_node] Moderate similarity (>0.65) detected. Reducing RAG chunks to k=2.", flush=True)
-        except Exception as e:
-            print(f"[supervisor_node] Error evaluating query-cache similarity: {e}", flush=True)
+    # Passages are about 140 words, so five of them cost what three page-sized ones used to, and the answer is
+    # in the top five for roughly nine questions in ten. (The old shortcut of fetching fewer when the question
+    # resembled the chat's summary is gone: it fetched one passage for follow-ups, which is when the answer is least predictable.)
+    k_val = 5
+    # "and what about its cost?" is searched together with the question it follows
+    search_query = retrieval_query(state["user_query"], state.get("messages"), state.get("user_context", ""))
+    if search_query != state["user_query"]:
+        print(f"[supervisor_node] Follow-up searched as: {search_query[:160]!r}", flush=True)
 
     if state.get("docs"):
         rag_res = retrieval_multi({
-            "query": state["user_query"],
+            "query": search_query,
             "docs": state["docs"],
             "storagePath": state["storage_path"],
-            "k": 6,
-            "perDoc": 3
+            "k": 8,
+            "perDoc": 4
         })
     else:
         rag_res = retrieval_service({
-            "query": state["user_query"],
+            "query": search_query,
             "pdfId": state["pdf_id"],
             "storagePath": state["storage_path"],
             "k": k_val
@@ -639,12 +632,12 @@ Return ONLY the intent label (one of: ask, define, highlight, note, mindmap, sea
 
     chunks = []
     for hit in hits:
-        page = hit.get("page", "?")
-        text = hit.get("text", "")
-        if hit.get("doc"):
-            chunks.append(f"[{hit['doc']}, page {page}] {text}")
-        else:
-            chunks.append(f"[Page {page}] {text}")
+        # a passage that runs across a page break is shown in two parts, each under its own page
+        for page, text in split_by_page(hit):
+            if hit.get("doc"):
+                chunks.append(f"[{hit['doc']}, page {page}] {text}")
+            else:
+                chunks.append(f"[Page {page}] {text}")
     
     return {
         "intent": intent,
@@ -1040,15 +1033,15 @@ def run_parallel_workers(state: AgentState) -> Dict:
             search_query = queries.get(title, f"{title} in document")
             print(f"  [Worker - {title}] Querying local RAG index with: '{search_query}'", flush=True)
             
-            # Local RAG retrieval with k=3 to optimize tokens (down from k=5)
+            # Local RAG retrieval, five passages per section
             rag_res = retrieval_service({
                 "query": search_query,
                 "pdfId": state["pdf_id"],
                 "storagePath": state["storage_path"],
-                "k": 3
+                "k": 5
             })
             hits = rag_res.get("chunks", []) if isinstance(rag_res, dict) else []
-            chunks = [f"[Page {h.get('page', '?')}] {h.get('text', '')}" for h in hits]
+            chunks = [f"[Page {page}] {text}" for h in hits for page, text in split_by_page(h)]
             section_context = "\n".join(chunks)
             print(f"  [Worker - {title}] Retrieved {len(hits)} RAG chunks (total context: {len(section_context)} chars). Calling LLM...", flush=True)
             

@@ -1,0 +1,144 @@
+{
+  "summary": {
+    "model": "gemini-3.5-flash-lite",
+    "when": "2026-10-31T15:56:39.091Z",
+    "runs": 5,
+    "correct": 5,
+    "byKind": {
+      "numeric": "2/2",
+      "multi-page": "3/3"
+    },
+    "citationOk": "100%",
+    "retrievalHit": "100%",
+    "medianMs": 5374,
+    "avgTokens": 965
+  },
+  "results": [
+    {
+      "id": "N3",
+      "kind": "numeric",
+      "run": 1,
+      "mode": "auto",
+      "question": "The fleet has 14 vessels. How many are not container ships?",
+      "answer": "There are 5 vessels that are not container ships (3 bulk carriers and 2 tankers) [Page 2].",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [
+        2
+      ],
+      "citeOk": true,
+      "retrievedPages": [
+        2,
+        4,
+        5
+      ],
+      "retrievalHit": true,
+      "ms": 6020,
+      "tokens": 956
+    },
+    {
+      "id": "N4",
+      "kind": "numeric",
+      "run": 1,
+      "mode": "auto",
+      "question": "How many seagoing and shore staff does the company employ in total?",
+      "answer": "The company employs about 760 staff in total, consisting of about 640 seagoing staff and 120 shore staff [Page 2].",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [
+        2
+      ],
+      "citeOk": true,
+      "retrievedPages": [
+        2,
+        4,
+        8
+      ],
+      "retrievalHit": true,
+      "ms": 5063,
+      "tokens": 949
+    },
+    {
+      "id": "M1",
+      "kind": "multi-page",
+      "run": 1,
+      "mode": "auto",
+      "question": "Which three cities are named as bunkering locations, and which of them also has a regional office?",
+      "answer": "Based on the document:\n\n* **Three bunkering locations:** Rotterdam, Singapore, and Fujairah [Page 5].\n* **City with a regional office:** Singapore [Page 2, Page 5].",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [
+        5,
+        2,
+        5
+      ],
+      "citeOk": true,
+      "retrievedPages": [
+        2,
+        5,
+        12
+      ],
+      "retrievalHit": true,
+      "ms": 4963,
+      "tokens": 986
+    },
+    {
+      "id": "M2",
+      "kind": "multi-page",
+      "run": 1,
+      "mode": "auto",
+      "question": "What is the minimum crew for each type of vessel?",
+      "answer": "Based on the document, the minimum crew requirements for each type of vessel are:\n\n* **Container ship:** 11 people [Page 4]\n* **Bulk carrier:** 9 people [Page 4]\n* **Tanker:** 14 people [Page 4]",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [
+        4,
+        4,
+        4
+      ],
+      "citeOk": true,
+      "retrievedPages": [
+        4,
+        7,
+        3
+      ],
+      "retrievalHit": true,
+      "ms": 5542,
+      "tokens": 956
+    },
+    {
+      "id": "M3",
+      "kind": "multi-page",
+      "run": 1,
+      "mode": "auto",
+      "question": "List the three incident levels in one line each.",
+      "answer": "Level 1: A minor incident with no injury and no damage beyond cosmetic [Page 7].\nLevel 2: Involves an injury or damage that keeps the vessel in service [Page 7].\nLevel 3: Any incident that endangers the vessel or crew [Page 7].",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [
+        7,
+        7,
+        7
+      ],
+      "citeOk": true,
+      "retrievedPages": [
+        7,
+        12,
+        10
+      ],
+      "retrievalHit": true,
+      "ms": 5374,
+      "tokens": 976
+    }
+  ]
+}

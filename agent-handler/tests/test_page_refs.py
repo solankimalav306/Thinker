@@ -32,5 +32,6 @@ def test_pages_service_returns_whole_pages(tmp_path):
     pages = [{"page": n, "text": f"text of page {n}"} for n in (1, 2, 3)]
     index_doc(tmp_path, pages)
     out = retrieval.pages_service({"pdfId": "a" * 64, "storagePath": str(tmp_path), "pages": [2, 3, 9]})
-    assert sorted(c["page"] for c in out["chunks"]) == [2, 3]
+    covered = {p for c in out["chunks"] for p in c["pages"]}
+    assert {2, 3} <= covered   # a passage may also hold the neighbouring page it runs into
     assert retrieval.pages_service({"pdfId": "b" * 64, "storagePath": str(tmp_path), "pages": [1]}) == {"chunks": []}

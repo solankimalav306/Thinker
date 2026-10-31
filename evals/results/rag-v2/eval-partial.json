@@ -1,0 +1,54 @@
+{
+  "results": [
+    {
+      "id": "S1",
+      "kind": "summary",
+      "run": 1,
+      "mode": "auto",
+      "question": "Give me a short summary of this document.",
+      "answer": "This document is the *Harbor Lights Shipping Operations Manual* (Edition 7, 2024 revision) for internal use [Page 1]. It outlines company overview, safety drills, crew requirements, fuel planning, port fees, incident levels, maintenance, chartering notes, an appendix of forms, revision notes, and a glossary [Page 1].",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [
+        1,
+        1
+      ],
+      "citeOk": null,
+      "retrievedPages": [
+        12,
+        10,
+        7
+      ],
+      "retrievalHit": null,
+      "ms": 5785,
+      "tokens": 1021
+    },
+    {
+      "id": "S2",
+      "kind": "followup",
+      "run": 1,
+      "mode": "auto",
+      "question": "Which section covers fuel, and what is its main rule about reserves?",
+      "answer": "Section 4 covers fuel [Page 11]. Its main rule about reserves is that they must cover the planned voyage plus 15 percent [Page 5].",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [
+        11,
+        5
+      ],
+      "citeOk": true,
+      "retrievedPages": [
+        11,
+        5,
+        12
+      ],
+      "retrievalHit": true,
+      "ms": 5442,
+      "tokens": 940
+    }
+  ]
+}

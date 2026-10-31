@@ -5,7 +5,7 @@ Where Thinker is going. v2 is shipped (2.0.0). Each version builds on the one be
 ## v2.x: finish the foundation (next)
 - Step 6, the TypeScript core: drop the Python sidecar, one process, a much smaller installer.
   This is the prerequisite for v3 and v4.
-- Retrieval quality (chunking, embedding model), one shared LLM provider layer, streaming replies.
+- ~~Retrieval quality (chunking, embedding model)~~ (done 2026-10-31, see docs/RETRIEVAL-EVAL.md), one shared LLM provider layer, streaming replies.
 - Test-connection button, Ollama detection, privacy disclosure and a local-only mode.
 
 ## v3: Thinkspaces + ThinkerTex

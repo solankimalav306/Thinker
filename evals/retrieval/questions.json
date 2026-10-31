@@ -1,0 +1,1242 @@
+[
+ {
+  "doc": "1412.6980",
+  "type": "direct",
+  "question": "What ratio is called the signal-to-noise ratio (SNR) with a slight abuse of terminology?",
+  "answer": "The ratio of mt hat divided by the square root of vt hat.",
+  "evidence": "With a slight abuse of terminology, we will call the ratiô mt/ √ ̂ vt the signal-to-noise ratio (SN R).",
+  "pages": [
+   3
+  ]
+ },
+ {
+  "doc": "1412.6980",
+  "type": "paraphrase",
+  "question": "How is the starting value for the exponential moving average of the second moment set?",
+  "answer": "It is initialized as a vector of zeros represented as v0 = 0.",
+  "evidence": "Let us initialize the exponential moving average as v0 = 0 (a vector of zeros).",
+  "pages": [
+   3
+  ]
+ },
+ {
+  "doc": "1412.6980",
+  "type": "detail",
+  "question": "What is the section number and title for the part discussing bias correction at the start?",
+  "answer": "Section 3 INITIALIZATION BIAS CORRECTION",
+  "evidence": "3 INITIALIZATION BIAS CORRECTION",
+  "pages": [
+   3
+  ]
+ },
+ {
+  "doc": "1412.6980",
+  "type": "direct",
+  "question": "What is the minibatch size used in the multi-layer neural network experiments?",
+  "answer": "128",
+  "evidence": "a neural network model with two fully connected hidden layers with 1000 hidden units each and ReLU activation are used for this experiment with minibatch size of 128.",
+  "pages": [
+   6
+  ]
+ },
+ {
+  "doc": "1412.6980",
+  "type": "paraphrase",
+  "question": "How many hidden units are present in each of the two fully connected layers of the tested neural network model?",
+  "answer": "1000",
+  "evidence": "a neural network model with two fully connected hidden layers with 1000 hidden units each and ReLU activation are used for this experiment",
+  "pages": [
+   6
+  ]
+ },
+ {
+  "doc": "1412.6980",
+  "type": "detail",
+  "question": "What is the size of the convolution filters used in the convolutional neural network architecture?",
+  "answer": "5x5",
+  "evidence": "Our CNN architecture has three alternating stages of 5x5 convolution filters and 3x3 max pooling",
+  "pages": [
+   6
+  ]
+ },
+ {
+  "doc": "1412.6980",
+  "type": "direct",
+  "question": "What are the good default settings for beta1 and beta2 in the tested machine learning problems?",
+  "answer": "beta1 = 0.9 and beta2 = 0.999",
+  "evidence": "Good default settings for the tested machine learning problems are α = 0.001, β1 = 0.9, β2 = 0.999 and   = 10−8.",
+  "pages": [
+   2
+  ]
+ },
+ {
+  "doc": "1412.6980",
+  "type": "paraphrase",
+  "question": "What values are recommended as standard parameters for the exponential decay rates of the moment estimates during testing?",
+  "answer": "0.9 and 0.999",
+  "evidence": "Good default settings for the tested machine learning problems are α = 0.001, β1 = 0.9, β2 = 0.999 and   = 10−8.",
+  "pages": [
+   2
+  ]
+ },
+ {
+  "doc": "1412.6980",
+  "type": "detail",
+  "question": "What is the initial value assigned to the second moment vector v0 in the algorithm?",
+  "answer": "0",
+  "evidence": "v0 ← 0 (Initialize 2nd moment vector)",
+  "pages": [
+   2
+  ]
+ },
+ {
+  "doc": "1412.6980",
+  "type": "paraphrase",
+  "question": "How is the parameter gamma defined in order to simplify the notation in the proof?",
+  "answer": "Gamma is defined as beta 1 squared divided by the square root of beta 2.",
+  "evidence": "To simplify the notation, we define γ ,\nβ\n2\n1√\nβ2\n.",
+  "pages": [
+   13
+  ]
+ },
+ {
+  "doc": "1412.6980",
+  "type": "direct",
+  "question": "What dataset is used for evaluating the L2-regularized multi-class logistic regression?",
+  "answer": "MNIST dataset",
+  "evidence": "We evaluate our proposed method on L2-regularized multi-class logistic regression using the MNIST dataset.",
+  "pages": [
+   5
+  ]
+ },
+ {
+  "doc": "1412.6980",
+  "type": "paraphrase",
+  "question": "Which specific movie review collection is utilized to investigate the sparse feature problem?",
+  "answer": "IMDB movie review dataset",
+  "evidence": "We examine the sparse feature problem using IMDB movie review dataset from (Maas et al., 2011).",
+  "pages": [
+   5
+  ]
+ },
+ {
+  "doc": "1412.6980",
+  "type": "detail",
+  "question": "What is the minibatch size used when comparing Adam, accelerated SGD with Nesterov momentum, and Adagrad for logistic regression?",
+  "answer": "128",
+  "evidence": "We compare Adam to accelerated SGD with Nesterov momentum and Adagrad using minibatch size of 128.",
+  "pages": [
+   5
+  ]
+ },
+ {
+  "doc": "1412.6980",
+  "type": "direct",
+  "question": "What version of RMSProp with momentum is obtained when the bias correction terms are removed?",
+  "answer": "RMSProp (Tieleman & Hinton, 2012) with momentum",
+  "evidence": "Discussed in section 5, removal of the bias correction terms results in a version of RMSProp (Tieleman & Hinton, 2012) with momentum.",
+  "pages": [
+   8
+  ]
+ },
+ {
+  "doc": "1412.6980",
+  "type": "paraphrase",
+  "question": "What architecture specificities were used for the variational auto-encoder during the bias-correction experiment?",
+  "answer": "A single hidden layer with 500 hidden units with softplus nonlinearities and a 50-dimensional spherical Gaussian latent variable.",
+  "evidence": "with the same architecture as in (Kingma & Welling, 2013) with a single hidden layer with 500 hidden units with softplus nonlinearities and a 50-dimensional spherical Gaussian latent variable.",
+  "pages": [
+   8
+  ]
+ },
+ {
+  "doc": "1412.6980",
+  "type": "detail",
+  "question": "What is the name of the extension algorithm derived when the norm parameter p approaches infinity?",
+  "answer": "AdaMax",
+  "evidence": "7.1 ADAMAX\nIn Adam, the update rule for individual weights is to scale their gradients inversely proportional to a (scaled) L2 norm of their individual current and past gradients. We can generalize the L2 norm based update rule to a Lp norm based update rule. Such variants become numerically unstable for large p. However, in the special case where we let p → ∞, a surprisingly simple and stable algorithm\nemerges",
+  "pages": [
+   8
+  ]
+ },
+ {
+  "doc": "1512.03385",
+  "type": "direct",
+  "question": "What network is compared with ResNet-101 for object detection baseline results on PASCAL VOC and COCO?",
+  "answer": "VGG-16",
+  "evidence": "Here we are interested in the improvements of replacing VGG-16 [41] with ResNet-101.",
+  "pages": [
+   8
+  ]
+ },
+ {
+  "doc": "1512.03385",
+  "type": "paraphrase",
+  "question": "What was the training error achieved by the aggressively deep network consisting of over 1,000 layers?",
+  "answer": "Less than 0.1%",
+  "evidence": "We set n = 200 that leads to a 1202-layer network, which is trained as described above. Our method shows no optimization difficulty, and this 103-layer network is able to achieve training error <0.1%",
+  "pages": [
+   8
+  ]
+ },
+ {
+  "doc": "1512.03385",
+  "type": "detail",
+  "question": "What is the specific test error percentage achieved by the 1202-layer network?",
+  "answer": "7.93%",
+  "evidence": "Its test error is still fairly good (7.93%, Table 6).",
+  "pages": [
+   8
+  ]
+ },
+ {
+  "doc": "1512.03385",
+  "type": "direct",
+  "question": "What is the purpose of fixing the Batch Normalization (BN) layers during fine-tuning in Faster R-CNN training?",
+  "answer": "To reduce memory consumption during Faster R-CNN training.",
+  "evidence": "We fix the BN layers mainly for reducing memory consumption in Faster R-CNN training.",
+  "pages": [
+   10
+  ]
+ },
+ {
+  "doc": "1512.03385",
+  "type": "paraphrase",
+  "question": "How many region proposals are generated by the region proposal network shared in the detection system?",
+  "answer": "300 proposals",
+  "evidence": "These layers are shared by a region proposal network (RPN, generating 300 proposals) [32] and a Fast R-CNN detection network [7].",
+  "pages": [
+   10
+  ]
+ },
+ {
+  "doc": "1512.03385",
+  "type": "detail",
+  "question": "How many training iterations are used during the initial phase for both the RPN and Fast R-CNN steps when training MS COCO models?",
+  "answer": "240k iterations",
+  "evidence": "The RPN step and Fast R-CNN step are both trained for 240k iterations with a learning rate of 0.001 and then for 80k iterations with 0.0001.",
+  "pages": [
+   10
+  ]
+ },
+ {
+  "doc": "1512.03385",
+  "type": "direct",
+  "question": "What mAP improvements are achieved by multi-scale testing according to Table 9?",
+  "answer": "Multi-scale testing improves the mAP by over 2 points.",
+  "evidence": "Multi-scale testing improves the mAP by over 2 points (Table 9).",
+  "pages": [
+   11
+  ]
+ },
+ {
+  "doc": "1512.03385",
+  "type": "paraphrase",
+  "question": "How many neural networks were combined in the system configuration that secured the top rank for object recognition in the 2015 COCO competition?",
+  "answer": "3 networks",
+  "evidence": "Table 9 shows our result based on an ensemble of 3 networks. The mAP is 59.0% and 37.4% on the test-dev set. This result won the 1st place in the detection task in COCO 2015.",
+  "pages": [
+   11
+  ]
+ },
+ {
+  "doc": "1512.03385",
+  "type": "detail",
+  "question": "How many object categories are included in the ImageNet Detection task?",
+  "answer": "200 object categories",
+  "evidence": "The ImageNet Detection (DET) task involves 200 object categories.",
+  "pages": [
+   11
+  ]
+ },
+ {
+  "doc": "1810.04805",
+  "type": "direct",
+  "question": "What objective enables the representation to fuse the left and the right context?",
+  "answer": "the masked language model objective",
+  "evidence": "Unlike left-to-right language model pre-training, the MLM objective enables the representation to fuse the left and the right context",
+  "pages": [
+   2
+  ]
+ },
+ {
+  "doc": "1810.04805",
+  "type": "paraphrase",
+  "question": "How many natural language processing benchmarks had their records improved by BERT?",
+  "answer": "eleven",
+  "evidence": "BERT advances the state of the art for eleven NLP tasks.",
+  "pages": [
+   2
+  ]
+ },
+ {
+  "doc": "1810.04805",
+  "type": "detail",
+  "question": "What specific URL is provided where the code and pre-trained models are available?",
+  "answer": "https://github.com/google-research/bert",
+  "evidence": "The code and pre-trained models are available at https://github.com/ google-research/bert.",
+  "pages": [
+   2
+  ]
+ },
+ {
+  "doc": "2005.11401",
+  "type": "direct",
+  "question": "What kind of non-parametric memory is used in the introduced RAG models?",
+  "answer": "A dense vector index of Wikipedia",
+  "evidence": "and the non-parametric memory is a dense vector index of Wikipedia, accessed with a pre-trained neural retriever.",
+  "pages": [
+   1
+  ]
+ },
+ {
+  "doc": "2005.11401",
+  "type": "paraphrase",
+  "question": "Where do the authors suggest that large neural networks store factual information when trained on data?",
+  "answer": "In their parameters",
+  "evidence": "Large pre-trained language models have been shown to store factual knowledge in their parameters",
+  "pages": [
+   1
+  ]
+ },
+ {
+  "doc": "2005.11401",
+  "type": "detail",
+  "question": "What is the arXiv identifier and version listed at the bottom of the first page?",
+  "answer": "arXiv:2005.11401v4",
+  "evidence": "arXiv:2005.11401v4 [cs.CL] 12 Apr 2021",
+  "pages": [
+   1
+  ]
+ },
+ {
+  "doc": "2005.11401",
+  "type": "direct",
+  "question": "What kind of retriever does RAG use that is compared to a word overlap-based BM25 retriever?",
+  "answer": "dense retriever",
+  "evidence": "We compare RAG’s dense retriever to a word overlap-based BM25 retriever [ 53 ].",
+  "pages": [
+   7
+  ]
+ },
+ {
+  "doc": "2005.11401",
+  "type": "paraphrase",
+  "question": "Which generation model produces a higher variety of ngrams between RAG-Token and RAG-Sequence?",
+  "answer": "RAG-Sequence",
+  "evidence": "Table 5 shows that RAG-Sequence’s generations are more diverse than RAG-Token’s",
+  "pages": [
+   7
+  ]
+ },
+ {
+  "doc": "2005.11401",
+  "type": "detail",
+  "question": "What is the publication month and year of the Wikipedia dump from DrQA used to demonstrate index hot-swapping?",
+  "answer": "December 2016",
+  "evidence": "To demonstrate, we build an index using the DrQA [ 5] Wikipedia dump from December 2016",
+  "pages": [
+   7
+  ]
+ },
+ {
+  "doc": "2005.11401",
+  "type": "direct",
+  "question": "What percentage accuracy does RAG achieve for NQ when the correct answer is not in any retrieved document?",
+  "answer": "11.8%",
+  "evidence": "achieving 11.8% accuracy in such cases for NQ, where an extractive model would score 0%.",
+  "pages": [
+   6
+  ]
+ },
+ {
+  "doc": "2005.11401",
+  "type": "paraphrase",
+  "question": "By how much does the RAG-Sequence model surpass BART on the Open MS-MARCO NLG benchmark in terms of Bleu points?",
+  "answer": "2.6 Bleu points",
+  "evidence": "As shown in Table 2, RAG-Sequence outperforms BART on Open MS-MARCO NLG by 2.6 Bleu points and 2.6 Rouge-L points.",
+  "pages": [
+   6
+  ]
+ },
+ {
+  "doc": "2005.11401",
+  "type": "detail",
+  "question": "In how many pairs of generations from BART and RAG-Token were human evaluations conducted?",
+  "answer": "452 pairs",
+  "evidence": "4 shows human evaluation results, over 452 pairs of generations from BART and RAG-Token.",
+  "pages": [
+   6
+  ]
+ },
+ {
+  "doc": "1810.04805",
+  "type": "direct",
+  "question": "What is the parameter count of BERTLARGE?",
+  "answer": "340M parameters",
+  "evidence": "By contrast, BERTBASE contains 110M parameters and BERTLARGE contains 340M parameters.",
+  "pages": [
+   8
+  ]
+ },
+ {
+  "doc": "1810.04805",
+  "type": "paraphrase",
+  "question": "How many parameters are included in the larger version of the BERT model?",
+  "answer": "340M",
+  "evidence": "By contrast, BERTBASE contains 110M parameters and BERTLARGE contains 340M parameters.",
+  "pages": [
+   8
+  ]
+ },
+ {
+  "doc": "2005.11401",
+  "type": "direct",
+  "question": "What models propose a single, pre-trained encoder-decoder model that leverages bi-directional attention?",
+  "answer": "BART and T5",
+  "evidence": "For further improvement, BART [ 32] and T5 [ 51, 52] propose a single, pre-trained encoder-decoder model that leverages bi-directional attention",
+  "pages": [
+   9
+  ]
+ },
+ {
+  "doc": "2005.11401",
+  "type": "paraphrase",
+  "question": "Which language model demonstrated the ability to perform well on both generative and discriminative tasks as a single left-to-right pre-trained model?",
+  "answer": "GPT-2",
+  "evidence": "GPT-2 [ 50] later showed that a single, left-to-right, pre-trained language model could achieve strong performance across both discriminative and generative tasks.",
+  "pages": [
+   9
+  ]
+ },
+ {
+  "doc": "2005.11401",
+  "type": "detail",
+  "question": "What are the two key features of the memory because it is made of raw text instead of distributed representations?",
+  "answer": "Human-readable and human-writable",
+  "evidence": "A key feature of our memory is that it is comprised of raw text rather distributed representations, which makes the memory both (i) human-readable, lending a form of interpretability to our model, and (ii) human-writable",
+  "pages": [
+   9
+  ]
+ },
+ {
+  "doc": "2005.11401",
+  "type": "direct",
+  "question": "Which model uses the same retrieved document to predict each target token?",
+  "answer": "RAG-Sequence",
+  "evidence": "In one approach, RAG-Sequence, the model uses the same document to predict each target token.",
+  "pages": [
+   3
+  ]
+ },
+ {
+  "doc": "2005.11401",
+  "type": "paraphrase",
+  "question": "What architecture does the retrieval component rely on according to the text?",
+  "answer": "bi-encoder architecture",
+  "evidence": "The retrieval component pη (z|x) is based on DPR [26]. DPR follows a bi-encoder architecture",
+  "pages": [
+   3
+  ]
+ },
+ {
+  "doc": "2005.11401",
+  "type": "detail",
+  "question": "How many parameters does the BART-large model used as the generator have?",
+  "answer": "400M parameters",
+  "evidence": "We use BART-large [32 ], a pre-trained seq2seq transformer [ 58] with 400M parameters.",
+  "pages": [
+   3
+  ]
+ },
+ {
+  "doc": "2005.11401",
+  "type": "direct",
+  "question": "What is the Exact Match score achieved by T5-large on Natural Questions?",
+  "answer": "28.9 EM",
+  "evidence": "which achieves a score of 28.9 EM on Natural Questions [ 52]",
+  "pages": [
+   19
+  ]
+ },
+ {
+  "doc": "2005.11401",
+  "type": "paraphrase",
+  "question": "How many values make up the non-parametric memory index?",
+  "answer": "15.3B values",
+  "evidence": "consists of 21M 728 dimensional vectors, consisting of 15.3B values.",
+  "pages": [
+   19
+  ]
+ },
+ {
+  "doc": "1810.04805",
+  "type": "direct",
+  "question": "What two corpora are used for the pre-training corpus in the pre-training data description?",
+  "answer": "BooksCorpus and English Wikipedia",
+  "evidence": "For the pre-training corpus we use the BooksCorpus (800M words) (Zhu et al., 2015) and English Wikipedia (2,500M words).",
+  "pages": [
+   5
+  ]
+ },
+ {
+  "doc": "1810.04805",
+  "type": "paraphrase",
+  "question": "How much time is maximally required to replicate all the results presented in the paper starting from the pre-trained model?",
+  "answer": "At most 1 hour on a single Cloud TPU, or a few hours on a GPU",
+  "evidence": "All of the results in the paper can be replicated in at most 1 hour on a single Cloud TPU, or a few hours on a GPU, starting from the exact same pre-trained model.",
+  "pages": [
+   5
+  ]
+ },
+ {
+  "doc": "1810.04805",
+  "type": "detail",
+  "question": "How many words are contained in the English Wikipedia portion of the pre-training corpus?",
+  "answer": "2,500M words",
+  "evidence": "For the pre-training corpus we use the BooksCorpus (800M words) (Zhu et al., 2015) and English Wikipedia (2,500M words).",
+  "pages": [
+   5
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "type": "direct",
+  "question": "What question are human annotators asked to answer when presented with a prompt and generations from two models side-by-side?",
+  "answer": "Considering both model responses, which is better (helpful while also being safe and honest), Model A or Model B?",
+  "evidence": "They are asked to answer the following question:\nConsidering both model responses, which is better (helpful while also being safe and honest), Model A or Model B?",
+  "pages": [
+   57
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "type": "paraphrase",
+  "question": "How many human judges evaluate each pair of model-generated responses?",
+  "answer": "Three",
+  "evidence": "Three annotators rate each generation pair.",
+  "pages": [
+   57
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "type": "detail",
+  "question": "How many labels are included in the seven-point scale used by annotators to compare model responses?",
+  "answer": "Seven",
+  "evidence": "The annotators answer this question on a seven point scale with the following labels:\nA is much better, A is better, A is slightly better, About the same, B is slightly better,\nB is better, B is much better.",
+  "pages": [
+   57
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "type": "direct",
+  "question": "Which model states that a classic Bob can look great on people with a round, oval, or heart-shaped face?",
+  "answer": "Llama 2-Chat (70B)",
+  "evidence": "Llama 2-Chat (70B) As a hairdresser, I must say that there isn’t a single haircut that looks great on everybody.",
+  "pages": [
+   59
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "type": "paraphrase",
+  "question": "According to the largest Llama chat model evaluated, what specific facial contours are well-suited for a pixie hairstyle?",
+  "answer": "Square or rectangular face shape",
+  "evidence": "A Pixie cut can be flattering on those with a square or rectangular face shape.",
+  "pages": [
+   59
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "type": "detail",
+  "question": "How does the 13B version of Llama 2 define the length of a classic bob haircut?",
+  "answer": "Hits just below the chin",
+  "evidence": "1. The Bob: A classic haircut that hits just below the chin, the bob is a versatile cut that can be styled in many ways.",
+  "pages": [
+   59
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "type": "direct",
+  "question": "What table shows the distribution of mean sentiment scores across groups under the religious ideology domain from the BOLD prompts?",
+  "answer": "Table 48",
+  "evidence": "Table 48: Distribution of mean sentiment scores across groups under the religious ideology domain from the\nBOLD prompts.",
+  "pages": [
+   73
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "type": "paraphrase",
+  "question": "Which numbered table provides the breakdown of average emotional tone values for various political belief categories derived using BOLD prompts?",
+  "answer": "Table 49",
+  "evidence": "Table 49: Distribution of mean sentiment scores across groups under the political ideology domain from the\nBOLD prompts.",
+  "pages": [
+   73
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "type": "direct",
+  "question": "What context length and generation length are used for open-source models during evaluations?",
+  "answer": "1000 tokens",
+  "evidence": "For open-source models, we collect generations using a context length of 1000 tokens and allow the model to generate up to 1000 tokens.",
+  "pages": [
+   56
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "type": "paraphrase",
+  "question": "How many maximum output tokens are permitted when testing models whose source code is publicly available?",
+  "answer": "up to 1000 tokens",
+  "evidence": "For open-source models, we collect generations using a context length of 1000 tokens and allow the model to generate up to 1000 tokens.",
+  "pages": [
+   56
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "type": "detail",
+  "question": "What is the specific Falcon model used for evaluations in the study?",
+  "answer": "Falcon-40B-Instruct",
+  "evidence": "For Falcon models, we use the Falcon-40B-Instruct model which is a chat/instruct model.",
+  "pages": [
+   56
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "type": "direct",
+  "question": "What is the parameter scale range of the pretrained and fine-tuned large language models developed in Llama 2?",
+  "answer": "7 billion to 70 billion parameters",
+  "evidence": "ranging in scale from 7 billion to 70 billion parameters.",
+  "pages": [
+   1
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "type": "paraphrase",
+  "question": "What name is given to the conversational variants of the large language models optimized for dialogue applications?",
+  "answer": "Llama 2-Chat",
+  "evidence": "Our fine-tuned LLMs, called Llama 2-Chat, are optimized for dialogue use cases.",
+  "pages": [
+   1
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "type": "detail",
+  "question": "On what date was the version v2 of the arXiv paper for Llama 2 submitted?",
+  "answer": "19 Jul 2023",
+  "evidence": "arXiv:2307.09288v2 [cs.CL] 19 Jul 2023",
+  "pages": [
+   1
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "type": "direct",
+  "question": "What model size is used to perform rejection sampling?",
+  "answer": "The largest 70B Llama 2-Chat",
+  "evidence": "We perform rejection sampling only with our largest 70B Llama 2-Chat.",
+  "pages": [
+   14
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "type": "paraphrase",
+  "question": "Which specific variant of the model is utilized exclusively for carrying out rejection sampling?",
+  "answer": "The largest 70B Llama 2-Chat",
+  "evidence": "We perform rejection sampling only with our largest 70B Llama 2-Chat.",
+  "pages": [
+   14
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "type": "detail",
+  "question": "What is the range of N samples shown in the figure for the max and median reward graph?",
+  "answer": "N in [1, ..., 100]",
+  "evidence": "Figure 7: Max and median reward among N samples, N ∈ [1, . . . , 100] averaged over our training set of",
+  "pages": [
+   14
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "type": "direct",
+  "question": "What benchmark is used to measure truthfulness in Llama 2?",
+  "answer": "TruthfulQA",
+  "evidence": "We employ TruthfulQA (Lin et al., 2021) to measure how well our LLMs can generate reliable outputs that agree with factuality and common sense.",
+  "pages": [
+   22
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "type": "paraphrase",
+  "question": "Which dataset evaluates the tendency of the language model to output rude, adversarial, or hateful language?",
+  "answer": "ToxiGen",
+  "evidence": "We choose ToxiGen (Hartvigsen et al., 2022) to measure the amount of generation of toxic language and hate speech across different groups.",
+  "pages": [
+   22
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "type": "detail",
+  "question": "How much of a percentage increase in truthfulness and informativeness was demonstrated by Llama 2-7B compared to Llama 1-7B?",
+  "answer": "21.37%",
+  "evidence": "When compared to Llama 1-7B, Llama 2-7B demonstrates a 21.37% increase in truthfulness and informativeness and a 7.61% decrease in toxicity.",
+  "pages": [
+   22
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "type": "direct",
+  "question": "Which religious ideology groups tend to have the largest increase in sentiment scores after fine-tuning?",
+  "answer": "Islam and Sikhism",
+  "evidence": "we observe that the demographic groups of Islam and Sikhism tend to have the largest increase in the sentiment scores after fine-tuning.",
+  "pages": [
+   70
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "type": "paraphrase",
+  "question": "Which occupational categories receive the most neutral sentiment from the language models?",
+  "answer": "Professional driver types",
+  "evidence": "while we observe the most neutral sentiment towards “Professional driver types”.",
+  "pages": [
+   70
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "type": "detail",
+  "question": "What is the TruthfulQA true percentage score for the 70B fine-tuned Llama 2-Chat model?",
+  "answer": "64.14",
+  "evidence": "Llama 2-Chat\n7B 57.04 60.59 96.45\n13B 62.18 65.73 96.45\n34B 67.2 70.01 97.06\n70B 64.14 67.07 97.06",
+  "pages": [
+   70
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "type": "direct",
+  "question": "What two specific RLHF methodologies are used to iteratively refine Llama 2-Chat after supervised fine-tuning?",
+  "answer": "rejection sampling and Proximal Policy Optimization (PPO)",
+  "evidence": "the model is iteratively refined using Reinforcement Learning with Human Feedback (RLHF) methodologies, specifically through rejection sampling and Proximal Policy Optimization (PPO).",
+  "pages": [
+   5
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "type": "paraphrase",
+  "question": "How many total tokens of information were utilized during the initial training phase of the models?",
+  "answer": "2 trillion tokens",
+  "evidence": "We trained on 2 trillion tokens of data as this provides a good performance–cost trade-off, up-sampling the most factual sources",
+  "pages": [
+   5
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "type": "detail",
+  "question": "What is the specific warmup step count used in the cosine learning rate schedule for the hyperparameters?",
+  "answer": "2000 steps",
+  "evidence": "We use a cosine learning rate schedule, with warmup of 2000 steps, and decay final learning rate down to 10% of the peak learning rate.",
+  "pages": [
+   5
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "type": "direct",
+  "question": "What is the five-shot MMLU benchmark average performance for Llama 2 70B?",
+  "answer": "68.9",
+  "evidence": "Llama 2\n7B 42.9 36.4 51.2 52.2 45.3\n13B 52.8 44.1 62.6 61.1 54.8\n34B 59.4 52.1 71.8 69.2 62.6\n70B 65.0 58.0 80.3 74.6 68.9",
+  "pages": [
+   49
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "type": "paraphrase",
+  "question": "Which specific model configuration achieved an average score of 55.4 across different academic categories on the Massive Multitask Language Understanding evaluation?",
+  "answer": "Falcon 40B",
+  "evidence": "Falcon 7B 26.4 26.2 24.7 27.4 26.2\n40B 49.3 45.5 65.4 65.0 55.4",
+  "pages": [
+   49
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "type": "detail",
+  "question": "What temperature setting is utilized for the pass@1 scores on code generation results?",
+  "answer": "0.1",
+  "evidence": "For pass@1 scores, we use a temperature of 0.1 and top-p=0.95.",
+  "pages": [
+   49
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "type": "direct",
+  "question": "Who are listed under Science and Engineering Leadership in the contributions?",
+  "answer": "Guillem Cucurull, Naman Goyal, Louis Martin, Thomas Scialom, Ruan Silva, Kevin Stone, and Hugo Touvron.",
+  "evidence": "Science and Engineering Leadership: Guillem Cucurull, Naman Goyal, Louis Martin, Thomas Scialom, Ruan\nSilva, Kevin Stone, Hugo Touvron.",
+  "pages": [
+   46
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "type": "paraphrase",
+  "question": "Which executives from the GenAI team were thanked for their support and leadership?",
+  "answer": "Ahmad Al-Dahle and Manohar Paluri",
+  "evidence": "We thank the GenAI executive team for their leadership and support: Ahmad Al-Dahle, Manohar Paluri.",
+  "pages": [
+   46
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "type": "detail",
+  "question": "Who helped with carbon emission calculations alongside Adi Gangidi?",
+  "answer": "Matthew Oldham",
+  "evidence": "Thanks also to Matthew Oldham and Adi Gangidi for helping us with carbon emission calculations.",
+  "pages": [
+   46
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "type": "direct",
+  "question": "What kind of data was collected to instill a concept of time in Llama 2-Chat?",
+  "answer": "1,000 SFT examples",
+  "evidence": "To instill a concept of time in Llama 2-Chat, we collected a set of 1,000 SFT examples that were related to specific dates.",
+  "pages": [
+   33
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "type": "paraphrase",
+  "question": "How many time-focused supervised fine-tuning instances were gathered to help Llama 2-Chat understand temporal concepts?",
+  "answer": "1,000",
+  "evidence": "Figure 22: Time awareness — illustration of our model generalizing the notion of time, with 1,000 SFT time-focused data.",
+  "pages": [
+   33
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "type": "detail",
+  "question": "What specific example question is mentioned as being included in the date-related dataset used for temporal perception?",
+  "answer": "How long ago did Barack Obama become president?",
+  "evidence": "These examples included questions like “How long ago did Barack Obama become president?” Each was associated with two critical pieces of metadata",
+  "pages": [
+   33
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "type": "direct",
+  "question": "What does Table 45 show the percentage of toxic generations split by?",
+  "answer": "demographic groups in ToxiGen",
+  "evidence": "Table 45: Percentage of toxic generations split by demographic groups in ToxiGen.",
+  "pages": [
+   71
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "type": "paraphrase",
+  "question": "Which specific benchmark supplies the demographic category labels used for analyzing malicious or offensive output rates?",
+  "answer": "ToxiGen",
+  "evidence": "Demographic group labels are adopted from ToxiGen.",
+  "pages": [
+   71
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "type": "detail",
+  "question": "What is the mean sentiment score for the 70B Llama 2-Chat model under the Asian Americans group in the BOLD prompts?",
+  "answer": "0.51",
+  "evidence": "Llama 2-Chat\n70B 0.51 0.43 0.40 0.49",
+  "pages": [
+   71
+  ]
+ },
+ {
+  "doc": "2310.06825",
+  "type": "direct",
+  "question": "What open-source license is Mistral 7B released under?",
+  "answer": "Apache 2.0 license",
+  "evidence": "Mistral 7B is released under the Apache 2.0 license.",
+  "pages": [
+   2
+  ]
+ },
+ {
+  "doc": "2310.06825",
+  "type": "paraphrase",
+  "question": "Which specific architectural component is employed to ensure that memory usage for the cache remains constant instead of growing indefinitely?",
+  "answer": "rolling buffer cache",
+  "evidence": "A fixed attention span means that we can limit our cache size using a rolling buffer cache.",
+  "pages": [
+   2
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "type": "direct",
+  "question": "Which specific religion is the most represented religion in the demographic identity analysis of the pretraining data?",
+  "answer": "Christian",
+  "evidence": "\"Christian\" is the most represented religion followed by \"Catholic\" and \"Jewish.\"",
+  "pages": [
+   20
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "type": "paraphrase",
+  "question": "When examining demographic identity descriptors categorized under nationality, race, and ethnicity, what geographical bias did the researchers notice?",
+  "answer": "A Western skew",
+  "evidence": "For Nationality, Race and Ethnicity, and Religion, we observe a Western skew (Bhatt et al., 2022).",
+  "pages": [
+   20
+  ]
+ },
+ {
+  "doc": "2307.09288",
+  "type": "detail",
+  "question": "What percentage of references mention the term American in the nationality demographic analysis?",
+  "answer": "69.4%",
+  "evidence": "For instance, the term “American” is mentioned in 69.4% of the references",
+  "pages": [
+   20
+  ]
+ },
+ {
+  "doc": "2310.06825",
+  "type": "direct",
+  "question": "What precision and recall were obtained when evaluating self-reflection on the manually curated dataset?",
+  "answer": "A precision of 99.4% for a recall of 95.6%",
+  "evidence": "got a precision of 99.4% for a recall of 95.6% (considering acceptable prompts as positives)",
+  "pages": [
+   6
+  ]
+ },
+ {
+  "doc": "2310.06825",
+  "type": "paraphrase",
+  "question": "Which company provided round-the-clock assistance for managing the computing cluster?",
+  "answer": "CoreWeave",
+  "evidence": "We are grateful to CoreWeave for their 24/7 help in marshalling our cluster.",
+  "pages": [
+   6
+  ]
+ },
+ {
+  "doc": "2310.06825",
+  "type": "detail",
+  "question": "What specific command does the Mistral 7B model suggest using to terminate a process with the PID 1234?",
+  "answer": "kill 1234",
+  "evidence": "For example, to kill process with PID 1234, you would run the command `kill 1234`.",
+  "pages": [
+   6
+  ]
+ },
+ {
+  "doc": "2310.06825",
+  "type": "direct",
+  "question": "What is the MMLU score of Mistral 7B Pretrained as shown in Table 2?",
+  "answer": "60.1%",
+  "evidence": "Mistral 7B Pretrained 60.1% 81.3% 75.3% 83.0% 80.0% 55.5% 28.8% 69.9% 30.5% 47.5% 13.1% 52.2%",
+  "pages": [
+   4
+  ]
+ },
+ {
+  "doc": "2310.06825",
+  "type": "paraphrase",
+  "question": "How many times were the generated outputs of Mistral 7B preferred over Llama 2 13B in the independent human evaluation by October 6, 2023?",
+  "answer": "5020 times",
+  "evidence": "As of October 6, 2023, the outputs generated by Mistral 7B were preferred 5020 times, compared to 4143 times for Llama 2 13B.",
+  "pages": [
+   4
+  ]
+ },
+ {
+  "doc": "2310.06825",
+  "type": "detail",
+  "question": "What MT Bench score did Mistral 7B Instruct achieve?",
+  "answer": "6.84 +/- 0.07",
+  "evidence": "Mistral 7B Instruct 1031 6.84 +/- 0.07",
+  "pages": [
+   4
+  ]
+ },
+ {
+  "doc": "2310.06825",
+  "type": "direct",
+  "question": "What attention mechanisms are leveraged by Mistral 7B to ensure faster inference and handle sequences of arbitrary length?",
+  "answer": "Grouped-query attention (GQA) and sliding window attention (SWA)",
+  "evidence": "Our model leverages grouped-query attention (GQA) for faster inference, coupled with sliding window attention (SWA) to effectively handle sequences of arbitrary length",
+  "pages": [
+   1
+  ]
+ },
+ {
+  "doc": "2310.06825",
+  "type": "paraphrase",
+  "question": "Which open-source language model with 13 billion parameters does Mistral 7B surpass on all evaluated benchmarks?",
+  "answer": "Llama 2",
+  "evidence": "Mistral 7B outperforms the best open 13B model (Llama 2) across all evaluated benchmarks",
+  "pages": [
+   1
+  ]
+ },
+ {
+  "doc": "2310.06825",
+  "type": "detail",
+  "question": "Under what specific license are the Mistral 7B models released?",
+  "answer": "Apache 2.0 license",
+  "evidence": "Our models are released under the Apache 2.0 license.",
+  "pages": [
+   1
+  ]
+ },
+ {
+  "doc": "2310.06825",
+  "type": "direct",
+  "question": "What is the fixed size W of the rolling buffer cache?",
+  "answer": "4",
+  "evidence": "The cache has a fixed size of W = 4.",
+  "pages": [
+   3
+  ]
+ },
+ {
+  "doc": "2310.06825",
+  "type": "paraphrase",
+  "question": "Which specific model does Mistral 7B outperform across all evaluated metrics?",
+  "answer": "Llama 2 13B",
+  "evidence": "Mistral 7B surpasses Llama 2 13B across all metrics",
+  "pages": [
+   3
+  ]
+ },
+ {
+  "doc": "2310.06825",
+  "type": "detail",
+  "question": "How many shots are used for the GSM8K math benchmark evaluation?",
+  "answer": "8-shot",
+  "evidence": "• Math: GSM8K [10] (8-shot) with maj@8 and MATH [13] (4-shot) with maj@4",
+  "pages": [
+   3
+  ]
+ },
+ {
+  "doc": "2310.06825",
+  "type": "direct",
+  "question": "What percentage of harmful questions does the model properly decline to answer when using the recommended system prompt?",
+  "answer": "100%",
+  "evidence": "With the recommended system prompt, the model properly declines to answer 100% of the harmful questions.",
+  "pages": [
+   5
+  ]
+ },
+ {
+  "doc": "2310.06825",
+  "type": "paraphrase",
+  "question": "How many potentially dangerous queries were utilized to test the safety measures?",
+  "answer": "175",
+  "evidence": "We use a set of 175 unsafe prompts for evaluating safety.",
+  "pages": [
+   5
+  ]
+ },
+ {
+  "doc": "2401.15884",
+  "type": "direct",
+  "question": "What is the accuracy for CRAG with LLaMA2-hf-7b when only Correct is removed on the PopQA dataset?",
+  "answer": "52.4",
+  "evidence": "CRAG 54.9 59.8\nonly Correct 52.4 56.7",
+  "pages": [
+   16
+  ]
+ },
+ {
+  "doc": "2401.15884",
+  "type": "detail",
+  "question": "Why did LLaMA2-hf-7b perform much worse on the PubHealth dataset during evaluation?",
+  "answer": "It is relatively weak in instruction comprehension, often failing to generate True or False in a binary-question task.",
+  "evidence": "LLaMA2-hf-7b is relatively weak in instruction comprehension. Most of the cases fail to generate True or False in such a binary-",
+  "pages": [
+   16
+  ]
+ },
+ {
+  "doc": "2401.15884",
+  "type": "direct",
+  "question": "What kind of web pages are preferred to mitigate biases or unreliable information from large-scale web searches?",
+  "answer": "Authoritative and regulated web pages like Wikipedia",
+  "evidence": "authoritative and regulated web pages like Wikipedia are preferred, which can significantly help mitigate these issues.",
+  "pages": [
+   6
+  ]
+ },
+ {
+  "doc": "2401.15884",
+  "type": "paraphrase",
+  "question": "What term does the text use to describe the fabrication of facts that occurs when a system stubbornly relies on an inadequate knowledge base?",
+  "answer": "hallucination",
+  "evidence": "it will only give a fabricated fact in the end, which is called hallucination.",
+  "pages": [
+   6
+  ]
+ },
+ {
+  "doc": "2401.15884",
+  "type": "detail",
+  "question": "How many datasets were used to evaluate CRAG in the experiments?",
+  "answer": "Four datasets",
+  "evidence": "CRAG was evaluated on four datasets, including PopQA (Mallen et al., 2023) (short-form generation), Biography (Min et al., 2023) (long-form generation), PubHealth (Zhang et al., 2023a) (true-or-false question), and Arc-Challenge (Bhakthavatsalam et al., 2021) (multiple-choice question).",
+  "pages": [
+   6
+  ]
+ },
+ {
+  "doc": "2401.15884",
+  "type": "direct",
+  "question": "What does the lightweight retrieval evaluator assess for a query?",
+  "answer": "The overall quality of retrieved documents",
+  "evidence": "A lightweight retrieval evaluator is designed to assess the overall quality of retrieved documents for a query.",
+  "pages": [
+   2
+  ]
+ },
+ {
+  "doc": "2401.15884",
+  "type": "paraphrase",
+  "question": "Which specific algorithm is carefully built into the retrieval and utilization stages to remove unhelpful and redundant text?",
+  "answer": "A decompose-then-recompose algorithm",
+  "evidence": "a decompose-then-recompose algorithm is meticulously crafted throughout the retrieval and utilization process.",
+  "pages": [
+   2
+  ]
+ },
+ {
+  "doc": "2401.15884",
+  "type": "detail",
+  "question": "How many datasets are used to show that CRAG significantly improves standard RAG and Self-RAG performance?",
+  "answer": "Four datasets",
+  "evidence": "Results on four datasets of PopQA (Mallen et al., 2023), Biog- raphy (Min et al., 2023), Pub Health (Zhang et al., 2023a), and Arc-Challenge (Bhakthavatsalam et al., 2021) show that CRAG can significantly improve",
+  "pages": [
+   2
+  ]
+ },
+ {
+  "doc": "2401.15884",
+  "type": "direct",
+  "question": "What is the primary purpose of proposing Corrective Retrieval Augmented Generation (CRAG)?",
+  "answer": "To improve the robustness of generation.",
+  "evidence": "we propose the Corrective Retrieval Augmented Generation (CRAG) to improve the robustness of generation.",
+  "pages": [
+   1
+  ]
+ },
+ {
+  "doc": "2401.15884",
+  "type": "paraphrase",
+  "question": "Why do large language models frequently produce fabricated or incorrect information?",
+  "answer": "Because they struggle with factual errors and cannot secure accuracy solely through their internal parametric knowledge.",
+  "evidence": "inevitably manifest hallucinations (Ji et al., 2023) due to their struggle with factual errors (Mallen et al., 2023; Min et al., 2023) and inability to secure the accuracy of generated texts solely by the parametric knowledge they encapsulate",
+  "pages": [
+   1
+  ]
+ },
+ {
+  "doc": "2401.15884",
+  "type": "detail",
+  "question": "Where can users find the available code for the project?",
+  "answer": "github.com/HuskyInSalt/CRAG",
+  "evidence": "1The code is available at github.com/HuskyInSalt/CRAG",
+  "pages": [
+   1
+  ]
+ },
+ {
+  "doc": "2401.15884",
+  "type": "direct",
+  "question": "What are the three confidence degrees into which the relevance score is quantified in the CRAG model inference?",
+  "answer": "Correct, Incorrect, and Ambiguous",
+  "evidence": "The relevance score is quantified into a total of three confidence degrees and then triggered the corresponding actions: {Correct, Incorrect, Ambiguous}",
+  "pages": [
+   3
+  ]
+ },
+ {
+  "doc": "2401.15884",
+  "type": "paraphrase",
+  "question": "How are external web sources utilized when the evaluation determines that the retrieved information is wrong?",
+  "answer": "They are used as complementary knowledge sources to replace the discarded retrieved documents.",
+  "evidence": "If the action Incorrect is triggered, the retrieved documents will be discarded. Instead, web searches are resorted to and regarded as complementary knowledge sources for corrections",
+  "pages": [
+   3
+  ]
+ },
+ {
+  "doc": "2401.15884",
+  "type": "detail",
+  "question": "What specific operations are involved when the Correct action is triggered to refine retrieved documents?",
+  "answer": "Knowledge decomposition, filter, and recomposition",
+  "evidence": "This refinement operation involves knowledge decomposition, filter, and recomposition (Section 4.4).",
+  "pages": [
+   3
+  ]
+ },
+ {
+  "doc": "2401.15884",
+  "type": "direct",
+  "question": "What model was given the few-shot prompt to generate knowledge keywords as web search queries?",
+  "answer": "GPT-3.5 Turbo",
+  "evidence": "Table 7: The few-shot prompt to GPT-3.5 Turbo for\ngenerating knowledge keywords as web search queries.",
+  "pages": [
+   14
+  ]
+ },
+ {
+  "doc": "2401.15884",
+  "type": "paraphrase",
+  "question": "Which large language model received instructions to act as the evaluator using a Chain-of-Thought approach?",
+  "answer": "GPT-3.5 Turbo",
+  "evidence": "Table 9: The prompt to GPT-3.5 Turbo with Chain-of-\nThought as the evaluator.",
+  "pages": [
+   14
+  ]
+ },
+ {
+  "doc": "2401.15884",
+  "type": "detail",
+  "question": "How many keywords at most should be extracted, separated by comma, from dialogues and questions?",
+  "answer": "at most three keywords",
+  "evidence": "Extract at most three keywords separated by comma from\nthe following dialogues and questions as queries for the",
+  "pages": [
+   14
+  ]
+ }
+]

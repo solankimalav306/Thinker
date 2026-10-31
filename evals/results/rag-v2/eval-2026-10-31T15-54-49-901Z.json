@@ -1,0 +1,136 @@
+{
+  "summary": {
+    "model": "gemini-3.5-flash-lite",
+    "when": "2026-10-31T15:54:49.900Z",
+    "runs": 5,
+    "correct": 5,
+    "byKind": {
+      "lookup": "3/3",
+      "numeric": "2/2"
+    },
+    "citationOk": "80%",
+    "retrievalHit": "100%",
+    "medianMs": 5654,
+    "avgTokens": 865
+  },
+  "results": [
+    {
+      "id": "L9",
+      "kind": "lookup",
+      "run": 1,
+      "mode": "auto",
+      "question": "How many running hours between main engine overhauls?",
+      "answer": "Main engines are overhauled every 18,000 running hours [Page 8].",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [
+        8
+      ],
+      "citeOk": true,
+      "retrievedPages": [
+        8,
+        3,
+        7
+      ],
+      "retrievalHit": true,
+      "ms": 5305,
+      "tokens": 919
+    },
+    {
+      "id": "L10",
+      "kind": "lookup",
+      "run": 1,
+      "mode": "auto",
+      "question": "Where are charter disputes settled?",
+      "answer": "Charter disputes are settled by arbitration in London [Page 9].",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [
+        9
+      ],
+      "citeOk": true,
+      "retrievedPages": [
+        9,
+        5,
+        7
+      ],
+      "retrievalHit": true,
+      "ms": 5649,
+      "tokens": 936
+    },
+    {
+      "id": "L11",
+      "kind": "lookup",
+      "run": 1,
+      "mode": "auto",
+      "question": "What does demurrage mean?",
+      "answer": "Definition: Demurrage refers to the charge or fee paid by a charterer to a shipowner for failing to load or discharge cargo within the agreed-upon time frame (laytime).",
+      "intent": "define",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [],
+      "citeOk": false,
+      "retrievedPages": [
+        12,
+        9,
+        10
+      ],
+      "retrievalHit": true,
+      "ms": 5654,
+      "tokens": 349
+    },
+    {
+      "id": "N1",
+      "kind": "numeric",
+      "run": 1,
+      "mode": "auto",
+      "question": "A container ship sails 1,680 nautical miles at 14 knots. How many tonnes of fuel does the voyage burn, before the reserve?",
+      "answer": "To find how many tonnes of fuel the voyage burns before the reserve:\n\n1. **Calculate the duration of the voyage in hours:** \n   $$\\frac{1,680 \\text{ nautical miles}}{14 \\text{ knots}} = 120 \\text{ hours}$$\n\n2. **Convert the hours into days:**\n   $$\\frac{120 \\text{ hours}}{24 \\text{ hours/day}} = 5 \\text{ days}$$\n\n3. **Calculate the fuel burned:**\n   At 14 knots, the container ship burns 42 tonnes per day [Page 5]. \n   $$5 \\text{ days} \\times 42 \\text{ tonnes/day} = 210 \\text{ tonnes}$$\n\nThe voyage burns **210 tonnes** of fuel before the reserve.",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [
+        5
+      ],
+      "citeOk": true,
+      "retrievedPages": [
+        5,
+        4,
+        11
+      ],
+      "retrievalHit": true,
+      "ms": 6832,
+      "tokens": 1145
+    },
+    {
+      "id": "N2",
+      "kind": "numeric",
+      "run": 1,
+      "mode": "auto",
+      "question": "How much less fuel per day does a container ship burn at 10 knots than at 14 knots?",
+      "answer": "A container ship burns 24 tonnes less fuel per day at 10 knots (18 tonnes) than at 14 knots (42 tonnes) [Page 5].",
+      "intent": "ask",
+      "error": null,
+      "correct": true,
+      "problems": [],
+      "cited": [
+        5
+      ],
+      "citeOk": true,
+      "retrievedPages": [
+        5,
+        11,
+        3
+      ],
+      "retrievalHit": true,
+      "ms": 6441,
+      "tokens": 977
+    }
+  ]
+}

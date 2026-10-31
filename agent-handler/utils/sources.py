@@ -9,14 +9,16 @@ def sources_from_hits(hits):
     for hit in hits or []:
         if not isinstance(hit, dict):
             continue
-        try:
-            page = int(hit.get("page"))
-        except (TypeError, ValueError):
-            continue
+        pages = hit.get("pages") if isinstance(hit.get("pages"), list) and hit.get("pages") else [hit.get("page")]
         doc = str(hit.get("doc") or "")
-        key = (doc, page)
-        if key in seen:
-            continue
-        seen.add(key)
-        out.append({"doc": doc, "page": page})
+        for raw in pages:   # a passage that crosses a page break may be cited by either page
+            try:
+                page = int(raw)
+            except (TypeError, ValueError):
+                continue
+            key = (doc, page)
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append({"doc": doc, "page": page})
     return out

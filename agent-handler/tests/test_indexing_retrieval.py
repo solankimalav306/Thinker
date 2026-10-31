@@ -24,10 +24,18 @@ def index_doc(tmp_path, pages, pdf_id="a" * 64):
 
 
 def test_query_with_k_larger_than_chunk_count_returns_no_phantom_chunks(tmp_path):
-    index_doc(tmp_path, [{"page": 1, "text": "alpha beta gamma"}, {"page": 2, "text": "delta epsilon zeta"}])
-    result = retrieval.retrieval_service({"query": "alpha", "pdfId": "a" * 64, "storagePath": str(tmp_path), "k": 5})
+    long_a = " ".join(f"alpha{i}" for i in range(150)) + "."
+    long_b = " ".join(f"delta{i}" for i in range(150)) + "."
+    index_doc(tmp_path, [{"page": 1, "text": long_a}, {"page": 2, "text": long_b}])
+    result = retrieval.retrieval_service({"query": "alpha1", "pdfId": "a" * 64, "storagePath": str(tmp_path), "k": 9})
     chunk_ids = [c["chunk_id"] for c in result["chunks"]]
     assert len(chunk_ids) == len(set(chunk_ids)) == 2
+
+
+def test_short_pages_share_a_passage_that_remembers_both_pages(tmp_path):
+    index_doc(tmp_path, [{"page": 1, "text": "alpha beta gamma."}, {"page": 2, "text": "delta epsilon zeta."}])
+    result = retrieval.retrieval_service({"query": "alpha", "pdfId": "a" * 64, "storagePath": str(tmp_path), "k": 5})
+    assert len(result["chunks"]) == 1 and result["chunks"][0]["pages"] == [1, 2]
 
 
 def test_non_ascii_text_round_trips(tmp_path):
