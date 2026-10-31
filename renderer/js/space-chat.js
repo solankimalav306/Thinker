@@ -155,6 +155,7 @@ export function createSpaceChat(root, { api = window.electronAPI, space, openPdf
             onCite: ({ doc, page }) => { const d = docs.find((x) => x.title.toLowerCase() === doc.toLowerCase()); if (d) openPdfAt(d.path, page); },
             kind: part.kind,
             onOpenTab: (payload) => window.dispatchEvent(new CustomEvent("thinker:open-artifact", { detail: payload })),
+            onAsk: (question) => ask(question),
             onKeep: async (file) => {
               const saved = await api.createArtifact({ title: part.title, html: file.html, spec: file.spec, state: file.state, kind: part.kind, sources: entry.sources || [], workspaceId: space.id });
               setStatus(`Saved "${saved.title}" to Artifacts.`);

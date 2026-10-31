@@ -827,3 +827,16 @@ body.hide-token-counter .token-tracker {
   color: var(--text-2);
   text-decoration: underline;
 }
+
+.art-menu-input {
+  box-sizing: border-box;
+  width: calc(100% - 12px);
+  margin: 4px 6px 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--border-color, rgba(128, 128, 128, 0.35));
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.85em;
+}

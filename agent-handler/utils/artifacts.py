@@ -92,6 +92,16 @@ def previous_artifact(messages):
     return None
 
 
+def source_artifact(query, kind, previous):
+    """The earlier artifact this request works from, or None. Changing one (same kind) or making another kind "from this"."""
+    if not previous or not kind:
+        return None
+    q = str(query or "")
+    if (previous[0] == kind and _EDIT.search(q)) or _REFERS.search(q):
+        return previous
+    return None
+
+
 def decide(intent, query, enabled, llm_kind=None, previous_kind=None):
     """(route, kind): "artifact" and its kind when one is wanted, otherwise the route unchanged.
 
@@ -104,6 +114,9 @@ def decide(intent, query, enabled, llm_kind=None, previous_kind=None):
     kind = found["kind"]
     if llm_kind not in KINDS:
         llm_kind = None
+    # the card's own "Change this artifact: ..." keeps the kind, whatever words the change uses
+    if previous_kind and re.match(r"\s*change this artifact\b", str(query or ""), re.I):
+        return "artifact", previous_kind
     if found["explicit"]:
         return "artifact", kind or llm_kind or previous_kind or "document"
     if intent == "mindmap":
@@ -210,9 +223,13 @@ def prompt_for(kind, doc_title="", previous=None):
     if doc_title:
         text += f'\nThe only document is titled "{doc_title}", so cite as "{doc_title}|page number".'
     if previous:
-        _kind, title, body = previous
-        text += (f'\n\nThe person is CHANGING an artifact that already exists. Return the complete updated artifact (same type, same overall design unless asked to change it), '
-                 f'with only the requested changes applied. Do not return a diff or a description.\nTitle: {title}\nCurrent artifact:\n{body[:60000]}')
+        prev_kind, title, body = previous
+        if prev_kind == kind:
+            text += (f'\n\nThe person is CHANGING an artifact that already exists. Return the complete updated artifact (same type, same overall design unless asked to change it), '
+                     f'with only the requested changes applied. Do not return a diff or a description.\nTitle: {title}\nCurrent artifact:\n{body[:60000]}')
+        else:
+            text += (f'\n\nThe person wants this {label.lower()} MADE FROM an artifact that already exists (a {prev_kind}). Use its content, and the document context, as the source; '
+                     f'do not invent anything it does not hold. Keep its citations.\nTitle: {title}\nSource artifact:\n{body[:60000]}')
     return text
 
 

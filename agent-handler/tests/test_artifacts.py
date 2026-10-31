@@ -199,3 +199,14 @@ def test_finalize_page_keeps_a_real_page_and_rejects_a_stub():
     out = finalize("page", "Sure.\n" + '<artifact title="Notes" type="page">' + "\n" + html + "\n</artifact>")
     assert 'type="page"' in out and "<script>" in out
     assert "<artifact" not in finalize("page", '<artifact title="x" type="page">hi</artifact>')
+
+
+def test_making_one_kind_from_another_uses_it_as_the_source():
+    from utils.artifacts import source_artifact
+    prev = ("quiz", "Safety quiz", '{"questions": []}')
+    assert decide("note", "Make slides from this artifact", True, None, "quiz") == ("artifact", "slides")
+    assert source_artifact("Make slides from this artifact", "slides", prev) == prev
+    assert decide("ask", "Change this artifact: add a quiz section", True, None, "page") == ("artifact", "page")
+    assert source_artifact("what is a vector?", "slides", prev) is None
+    text = prompt_for("slides", "", prev)
+    assert "MADE FROM an artifact" in text and "Safety quiz" in text

@@ -90,6 +90,8 @@ is limited to proxied UDP, and any request started by an artifact frame to a non
 sends a heartbeat; a page that stops answering for 9 seconds is removed with a "Run it again" button. Cards say the page runs its own code
 in a sealed frame. Export: HTML is the page as written (with a stand-in for `tk`). PDF, PNG, Word and PowerPoint are made from a snapshot the running page sends back (its styles and what it shows right now, scripts removed, cleaned like any artifact), so content the scripts built is included but buttons and inputs are not. Script pages are not shared with guests.
 
+**Ask the AI from a card**: the wand button on every chat card offers "Make slides / a report / a quiz / a web page" and a box for "Change this artifact: …". It sends that as a chat message; the agent (`source_artifact`) hands the latest artifact of the chat to the builder as the source, so the new one is made from it (or, for a change, replaces it whole). Works in document chats and Thinkspace chats.
+
 ## Safety model
 - **Sandbox**: `sandbox="allow-scripts"` only (no same-origin, no popups, forms or navigation). The frame cannot read the app.
   Scripts are allowed solely so the frame's own bridge can run; the page's policy refuses everything else.

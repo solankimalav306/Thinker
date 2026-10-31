@@ -210,7 +210,47 @@ export function standaloneDocument(title, html, css, tokens) {
   return `<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">\n<title>${safeTitle}</title>\n<style>:root{${vars}}\n${css}</style></head>\n<body><div id="root">${html}</div></body></html>\n`;
 }
 
-export function createArtifactView({ title, html, spec = null, error = "", complete = true, sources, onCite, onSave, onKeep, onState, state = null, kind = "page", onOpenTab = null, inTab = false }) {
+// Quick ways to ask the AI for something made from an artifact, plus a box for anything else.
+function askMenu(onAsk) {
+  const wrap = el("span", "art-menu-wrap");
+  const trigger = iconButton("fa-wand-magic-sparkles", "Ask the AI to change this or make something from it", () => {
+    menu.hidden = !menu.hidden;
+    if (!menu.hidden) {
+      const r = trigger.getBoundingClientRect();
+      menu.style.top = `${Math.round(r.bottom + 4)}px`;
+      menu.style.right = `${Math.round(window.innerWidth - r.right)}px`;
+      box.focus();
+    }
+  });
+  trigger.setAttribute("aria-haspopup", "menu");
+  const menu = el("div", "art-menu");
+  menu.hidden = true;
+  const run = (text) => { menu.hidden = true; onAsk(text); };
+  for (const [label, icon, text] of [
+    ["Make slides", "fa-display", "Make slides from this artifact"],
+    ["Make a report", "fa-file-lines", "Make a one-page report document from this artifact"],
+    ["Make a quiz", "fa-circle-question", "Make a quiz from this artifact"],
+    ["Make a web page", "fa-globe", "Make a web page from this artifact"]
+  ]) {
+    const item = el("button", "art-menu-item");
+    item.type = "button";
+    item.append(el("i", `fa-solid ${icon}`), document.createTextNode(` ${label}`));
+    item.addEventListener("click", () => run(text));
+    menu.append(item);
+  }
+  const box = el("input", "art-menu-input");
+  box.type = "text";
+  box.placeholder = "Or ask for a change\u2026";
+  box.setAttribute("aria-label", "Ask for a change to this artifact");
+  box.addEventListener("keydown", (e) => { if (e.key === "Enter" && box.value.trim()) { const t = box.value.trim(); box.value = ""; run(`Change this artifact: ${t}`); } });
+  menu.append(box);
+  const away = (e) => { if (!wrap.isConnected) document.removeEventListener("mousedown", away, true); else if (!wrap.contains(e.target)) menu.hidden = true; };
+  document.addEventListener("mousedown", away, true);
+  wrap.append(trigger, menu);
+  return wrap;
+}
+
+export function createArtifactView({ title, html, spec = null, error = "", complete = true, sources, onCite, onSave, onKeep, onState, onAsk = null, state = null, kind = "page", onOpenTab = null, inTab = false }) {
   const live = Boolean(spec);
   const box = el("section", "art-frame");
   box.setAttribute("aria-label", `Artifact: ${title}`);
@@ -293,6 +333,7 @@ export function createArtifactView({ title, html, spec = null, error = "", compl
     });
     tools.append(keep);
   }
+  if (onAsk) tools.append(askMenu(onAsk));
   if (!inTab) tools.append(iconButton("fa-up-right-and-down-left-from-center", onOpenTab ? "Open in a tab" : "Open larger", openBig));
   tools.append(
     iconButton("fa-copy", live ? "Copy as text" : "Copy the HTML", () => navigator.clipboard?.writeText(live ? specToText(kind, spec) : checked.html).catch(() => {}))
