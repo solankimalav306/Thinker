@@ -1,7 +1,9 @@
 # Where things stand and what is next (logged 2026-10-31, end of day)
 
 `main` was pushed to GitHub (`solankimalav306/Thinker`) at 3.3.0. **Everything below is committed locally on `main` and NOT pushed.**
-`package.json` is still 3.3.0 and `dist/Thinker Setup 3.3.0.exe` is older than all of it.
+**Built 2026-10-31: `dist/Thinker Setup 3.4.0.exe`** (375 MB, `npm run release:minor`, package.json is 3.4.0) with everything below plus the About card
+in Settings (`6793dc06`). The packaged `backend.exe` was smoke-tested on its own (index + exact-term query work, no errors); the installer itself
+has not been run on a clean machine, and the first-run model downloads from the packaged app are untested.
 
 ## Done today, in order (commits after the 3.3.0 push)
 | Commit | What |
@@ -32,7 +34,7 @@ background `mmarco` cross-encoder, k=5 (8 across documents), previous question a
 searched by words until the document is reopened, then rebuilt. Env switches: `THINKER_RERANK=off`, `THINKER_EMBED_MODEL=...`.
 
 ## Still to do (priority order)
-1. **Rebuild the installer and push.** `backend.exe` is built with PyInstaller (`backend.spec`, `npm run release`): check the new modules
+1. **Push** (the installer is built, see the top; check a clean-machine install first). `backend.exe` is built with PyInstaller (`backend.spec`, `npm run release`): check the new modules
    (`utils/bm25.py`, `utils/followup.py`, `services/rerank.py`) are bundled, and that `intfloat/multilingual-e5-base` and the reranker
    download/work from the packaged app (first use now downloads about 1.1 GB + 0.5 GB; decide whether to show progress or bundle).
    Bump the version. Ask before pushing.
