@@ -88,7 +88,7 @@ origin) whose header policy allows inline scripts and nothing else: `connect-src
 objects, workers or eval. Beyond the policy: frame navigation away from `thinker-artifact:` is blocked (`will-frame-navigate`), WebRTC
 is limited to proxied UDP, and any request started by an artifact frame to a non-artifact address is cancelled (`webRequest`). The frame
 sends a heartbeat; a page that stops answering for 9 seconds is removed with a "Run it again" button. Cards say the page runs its own code
-in a sealed frame. A script page exports only as an HTML file (with a stand-in for `tk`); the other formats need a static page.
+in a sealed frame. Export: HTML is the page as written (with a stand-in for `tk`). PDF, PNG, Word and PowerPoint are made from a snapshot the running page sends back (its styles and what it shows right now, scripts removed, cleaned like any artifact), so content the scripts built is included but buttons and inputs are not. Script pages are not shared with guests.
 
 ## Safety model
 - **Sandbox**: `sandbox="allow-scripts"` only (no same-origin, no popups, forms or navigation). The frame cannot read the app.

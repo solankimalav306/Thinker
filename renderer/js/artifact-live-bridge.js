@@ -13,7 +13,7 @@
       'copy:function(t){post({type:"action",action:"copy",text:String(t).slice(0,5000)})}};' +
       'var tokens=C.tokens||{};function apply(t){Object.keys(t||{}).forEach(function(k){var v=t[k];if(/^--tk-[a-z0-9-]+$/.test(k)&&typeof v==="string"&&v.length<80&&!/[;{}]/.test(v))document.documentElement.style.setProperty(k,v)});if(t&&(t["--tk-scheme"]==="dark"||t["--tk-scheme"]==="light"))document.documentElement.style.colorScheme=t["--tk-scheme"]}' +
       "apply(tokens);" +
-      'window.addEventListener("message",function(e){if(e.source!==P)return;var d=e.data||{};if(d.type==="theme")apply(d.tokens)});' +
+      'window.addEventListener("message",function(e){if(e.source!==P)return;var d=e.data||{};if(d.type==="theme")apply(d.tokens);if(d.type==="snapshot"){var css=[].map.call(document.querySelectorAll("style"),function(s){return s.textContent}).join("\\n");var b=document.body.cloneNode(true);[].forEach.call(b.querySelectorAll("script,iframe,object,embed,form"),function(n){n.remove()});var html=b.innerHTML;if(html.length>2000000||css.length>500000){post({type:"snapshot",id:d.id,body:"",css:""});return}post({type:"snapshot",id:d.id,css:css,body:html})}});' +
       // the app removes a page that stops answering, so a runaway loop cannot freeze the window
       'setInterval(function(){post({type:"beat"})},2000);post({type:"beat"});' +
       'function measure(){post({type:"height",value:Math.ceil(Math.max(document.documentElement.scrollHeight,document.body?document.body.scrollHeight:0))})}' +

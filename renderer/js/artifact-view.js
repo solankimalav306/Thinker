@@ -134,6 +134,14 @@ function mountFrame({ html, valid, onCite, minHeight = 80, maxHeight, label, ext
   frame.src = FRAME_URL;
   let lastBeat = Date.now();
   let stalled = null;
+  const pending = new Map();
+  // what a script page shows right now, as plain content for the export formats
+  frame.snapshot = () => new Promise((resolve, reject) => {
+    const id = Math.random().toString(36).slice(2);
+    pending.set(id, resolve);
+    frame.contentWindow?.postMessage({ type: "snapshot", id }, "*");
+    setTimeout(() => { if (pending.delete(id)) reject(new Error("The page did not answer")); }, 4000);
+  });
 
   const cites = new Set(valid.map((c) => `${c.doc.toLowerCase()}|${c.page}`));
 
@@ -154,6 +162,7 @@ function mountFrame({ html, valid, onCite, minHeight = 80, maxHeight, label, ext
     const data = event.data || {};
     if (data.type === "ready") send();
     else if (data.type === "beat") lastBeat = Date.now();
+    else if (data.type === "snapshot" && pending.has(data.id)) { pending.get(data.id)({ body: String(data.body || ""), css: String(data.css || "") }); pending.delete(data.id); }
     else if (data.type === "state" && data.value && typeof data.value === "object") onState?.(data.value);
     else if (data.type === "height" && Number.isFinite(data.value) && !fixed && !(script && script.fillHeight)) {
       const limit = maxHeight ? maxHeight() : Infinity;
@@ -290,7 +299,7 @@ export function createArtifactView({ title, html, spec = null, error = "", compl
   );
   const slides = live ? [] : slideHtml(checked.html);
   if (slides.length) tools.prepend(iconButton("fa-display", "Present as slides", () => openPresent({ title, slides, onCite })));
-  tools.append(exportMenu({ title, checked, kind, onSave, scriptPage }));
+  tools.append(exportMenu({ title, checked, kind, onSave, scriptPage, snapshot: () => inline.snapshot() }));
   return box;
 }
 
@@ -360,7 +369,7 @@ function openPresent({ title, slides, onCite }) {
 }
 
 // A small menu of ways to take an artifact out of the app.
-function exportMenu({ title, checked, kind, onSave, scriptPage = false }) {
+function exportMenu({ title, checked, kind, onSave, scriptPage = false, snapshot = null }) {
   const wrap = el("span", "art-menu-wrap");
   const trigger = iconButton("fa-download", "Export", () => {
     menu.hidden = !menu.hidden;
@@ -382,21 +391,33 @@ function exportMenu({ title, checked, kind, onSave, scriptPage = false }) {
     else if (!result?.canceled) window.dispatchEvent(new CustomEvent("thinker:status", { detail: `Could not export: ${result?.error || "unknown error"}` }));
   };
   const clean = () => withoutCites(checked.html);
-  const standalone = async (tokens) => standaloneDocument(title, clean(), await loadKitCss(), tokens);
+  // a script page is exported as it looks now (cleaned like any other artifact, scripts gone); the others from their stored content
+  const prepare = async () => {
+    if (!scriptPage) return { html: clean(), css: "" };
+    const shot = await snapshot();
+    if (!shot.body.trim()) throw new Error("This page is too large to export");
+    return { html: withoutCites(sanitizeArtifact(shot.body)), css: shot.css.replace(/<\/style/gi, "") };
+  };
+  const standalone = async (tokens, prepared) => {
+    const p = prepared || await prepare();
+    return standaloneDocument(title, p.html, `${await loadKitCss()}\n${p.css}`, tokens);
+  };
 
-  // a page with scripts is saved as written (with a stand-in for the app's save helper); the other formats need a static page
+  // the HTML file of a page with scripts is the page as written (with a stand-in for the app's save helper)
   const withShim = (page) => (/<head[^>]*>/i.test(page) ? page.replace(/<head[^>]*>/i, (m) => `${m}<script>window.tk=window.tk||{state:{},save(){},copy(){}}</script>`) : `<script>window.tk={state:{},save(){},copy(){}}</script>${page}`);
-  const items = scriptPage ? [["HTML page", "fa-code", async () => onSave?.({ title, content: withShim(withoutCites(checked.html)) })]] : [
-    ["HTML page", "fa-code", async () => onSave?.({ title, content: await standalone(readTokens()) })],
-    ["PDF", "fa-file-pdf", async () => notify(await api().exportArtifact({ format: "pdf", title, html: await standalone({}), kindOfArtifact: kind }), "PDF")],
-    ["Image (PNG)", "fa-image", async () => notify(await api().exportArtifact({ format: "png", title, html: await standalone({}) }), "image")],
+  const items = [
+    ["HTML page", "fa-code", async () => onSave?.({ title, content: scriptPage ? withShim(withoutCites(checked.html)) : await standalone(readTokens()) })],
+    ["PDF", "fa-file-pdf", async () => notify(await api().exportArtifact({ format: "pdf", title, html: await standalone(scriptPage ? readTokens() : {}), kindOfArtifact: kind }), "PDF")],
+    ["Image (PNG)", "fa-image", async () => notify(await api().exportArtifact({ format: "png", title, html: await standalone(scriptPage ? readTokens() : {}) }), "image")],
     ["Word (.docx)", "fa-file-word", async () => {
       const { extractBlocks } = await import("./artifact-blocks.js");
-      notify(await api().exportArtifact({ format: "docx", title, html: await standalone({}), blocks: extractBlocks(clean()), withImage: /<svg\b/i.test(checked.html) }), "Word document");
+      const p = await prepare();
+      notify(await api().exportArtifact({ format: "docx", title, html: await standalone({}, p), blocks: extractBlocks(p.html), withImage: /<svg\b/i.test(p.html) }), "Word document");
     }],
     ["PowerPoint (.pptx)", "fa-file-powerpoint", async () => {
       const { extractSlides } = await import("./artifact-blocks.js");
-      notify(await api().exportArtifact({ format: "pptx", title, html: await standalone({}), slides: extractSlides(clean(), title), withImage: /<svg\b/i.test(checked.html) }), "presentation");
+      const p = await prepare();
+      notify(await api().exportArtifact({ format: "pptx", title, html: await standalone({}, p), slides: extractSlides(p.html, title), withImage: /<svg\b/i.test(p.html) }), "presentation");
     }]
   ];
   for (const [label, icon, run] of items) {
