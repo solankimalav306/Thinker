@@ -1,15 +1,57 @@
-# Next up (logged 2026-10-31)
+# Where things stand and what is next (logged 2026-10-31, end of day)
 
-The artifact workflow was rebuilt today (kinds drawn from data, a separate identify/generate/check path in the agent, maths,
-saved progress). It is committed but unfinished. Plan for the next session:
+`main` was pushed to GitHub (`solankimalav306/Thinker`) at 3.3.0. **Everything below is committed locally on `main` and NOT pushed.**
+`package.json` is still 3.3.0 and `dist/Thinker Setup 3.3.0.exe` is older than all of it.
 
-1. ~~Open an artifact in a tab~~ (done 2026-10-31: "Open in a tab" on every chat card; the tab has Export to HTML, PDF, PNG, Word and PowerPoint
-   and Save to Artifacts). Still to do: richer creation from the tab, for example "make slides or a report from this" with the AI.
-2. ~~Custom interactive page~~ (done 2026-10-31: separate page builder, update-in-place, sealed script frame with heartbeat watchdog,
-   navigation/WebRTC/request blocking; see docs/ARTIFACTS.md "Web pages"). Export of a script page to PDF/PNG/Word/PPT works from a snapshot of the running page. Script pages are deliberately not shared with guests.
-   "Make slides / report / quiz / page from this" is a wand menu on each chat card (2026-10-31).
-3. ~~Finish checking~~ the narrow-panel charts and diagrams and the all-kinds click-through: done, all pass. The pie chart has only been seen in code.
-4. **Sharing**: the guest page shows only page-style artifacts; data-based ones need the guest page to draw them (the server now serves
-   the files the frame needs).
-5. **Exports** for each kind (PDF, PNG, Word, PowerPoint) checked one by one.
-6. Update docs/ARTIFACTS.md, the Help topic and screenshots; rebuild the installer; push.
+## Done today, in order (commits after the 3.3.0 push)
+| Commit | What |
+|---|---|
+| `266217f7` | Artifacts, new workflow: small list of kinds drawn from data (checklist, steps, quiz, flashcards, table, chart, diagram, timeline, document), separate identify/generate/check path in the agent, maths, saved progress |
+| `06ea2a7f` | Artifacts open in a tab of their own from any chat; export menu (HTML, PDF, PNG, Word, PowerPoint); Save to Artifacts |
+| `4ff1b758` | **Web pages, Claude-style**: a separate builder for full pages (notes sites, dashboards, trackers, calculators) with their own CSS and JavaScript; "add a quiz to it" re-sends the previous artifact; runs in a sealed script frame; citation chips read "Page N" |
+| `e433775b` | Script pages export to PDF, PNG, Word and PowerPoint from a snapshot of the running page |
+| `79167c0a` | Wand menu on every chat card: make slides / a report / a quiz / a web page from an artifact, or "Change this artifact: …" |
+| `c9984334` | **Retrieval rebuilt** (chunking, keyword + meaning search, reranker, multilingual embeddings, follow-up-aware search) with a benchmark |
+
+Details: `docs/ARTIFACTS.md` (kinds, "Web pages", the wand menu, safety model) and `docs/RETRIEVAL-EVAL.md` (method, every number, limits).
+
+### Web pages: how it is secured (so nobody has to rediscover it)
+- Frame `artifact-live.html`, sandbox `allow-scripts` only, header policy allows inline scripts and nothing else (`connect-src 'none'`,
+  images as data only, no frames, forms, media, workers or eval). Main process: `will-frame-navigate` blocks leaving `thinker-artifact:`,
+  WebRTC limited to proxied UDP, `webRequest` cancels any request started by an artifact frame to a non-artifact address.
+- Heartbeat: a page silent for 9 s is removed with "Run it again". Verified in the real app: fetch and remote image blocked, state saved.
+  **Not yet tried:** a deliberately hostile page (infinite loop, navigation attempt, WebRTC) against the watchdog and blocks.
+- Script pages are deliberately **not shared with guests** (decision 2026-10-31). Pages with scripts export as: HTML as written;
+  PDF/PNG/Word/PowerPoint from a cleaned snapshot (buttons and inputs are dropped).
+
+### Retrieval: numbers to remember
+Benchmark `evals/retrieval/` (124 questions, 7 papers): answer in top 3 **59.7% -> 88.7%**, 40% fewer words sent; follow-ups
+**48.6% -> 91.9%**; 30-question chat eval 29/30 before and after (U3 "miss" is a grader false alarm), 22% fewer tokens.
+Design: ~140-word overlapping sentence passages across page breaks, BM25 (words weigh 2x) + `multilingual-e5-base`, weighted RRF,
+background `mmarco` cross-encoder, k=5 (8 across documents), previous question added to short/pointing questions. Old indexes are
+searched by words until the document is reopened, then rebuilt. Env switches: `THINKER_RERANK=off`, `THINKER_EMBED_MODEL=...`.
+
+## Still to do (priority order)
+1. **Rebuild the installer and push.** `backend.exe` is built with PyInstaller (`backend.spec`, `npm run release`): check the new modules
+   (`utils/bm25.py`, `utils/followup.py`, `services/rerank.py`) are bundled, and that `intfloat/multilingual-e5-base` and the reranker
+   download/work from the packaged app (first use now downloads about 1.1 GB + 0.5 GB; decide whether to show progress or bundle).
+   Bump the version. Ask before pushing.
+2. **Hostile test of the script frame** (see above) and decide whether the "runs its own code" note on cards is enough.
+3. **Real-document check of the new search** on the user's own PDFs (the CS-MRI report, scanned and table-heavy files) and the new web-page builder on it;
+   the benchmark used English arXiv papers only.
+4. Retrieval ideas not done: model-written context per passage at indexing time, model-based query rewriting (HyDE / multi-query),
+   OCR and table/equation extraction for scans, a larger reranker, answer-level evaluation on more documents and models.
+5. Artifacts: the wand menu uses the chat's *latest* artifact, not necessarily the card clicked; it is absent inside an opened tab;
+   the pie chart has only been seen in code; Help topic and screenshots are not updated; guests cannot draw data-based artifacts
+   (only page-style ones); exports of every data kind (PDF/PNG/Word/PPT) checked one by one.
+6. Not requested yet: encrypting LAN sharing; Thinkspace-wide features beyond what exists.
+
+## Working notes
+- The user's Gemini key is **free tier (15 requests a minute)**: run chat evals with `sh evals/run-paced.sh <out> <ids> <ids> ...`.
+- The key is encrypted in the main process (`secrets.js`); never read it. For model calls in scripts use `window.electronAPI.askLLM`
+  through a running app on a debug port (`evals/retrieval/genq.mjs` does).
+- Test commands: `node --test` (224 tests, 1 skipped), `agent-handler` pytest (`venv/Scripts/python -m pytest agent-handler/tests -q`, 115).
+  Python tests set `THINKER_RERANK=off` in `tests/conftest.py` so none loads a model.
+- The Bash tool collapses backslashes in code: write regex/escape code with the Write or Edit tools or a Python patch file.
+- A hidden Electron window stalls rendering: call `Page.captureScreenshot` over CDP to force frames. Eval instances run on
+  `--user-data-dir=<scratchpad>/userdata-eval` (has the real key) on ports 9222/9226.
