@@ -26,6 +26,7 @@ import { runTour } from "./tour-engine.js";
 import { buildTours } from "./tours.js";
 import { createOnboarding, TASKS, progress, nextTask } from "./onboarding.js";
 import { renderHelp, openGuide } from "./help.js";
+import { renderAbout } from "./about.js";
 import { createSpaces } from "./spaces.js";
 import { createArtifactsLibrary } from "./artifacts-library.js";
 import { createTexStudio } from "./tex-studio.js";
@@ -1736,6 +1737,7 @@ async function boot() {
   window.addEventListener("thinker:open-artifact", (event) => artifactsLibrary.openDraft(event.detail));
   window.addEventListener("thinker:home-shown", () => spaces.refreshHome().catch(() => {}));
   spaces.refreshHome().catch(() => {});
+  renderAbout(document.getElementById("settings-about"));
   renderHelp(elements.helpContent, {
     run: runHelpAction,
     openLink: (url) => window.electronAPI.openExternal(url)

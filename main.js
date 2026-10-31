@@ -521,6 +521,8 @@ function registerIpcHandlers() {
     return id && !id.startsWith('missing-') ? id : null;
   });
 
+  ipcMain.handle('app:getVersion', () => app.getVersion());
+
   ipcMain.handle('app:getUserDataPath', async () => {
     const embeddingsPath = path.join(app.getPath('userData'), 'embeddings');
     await fsPromises.mkdir(embeddingsPath, { recursive: true });

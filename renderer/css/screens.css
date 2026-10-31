@@ -558,3 +558,11 @@
 /* the charts need a height of their own: a canvas has none until something is drawn on it */
 #token-breakdown-chart { height: 112px; }
 #token-usage-graph { height: 64px; }
+
+/* About card */
+.about-lead { margin: 0 0 12px; line-height: 1.5; }
+.about-list { margin: 0 0 12px; padding-left: 18px; display: grid; gap: 6px; line-height: 1.45; color: var(--text-secondary, inherit); }
+.about-sub { margin: 14px 0 6px; font-size: 0.9rem; }
+.about-built { columns: 2; column-gap: 28px; }
+.about-built li { break-inside: avoid; }
+@media (max-width: 720px) { .about-built { columns: 1; } }
