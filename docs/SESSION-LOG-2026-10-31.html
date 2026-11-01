@@ -86,6 +86,8 @@ ul { padding-left: 20px; margin: 8px 0; }
   <a href="#e2e">Chat evaluation</a>
   <a href="#speed">Indexing speed</a>
   <a href="#textbooks">Two textbooks</a>
+  <a href="#whole">Whole documents</a>
+  <a href="#basics">Tabs and chat basics</a>
   <a href="#bugs">Bugs found</a>
   <a href="#commits">Commits and builds</a>
   <a href="#limits">Limits and next</a>
@@ -93,26 +95,28 @@ ul { padding-left: 20px; margin: 8px 0; }
 <main>
 <header>
   <h1>Thinker Session Log</h1>
-  <p>Everything built, tested and measured from 31 Oct to 1 Nov 2026: the artifact system, the retrieval rebuild with every benchmark, the indexing speed-up, the two-textbook test, bugs, builds and what is left. Numbers are copied from the runs; nothing is rounded up.</p>
+  <p>Everything built, tested and measured from 31 Oct to 1 Nov 2026: the artifact system, the retrieval rebuild with every benchmark, the indexing speed-up, the two-textbook test and the whole-document workflow it led to, tab switching, chat basics, bugs, builds and what is left. Numbers are copied from the runs; nothing is rounded up.</p>
 </header>
 
 <section id="summary">
   <h2>Summary</h2>
-  <p class="lede">Retrieval now finds the answer in the top 3 passages for 87.9% of questions, up from 59.7%, and indexing is about four times faster.</p>
+  <p class="lede">Retrieval now finds the answer in the top 3 passages for 87.9% of questions, up from 59.7%, indexing is about four times faster, and whole textbooks can be read through.</p>
   <div class="tiles">
     <div class="tile"><div class="n good">59.7 → 87.9<small>%</small></div><div class="l">answer in the top 3 passages (124 questions, 7 papers)</div></div>
     <div class="tile"><div class="n good">48.6 → 91.9<small>%</small></div><div class="l">follow-up questions found in the top 3</div></div>
     <div class="tile"><div class="n good">232 → 45<small> s</small></div><div class="l">indexing 930 passages (7 papers)</div></div>
     <div class="tile"><div class="n good">−40<small>%</small></div><div class="l">words sent to the model per question (1,199 → 725)</div></div>
     <div class="tile"><div class="n">29 / 30</div><div class="l">end-to-end chat evaluation, same as before, 22% fewer tokens</div></div>
-    <div class="tile"><div class="n bad">gap</div><div class="l">"answer all the questions in both textbooks" does not work yet</div></div>
+    <div class="tile"><div class="n good">100<small>%</small></div><div class="l">of two textbooks read: 178 questions answered and the question pattern analysed, in 4.5 minutes</div></div>
   </div>
   <ul>
     <li><b>Artifacts</b>: nine data kinds plus slides, open in tabs, a separate builder for full web pages (own HTML, CSS, JavaScript) in a sealed frame, edit-in-place, exports, and a wand menu to make slides, a report, a quiz or a page from any artifact.</li>
     <li><b>Retrieval</b>: new chunker, keyword + meaning search, reranker, follow-up aware queries, multilingual embeddings, benchmarked end to end.</li>
     <li><b>About card</b> in Settings with the live version number.</li>
     <li><b>Side-chat bug</b>: questions asked while a new document was still indexing got "the document has no information". Fixed.</li>
-    <li><b>Builds</b>: 3.4.0 and 3.4.1 installers (see Commits and builds).</li>
+    <li><b>Whole documents</b>: "answer all the questions in both textbooks" runs as a background job that reads every part, shows progress and can be stopped.</li>
+    <li><b>Tabs and chat basics</b>: a request keeps its wait line when you switch tabs; every answer has Re-run and Fork, every question has Edit.</li>
+    <li><b>Builds</b>: 3.4.0, 3.4.1 and 3.4.2 installers (see Commits and builds).</li>
   </ul>
 </section>
 
@@ -340,9 +344,53 @@ ul { padding-left: 20px; margin: 8px 0; }
   <h2>Two textbooks in a Thinkspace</h2>
   <p class="lede">The user asked whether uploading two textbooks and asking for notes, answers to all the questions and a pattern analysis would work.</p>
   <p>Setup: Think Python (about 250 pages) and Think Stats (about 200 pages), one Thinkspace. Request: "Make an artifact with notes from both books and give answers to all the questions in them. Analyse the pattern of the questions too."</p>
-  <div class="note no"><b>It does not work yet.</b> In 8 seconds the agent returned a three-section document of about 1,300 characters built from 9 passages (Think Stats pages 6, 8, 35, 146; Think Python pages 7, 76, 77, 148, 151): a few notes, a short generic "question analysis", and no answers to the books' questions.</div>
-  <p><b>Why</b>: the agent searches, takes the best 8 passages (4 per document) and writes from them. A request about every question in whole books needs another workflow.</p>
-  <p><b>Plan, not built</b>: detect whole-document requests; walk each book chapter by chapter in rate-limit-aware batches with visible progress; collect the exercises; answer them in batches; then assemble the artifact (notes, answers, question-pattern analysis). On a free-tier key (15 requests a minute) about 30 to 40 model calls take a few minutes.</p>
+  <h3>First try: it did not work</h3>
+  <div class="note no">In 8 seconds the agent returned a three-section document of about 1,300 characters built from 9 passages (Think Stats pages 6, 8, 35, 146; Think Python pages 7, 76, 77, 148, 151): a few notes, a short generic "question analysis", and no answers to the books' questions. The agent searches, takes the best 8 passages and writes from them; a request about every question in whole books needs another workflow.</div>
+  <h3>After building the whole-document workflow</h3>
+  <div class="scroll"><table>
+    <tr><th>Run</th><th class="num">Parts</th><th class="num">Text read</th><th class="num">Read time</th><th class="num">Model calls</th><th class="num">Tokens</th><th class="num">Key points</th><th class="num">Questions answered</th></tr>
+    <tr><td>Before: search and write</td><td class="num">1</td><td class="num">a few pages</td><td class="num">8 s</td><td class="num">few</td><td class="num">2.8k</td><td class="num">few</td><td class="num bad">0</td></tr>
+    <tr><td>Whole-document job, first run (parts sampled to fit)</td><td class="num">40</td><td class="num">81%</td><td class="num">361 s</td><td class="num">42</td><td class="num">235k</td><td class="num">269</td><td class="num">161 (122 worked out by the AI)</td></tr>
+    <tr class="hl"><td>After the fix (parts grow, nothing dropped)</td><td class="num">37</td><td class="num good">100%</td><td class="num">270 s</td><td class="num">40</td><td class="num">288k</td><td class="num">260</td><td class="num good">178 (141 worked out by the AI)</td></tr>
+  </table></div>
+  <p>Both runs produced an overview with coverage, a "Pattern of the questions" section (question types with counts and example numbers, difficulty, how to prepare), a count of questions per chapter, and one section per part with key points, then every question with its answer and page. Answers the book does not give are worked out by the AI and marked. Free-tier Gemini key, no rate-limit errors. Indexing the two books took 68 s (13 s when already indexed).</p>
+</section>
+
+<section id="whole">
+  <h2>Whole-document reading</h2>
+  <p class="lede">What was built so that "answer all the questions in both books" works.</p>
+  <div class="scroll"><table>
+    <tr><th>Piece</th><th>Detail</th></tr>
+    <tr><td>Detecting the request</td><td><code>utils/wholedoc.py</code>: "all the questions", "every chapter", "the whole book", "both books", "chapter by chapter", with something to make or do. Requests about one page, one paragraph or selected text are never treated this way. Checked on ten example requests.</td></tr>
+    <tr><td>Background job</td><td><code>services/jobs.py</code>: the first call returns a ticket at once; the app follows <code>/agent/job/&lt;id&gt;</code>, shows progress and can stop it with <code>/agent/cancel</code>. The app waits up to 45 minutes. No request has to fit inside one HTTP call.</td></tr>
+    <tr><td>Planning the parts</td><td><code>services/deepread.py</code>: the documents' passages are grouped in order into parts of 3,500 to 12,000 words, kept to chapter boundaries; the overlap between passages is removed. When there are too many parts for the budget the parts grow; only an enormous collection is sampled, and the overview says so.</td></tr>
+    <tr><td>Reading each part</td><td>The model returns key points and every exercise with an answer and page, marked when the book gives no answer. A part that cannot be read after one retry is reported in the overview, not hidden.</td></tr>
+    <tr><td>Pacing</td><td>Three threads and an adaptive limiter: it starts at 24 calls a minute, halves when a provider says "too many requests", waits the time the provider names, and speeds up while calls succeed. A free Gemini key allows 15 a minute.</td></tr>
+    <tr><td>Assembling</td><td>Plain code builds the document (up to 150 sections), so its length never depends on one model reply. One more model call analyses the question patterns. With artifacts off the result is markdown. The chat's memory keeps a one-line note, not the whole document.</td></tr>
+    <tr><td>What the person sees</td><td>The thinking line becomes, for example, "Reading Think Python, pp. 80–87 (part 12 of 30) (28%) · 31s. You can press Stop." in the reader chat and the Thinkspace chat. Confirmed on screen in the real app, with the Stop button showing.</td></tr>
+  </table></div>
+  <p>Other runs: Llama 2 (77 pages) alone, 14 parts, 100% coverage; Llama 2 with BERT in a Thinkspace, 18 parts, 100% coverage; Think Python alone was planned as 30 parts (its first timing was cut short by the tab bug above and is not reported). Tests: 14 new Python tests (detection, part planning, overlap removal, growing and sampling, pacing and retry, failed parts, cancel, jobs).</p>
+</section>
+
+<section id="basics">
+  <h2>Tabs and chat basics</h2>
+  <p class="lede">Two things the user asked for after trying the build.</p>
+  <h3>The wait line survives switching tabs</h3>
+  <ul>
+    <li><b>Problem</b>: switching tabs, documents or chats rebuilds the chat window, and the progress line was a loose element nothing remembered. In a Thinkspace the answer was also written into a window that no longer existed.</li>
+    <li><b>Fix</b>: both chats keep requests that are being answered in a registry by chat. The chat that is waiting draws its wait line again, with live progress and the Stop button, and receives the answer when it arrives. A slow request no longer blocks every other chat.</li>
+    <li><b>Checked in the real app</b>, both chats: start a whole-document request, go Home, then to Thinkspaces (or Artifacts), come back. Reader: the line returned as "part 8 of 14 (31%)" and the finished document appeared. Thinkspace: "part 7 of 18 (20%)", then the document.</li>
+  </ul>
+  <h3>Re-run, Edit, Fork, Copy</h3>
+  <div class="scroll"><table>
+    <tr><th>Where</th><th>Button</th><th>What it does</th></tr>
+    <tr><td>Under an answer</td><td>Re-run</td><td>Asks the same question again; the new answer replaces this one. Messages after it are removed, after asking.</td></tr>
+    <tr><td>Under an answer</td><td>Fork</td><td>A new chat that starts as a copy of this one up to this message; the original is unchanged and the new chat is listed with the others.</td></tr>
+    <tr><td>Under an answer</td><td>Copy</td><td>Copies the answer text (artifact answers have Re-run and Fork).</td></tr>
+    <tr><td>Under a question</td><td>Edit</td><td>Puts the question back in the box, cut back to before it, ready to change and send.</td></tr>
+    <tr><td>Under a question</td><td>Copy</td><td>Copies the question.</td></tr>
+  </table></div>
+  <p>Stored with two new operations (<code>truncateMessages</code>, <code>forkConversation</code>) for reader chats and Thinkspace chats alike. Checked in the real app in both chats: Re-run replaced the answer, Fork produced a second chat with the same messages, Edit restored the question. Not built: keeping several versions of one answer side by side, re-running with another model.</p>
 </section>
 
 <section id="bugs">
@@ -355,6 +403,9 @@ ul { padding-left: 20px; margin: 8px 0; }
     <tr><td>"web based notes … with a quiz" produced a quiz</td><td>A named kind beat the page builder.</td><td>Website-style words now choose the page kind first.</td></tr>
     <tr><td>Passage chunk labelled with the wrong page when it crossed a break</td><td>Only the first page was recorded.</td><td>Passages keep every page and where each starts; each part is labelled and citable.</td></tr>
     <tr><td>The old "fetch fewer passages when the question resembles the chat" shortcut</td><td>It fetched one passage for follow-ups, and e5 similarities are high for everything.</td><td>Removed; k is 5.</td></tr>
+    <tr><td>The progress line disappeared when switching tabs; a Thinkspace answer could be lost to a window that no longer existed</td><td>The wait was a loose element in a window that is rebuilt on every switch.</td><td>Requests are remembered per chat; the chat redraws its wait and receives the answer (see Tabs and chat basics).</td></tr>
+    <tr><td>Whole-textbook run read only 81% of the text</td><td>More parts than the budget were dropped by sampling.</td><td>Parts grow instead; sampling only for enormous collections. Rerun: 100%.</td></tr>
+    <tr><td>One slow request blocked every chat</td><td>A single global "pending" state.</td><td>Pending is per chat.</td></tr>
     <tr><td>Evaluation runs failed with 429</td><td>Free-tier key allows 15 requests a minute.</td><td>Paced batch runner.</td></tr>
   </table></div>
 </section>
@@ -374,15 +425,18 @@ ul { padding-left: 20px; margin: 8px 0; }
     <tr><td class="mono">4e4e25b7</td><td>3.4.0 version bump</td><td>yes (15 commits in one push)</td></tr>
     <tr><td class="mono">6adc3539</td><td>Indexing gap fix, multi-page citations</td><td class="warn">local</td></tr>
     <tr><td class="mono">8ccca71e</td><td>e5-small with 256-token cap, speed experiment</td><td class="warn">local</td></tr>
-    <tr><td>then</td><td>Two-textbook finding logged; 3.4.1 version bump and this log</td><td class="warn">local</td></tr>
+    <tr><td class="mono">91090771</td><td>3.4.1 version bump, first session log</td><td>yes</td></tr>
+    <tr><td class="mono">56e087c0</td><td>Whole-document jobs with progress and Stop; requests survive tab switches; Re-run, Edit, Fork</td><td>PUSHED_56</td></tr>
+    <tr><td>then</td><td>3.4.2 version bump, logs updated with the textbook rerun</td><td>PUSHED_LAST</td></tr>
   </table></div>
   <h3>Installers</h3>
   <ul>
     <li><b>3.4.0</b>: 375 MB, signed. The packaged backend was started on its own and answered an index and an exact-term query with no errors. Not run on a clean machine.</li>
     <li><b>3.4.1</b>: 375 MB, signed, built after the e5-small switch. The packaged backend was started on its own and indexed a small document and answered an exact-term query with the small model and no errors (first call 11 s including model load). Not run on a clean machine.</li>
+    <li><b>3.4.2</b>: 375 MB, signed, with whole-document jobs, tab-switch persistence and the chat actions. The packaged backend was started on its own: the new job endpoints answer, and it indexed a document and found an exact term, with no errors. Not run on a clean machine.</li>
   </ul>
   <h3>Tests</h3>
-  <p>Node 224 (223 pass, 1 skipped). Python 117 (new: chunker, keyword search, hybrid search, old-index fallback and rebuild, indexing in progress, one indexing per document, follow-ups, page labels, sources).</p>
+  <p>Node 226 (225 pass, 1 skipped). Python 131 (new: whole-document detection, part planning, pacing, jobs, plus the earlier chunker, keyword search, hybrid search, old-index rebuild, follow-ups and sources tests). New Node tests: conversation truncate and fork for reader and Thinkspace chats.</p>
 </section>
 
 <section id="limits">
@@ -394,11 +448,13 @@ ul { padding-left: 20px; margin: 8px 0; }
     <li>Scanned PDFs without text, equations, tables as tables and figures are not searched properly; that needs OCR and layout extraction.</li>
     <li>First use downloads two models, each about 0.5 GB (the second in the background). Not tested from the packaged app on a clean machine.</li>
     <li>Script-page security: a hostile page has not been run against the watchdog and blocks.</li>
+    <li>Whole-document answers: those marked "worked out by the AI" are not from the book and can be wrong; a book's own answer key is not read unless it is in the document. The job needs the app to stay open (it is not resumed after a restart), and a book of several hundred pages costs about 250k tokens.</li>
+    <li>The textbook run was graded by reading, not against an answer key.</li>
   </ul>
   <h3>Next, in priority order</h3>
   <ol>
-    <li><b>Whole-document requests</b> (answer all the questions in whole textbooks): the workflow above.</li>
-    <li>Install the new build on a clean machine and check the first-run downloads.</li>
+    <li>Install the new build on a clean machine and check the first-run downloads and a whole-document request from the packaged app.</li>
+    <li>Whole documents: resume after a restart, a cost warning before a very long job, using the book's own answer key when it has one, grading answers against a known key.</li>
     <li>Hostile test of the script frame.</li>
     <li>Try the new search and web pages on real documents (scans, tables, the CS-MRI report).</li>
     <li>Retrieval ideas not done: model-written context per passage, model-based query rewriting, OCR, a larger reranker, answer-level evaluation on more documents.</li>

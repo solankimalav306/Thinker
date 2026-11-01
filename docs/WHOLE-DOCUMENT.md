@@ -19,10 +19,14 @@ used to take the best 8 passages and write a 1,300-character document with no an
   artifact (up to 150 sections); with artifacts off it is markdown. The chat's memory keeps a one-line note, not the whole document.
 
 ## Measured
-Think Python + Think Stats (about 450 pages) through the real app and a free Gemini key: indexing 68 s, reading 361 s (40 parts, 42 model
-calls, about 235k tokens), 269 key points and 161 questions with answers (122 worked out by the AI), a grouped question-pattern analysis,
-no rate-limit errors. That run sampled to 81% of the text; parts now grow so all text is read (tests cover it; the books were not re-run).
-Think Python alone: 30 parts in about 110 s of progress. Llama 2 (77 pages): 14 parts, 100% coverage.
+Think Python + Think Stats (about 450 pages) through the real app and a free Gemini key, twice:
+| Run | Parts | Coverage | Time to read | Model calls | Tokens | Key points | Questions (worked out by the AI) |
+|---|---|---|---|---|---|---|---|
+| First (parts were sampled to fit) | 40 | 81% | 361 s | 42 | 235k | 269 | 161 (122) |
+| After the fix (parts grow, nothing dropped) | 37 | **100%** | **270 s** | 40 | 288k | 260 | **178 (141)** |
+Both had a grouped question-pattern analysis, 42 to 45 sections, and no rate-limit errors. Indexing the two books took 68 s with the small
+model (13 s when already indexed).
+Llama 2 (77 pages): 14 parts, 100% coverage; Llama 2 with BERT in a Thinkspace: 18 parts, 100% coverage.
 
 ## What the person sees
 The "Thinking" line becomes, for example, "Reading Think Python, pp. 80-87 (part 12 of 30) (28%) · 31s. You can press Stop." in the reader
