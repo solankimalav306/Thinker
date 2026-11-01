@@ -292,6 +292,28 @@ function createStore(db) {
     return Number(result.lastInsertRowid);
   }
 
+  // Keeps the first `keep` messages of a chat and removes the rest: how "re-run" and "edit and resend" start again from a point.
+  function truncateMessages(conversationId, keep) {
+    const ids = q('SELECT id FROM messages WHERE conversation_id = ? ORDER BY id').all(String(conversationId)).map((r) => r.id);
+    const drop = ids.slice(Math.max(0, Math.floor(Number(keep)) || 0));
+    for (const id of drop) q('DELETE FROM messages WHERE id = ?').run(id);
+    q('UPDATE conversations SET updated_at = ? WHERE id = ?').run(now(), String(conversationId));
+    return drop.length;
+  }
+
+  // A new chat that starts as a copy of the first `keep` messages of another: "fork from here".
+  function forkConversation(conversationId, keep) {
+    const src = q('SELECT * FROM conversations WHERE id = ?').get(String(conversationId));
+    if (!src) throw new Error('That chat no longer exists.');
+    const id = newId('chat');
+    const title = `Fork of ${src.title}`.slice(0, 70);
+    q(`INSERT INTO conversations (id, doc_id, workspace_id, title, mode, profile_id, instructions, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(id, src.doc_id, src.workspace_id, title, src.mode, src.profile_id, src.instructions, now(), now());
+    const rows = q('SELECT role, content, meta, created_at FROM messages WHERE conversation_id = ? ORDER BY id').all(String(conversationId)).slice(0, Math.max(0, Math.floor(Number(keep)) || 0));
+    for (const r of rows) q('INSERT INTO messages (conversation_id, role, content, meta, created_at) VALUES (?, ?, ?, ?, ?)').run(id, r.role, r.content, r.meta, r.created_at);
+    return conversationRow(q('SELECT * FROM conversations WHERE id = ?').get(id));
+  }
+
   // ── Instructions ──────────────────────────────────────────────────────────
   const instructionRow = (r) => ({ id: r.id, scope: r.scope, scopeId: r.scope_id, title: r.title, body: r.body, enabled: Boolean(r.enabled), createdAt: r.created_at });
 
@@ -322,7 +344,7 @@ function createStore(db) {
     loadNotes, saveNotes, listMindmaps, saveMindmap, deleteMindmap,
     getGlossary, addGlossaryTerm, removeGlossaryTerm,
     appendUsage, readUsage, clearUsage,
-    listConversations, listWorkspaceConversations, createWorkspaceConversation, getConversation, createConversation, updateConversation, deleteConversation, getMessages, appendMessage,
+    listConversations, listWorkspaceConversations, createWorkspaceConversation, getConversation, createConversation, updateConversation, deleteConversation, getMessages, appendMessage, truncateMessages, forkConversation,
     listInstructions, saveInstruction, deleteInstruction
   };
 }

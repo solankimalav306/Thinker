@@ -43,6 +43,12 @@ function appendFormatted(parent, text) {
   });
 }
 
+// Requests still being answered, by Thinkspace and chat. Switching tabs rebuilds the chat window; this registry is how the
+// new window shows the same wait again and receives the answer when it comes. Each job tells whoever is listening.
+const inflight = new Map();
+const tell = (job, event) => { for (const listener of [...job.listeners]) { try { listener(event); } catch { job.listeners.delete(listener); } } };
+const setLabel = (job, text) => { job.label = text; tell(job, { type: "label", text }); };
+
 export function createSpaceChat(root, { api = window.electronAPI, space, openPdfAt, setStatus }) {
   // a document is called by its name without ".pdf", in the question and in the citations
   const docs = space.documents.filter((d) => d.path).map((d) => ({ ...d, title: d.title.replace(/\.pdf$/i, "") }));
@@ -51,6 +57,9 @@ export function createSpaceChat(root, { api = window.electronAPI, space, openPdf
   let busy = false;
   let requestId = null;
   let mode = "auto";
+  let job = null;       // the request this window is showing the wait of
+  let waiting = null;   // its line in the chat
+  let listener = null;
 
   root.textContent = "";
   root.classList.add("sc-root");
@@ -104,16 +113,61 @@ export function createSpaceChat(root, { api = window.electronAPI, space, openPdf
 
   convoSelect.addEventListener("change", () => { if (convoSelect.value) openConversation(convoSelect.value); });
 
+  // ---- a request that is still being answered ------------------------------------------------------
+  function hideJob() {
+    if (job && listener) job.listeners.delete(listener);
+    waiting?.remove();
+    job = null;
+    waiting = null;
+    listener = null;
+    requestId = null;
+    setBusy(false);
+  }
+
+  function showJob(j) {
+    hideJob();
+    job = j;
+    requestId = j.requestId;
+    waiting = el("div", "sc-msg status", j.label);
+    messages.append(waiting);
+    messages.scrollTop = messages.scrollHeight;
+    setBusy(true);
+    const mine = (event) => {
+      if (!root.isConnected) { j.listeners.delete(mine); return; }     // this window has been replaced
+      if (job !== j) return;
+      if (event.type === "label") { waiting.textContent = event.text; return; }
+      hideJob();
+      if (event.type === "reply") {
+        entries.push(event.reply);
+        renderEntry(event.reply, entries.length - 1);
+        messages.scrollTop = messages.scrollHeight;
+        refreshList(conversationId).catch(() => {});
+      } else if (event.type === "stopped") setStatus("Stopped.");
+      else if (event.type === "error") addNote(friendlyAgentError(event.message), true);
+      input.focus();
+    };
+    listener = mine;
+    j.listeners.add(mine);
+  }
+
+  // when a chat is opened, the wait it may be in the middle of
+  function showWaitIfAny() {
+    const j = conversationId ? inflight.get(`${space.id}|${conversationId}`) : null;
+    if (j) showJob(j); else hideJob();
+  }
+
   async function openConversation(id) {
+    hideJob();
     conversationId = id;
     const rows = await api.getConversationMessages(id);
     entries = rows.map((r) => ({ role: r.role === "assistant" ? "assistant" : "user", text: r.text, ts: r.ts, sources: Array.isArray(r.sources) ? r.sources : [] }));
     renderAll();
     convoSelect.value = id;
+    showWaitIfAny();
   }
 
   async function startNew() {
-    if (busy) return;
+    hideJob();
     conversationId = null;
     entries = [];
     convoSelect.value = "";
@@ -144,7 +198,61 @@ export function createSpaceChat(root, { api = window.electronAPI, space, openPdf
     messages.scrollTop = messages.scrollHeight;
   }
 
-  function renderEntry(entry) {
+  // ---- copy, re-run, edit and fork --------------------------------------------------------------------
+  function actionsRow(entry, index, withCopy = true) {
+    if (typeof index !== "number") return null;
+    const row = el("div", `sc-actions${entry.role === "user" ? " user" : ""}`);
+    const act = (label, icon, run, title) => button(label, "sc-act", icon, run, title || label);
+    if (entry.role === "user") {
+      row.append(act("Edit", "fa-pen", () => editMessage(index), "Change this question and ask again"));
+      row.append(act("Copy", "fa-copy", () => copyText(entry.text, "Question")));
+    } else {
+      if (withCopy) row.append(act("Copy", "fa-copy", () => copyText(entry.text, "Answer")));
+      row.append(act("Re-run", "fa-rotate-right", () => rerun(index), "Ask this question again and replace the answer"));
+      row.append(act("Fork", "fa-code-fork", () => forkFrom(index), "Start a new chat from here"));
+    }
+    return row;
+  }
+
+  async function copyText(text, what) {
+    try { await navigator.clipboard.writeText(text); setStatus(`${what} copied.`); } catch { setStatus("Could not copy to the clipboard."); }
+  }
+
+  // going back to a point drops what came after it, so ask first; `own` is how many messages are being replaced anyway
+  async function cutBack(keep, own) {
+    if (job) { setStatus("Wait for the current answer, or press Stop, first."); return false; }
+    if (entries.length > keep + own && !window.confirm("This removes the messages that come after it in this chat. Continue?")) return false;
+    await api.truncateConversation(conversationId, keep);
+    entries = entries.slice(0, keep);
+    renderAll();
+    await refreshList(conversationId);
+    return true;
+  }
+
+  async function rerun(index) {
+    let u = index;
+    while (u >= 0 && entries[u]?.role !== "user") u -= 1;
+    if (u < 0) return;
+    if (await cutBack(u + 1, 1)) ask(entries[u].text, { rerun: true });
+  }
+
+  async function editMessage(index) {
+    const entry = entries[index];
+    if (!entry || entry.role !== "user") return;
+    if (!(await cutBack(index, 2))) return;
+    input.value = entry.text;
+    input.focus();
+  }
+
+  async function forkFrom(index) {
+    if (!conversationId) return;
+    const forked = await api.forkConversation(conversationId, index + 1);
+    await refreshList(forked.id);
+    await openConversation(forked.id);
+    setStatus("Forked into a new chat. The original is unchanged.");
+  }
+
+  function renderEntry(entry, index) {
     if (entry.role === "assistant" && /<artifact\b/i.test(entry.text)) {
       // a reply may mix plain text with one or more artifacts, shown in order
       const wrap = el("div", "sc-artifact-reply");
@@ -168,12 +276,16 @@ export function createSpaceChat(root, { api = window.electronAPI, space, openPdf
           wrap.append(text);
         }
       }
+      const artifactActions = actionsRow(entry, index, false);
+      if (artifactActions) wrap.append(artifactActions);
       messages.append(wrap);
       return wrap;
     }
     const bubble = el("div", `sc-msg ${entry.role}`);
     if (entry.role === "assistant") renderText(bubble, entry.text);
     else bubble.textContent = entry.text;
+    const actions = actionsRow(entry, index);
+    if (actions) bubble.append(actions);
     messages.append(bubble);
     return bubble;
   }
@@ -193,7 +305,6 @@ export function createSpaceChat(root, { api = window.electronAPI, space, openPdf
     input.disabled = on || !docs.length;
     send.innerHTML = on ? '<i class="fa-solid fa-stop"></i>' : '<i class="fa-solid fa-arrow-up"></i>';
     send.title = on ? "Stop" : "Send";
-    newChat.disabled = on;
   }
 
   form.addEventListener("submit", (event) => {
@@ -206,70 +317,78 @@ export function createSpaceChat(root, { api = window.electronAPI, space, openPdf
     if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); form.requestSubmit(); }
   });
 
-  async function ask(question) {
+  async function ask(question, options = {}) {
+    const rerun = Boolean(options.rerun);   // the question is already the last message: ask it again without adding it twice
     const p = profile();
     if (!p) { setStatus("Connect an AI model first (Settings)."); addNote("Connect an AI model first. Open Settings and add a Gemini key, or point Thinker at a local model.", true); return; }
-    input.value = "";
-    if (!entries.length) messages.textContent = "";
-    const userEntry = { role: "user", text: question, ts: Date.now() };
-    entries.push(userEntry);
-    renderEntry(userEntry);
-    const waiting = el("div", "sc-msg status", "Getting your documents ready…");
-    messages.append(waiting);
-    messages.scrollTop = messages.scrollHeight;
-    setBusy(true);
-    requestId = crypto.randomUUID();
+    const userEntry = rerun ? entries[entries.length - 1] : { role: "user", text: question, ts: Date.now() };
+    if (!rerun) {
+      input.value = "";
+      if (!entries.length) messages.textContent = "";
+      entries.push(userEntry);
+      renderEntry(userEntry, entries.length - 1);
+    }
+    const j = { requestId: crypto.randomUUID(), label: "Getting your documents ready…", listeners: new Set() };
+    showJob(j);
+    let stopProgress = null;
+    let jobKey = null;
 
     try {
       if (!conversationId) {
         const created = await api.createWorkspaceConversation(space.id, { mode });
         conversationId = created.id;
       }
-      await api.appendConversationMessage(conversationId, userEntry);
+      const convo = conversationId;
+      jobKey = `${space.id}|${convo}`;
+      inflight.set(jobKey, j);
+      if (!rerun) await api.appendConversationMessage(convo, userEntry);
 
       // every document must be searchable; ones never opened in the reader are read and indexed now
       const ready = [];
       for (let i = 0; i < docs.length; i += 1) {
-        progress.hidden = false;
-        progress.textContent = `Reading ${docs[i].title} (${i + 1} of ${docs.length})…`;
+        setLabel(j, `Reading ${docs[i].title} (${i + 1} of ${docs.length})…`);
         try {
-          ready.push({ pdfId: await ensureIndexed(docs[i].path, { api, onProgress: (done, total) => { progress.textContent = `Reading ${docs[i].title} (${i + 1} of ${docs.length}): page ${done} of ${total}…`; } }), title: docs[i].title });
+          ready.push({ pdfId: await ensureIndexed(docs[i].path, { api, onProgress: (done, total) => setLabel(j, `Reading ${docs[i].title} (${i + 1} of ${docs.length}): page ${done} of ${total}…`) }), title: docs[i].title });
         } catch (error) {
           setStatus(`Could not read ${docs[i].title}: ${error.message}`);
         }
       }
-      progress.hidden = true;
       if (!ready.length) throw new Error("None of the documents could be read.");
-      waiting.textContent = "Thinking…";
+      setLabel(j, "Thinking…");
 
       const storagePath = await api.getUserDataPath();
-      const instructions = (await api.resolveInstructions(null, conversationId)) || [];
+      const instructions = (await api.resolveInstructions(null, convo)) || [];
       const key = await sha256(`thinkspace:${space.id}`);
-      const result = await api.invokeAgent({
-        requestId, query: question, pdfId: key, storagePath,
-        apiKey: p.key || "", apiFormat: p.format || "gemini", apiUrl: p.url || "", model: p.model, profile: p,
-        conversationId, mode, instructions, context: "", messages: entries.slice(-11, -1), parts: [], artifacts: true, docs: ready.map((d) => ({ pdfId: d.pdfId, title: d.title }))
+      // a request that reads whole documents reports how far it has got
+      stopProgress = api.onAgentProgress?.((p) => {
+        if (p.requestId !== j.requestId) return;
+        const share = p.total ? ` (${Math.min(100, Math.round((100 * p.done) / p.total))}%)` : "";
+        setLabel(j, `${p.label}${share} · ${Math.round(p.seconds || 0)}s. You can press Stop.`);
       });
-      waiting.remove();
-      if (result.cancelled) { setStatus("Stopped."); return; }
+      const result = await api.invokeAgent({
+        requestId: j.requestId, query: question, pdfId: key, storagePath,
+        apiKey: p.key || "", apiFormat: p.format || "gemini", apiUrl: p.url || "", model: p.model, profile: p,
+        conversationId: convo, mode, instructions, context: "", messages: entries.slice(-11, -1), parts: [], artifacts: true, docs: ready.map((d) => ({ pdfId: d.pdfId, title: d.title }))
+      });
+      stopProgress?.();
+      if (result.cancelled) { tell(j, { type: "stopped" }); return; }
       if (!result.ok) throw new Error(result.error || "The request failed");
       if (result.result?.error) throw new Error(result.result.error);
       trackAiUsage({ source: "Thinkspace chat", profile: p, usage: result.result?.usage });
       const answer = result.result?.response_text || "";
       if (!answer.trim()) throw new Error("The AI did not send an answer.");
       const reply = { role: "assistant", text: answer, ts: Date.now(), sources: (result.result?.sources || []).map((s) => ({ doc: s.doc, page: s.page })) };
-      entries.push(reply);
-      renderEntry(reply);
-      await api.appendConversationMessage(conversationId, reply);
-      await refreshList(conversationId);
-      messages.scrollTop = messages.scrollHeight;
+      // saved first, whichever window is showing this chat now; then shown by the window that is
+      await api.appendConversationMessage(convo, reply);
+      if (jobKey) inflight.delete(jobKey);
+      tell(j, { type: "reply", reply });
     } catch (error) {
-      waiting.remove();
-      progress.hidden = true;
-      addNote(friendlyAgentError(error.message), true);
+      stopProgress?.();
+      if (jobKey) inflight.delete(jobKey);
+      tell(j, { type: "error", message: error.message });
     } finally {
-      setBusy(false);
-      input.focus();
+      stopProgress?.();
+      if (jobKey) inflight.delete(jobKey);
     }
   }
 

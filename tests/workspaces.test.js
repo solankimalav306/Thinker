@@ -176,3 +176,15 @@ test('chats with a whole Thinkspace are listed per Thinkspace and go away with i
   assert.strictEqual(store.listWorkspaceConversations(b.id).length, 1);
   assert.strictEqual(store.getConversation(docChat.id).title, 'about the PDF');
 });
+
+test('a chat of a Thinkspace forks into a chat of the same Thinkspace', () => {
+  const { store, ws } = fresh();
+  const space = ws.createWorkspace({ name: 'Space' });
+  const conv = store.createWorkspaceConversation(space.id, {});
+  store.appendMessage(conv.id, { role: 'user', text: 'hello' });
+  store.appendMessage(conv.id, { role: 'assistant', text: 'hi' });
+  const fork = store.forkConversation(conv.id, 1);
+  assert.strictEqual(fork.workspaceId, space.id);
+  assert.ok(store.listWorkspaceConversations(space.id).some((c) => c.id === fork.id));
+  assert.deepStrictEqual(store.getMessages(fork.id).map((m) => m.text), ['hello']);
+});

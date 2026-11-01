@@ -14,6 +14,8 @@ from utils.page_refs import extract_page_refs
 from utils.artifacts import decide as decide_artifact, finalize as finalize_artifact, previous_artifact, schema_hint, source_artifact, KINDS as ARTIFACT_KINDS
 from utils.intents import constrain_intent
 from utils.sources import sources_from_hits
+from utils.wholedoc import wants_whole_document, wants as wants_of
+from services import jobs, deepread
 from services.dictionary import dictionary_service
 from duckduckgo_search import DDGS
 import concurrent.futures
@@ -160,6 +162,9 @@ class AgentState(TypedDict):
     artifacts: bool    # an artifact may be made
     artifact_kind: str  # which kind, once one is wanted
     doc_title: str     # the open document's title, used to label its pages in an artifact
+    request_id: str    # the app's id for this request, so a long job can be stopped
+    job_id: str        # set when the answer is being made by a background job
+    profile_id: str    # which AI profile is answering (for the usage counts)
 
 # Per-request token accumulator (reset at start of invoke_agent)
 _token_session = {"calls": [], "totals": {"input": 0, "output": 0, "context": 0, "history": 0, "selected_text": 0, "prompt": 0}}
@@ -592,6 +597,12 @@ Return ONLY the intent label (one of: ask, define, highlight, note, mindmap, sea
         print(f"[supervisor_node] Artifact wanted ({artifact_kind}); the router had said '{routed}'", flush=True)
     print(f"[supervisor_node] Final intent: '{intent}'", flush=True)
     
+    # "answer all the questions in both books": a search cannot, the documents must be read through (a background job)
+    if intent in ("ask", "note", "artifact", "search") and wants_whole_document(
+            state.get("user_query", ""), bool(str(state.get("user_context") or "").strip()), bool(extract_page_refs(state.get("user_query", "")))):
+        print("[supervisor_node] Whole-document request: reading the documents part by part", flush=True)
+        return {"intent": "deep", "rag_chunks": [], "rag_hits": [], "cache_summary": cache_summary, "artifact_kind": ""}
+
     # Retrieve RAG context with token-saving dynamic context reduction
     # Passages are about 140 words, so five of them cost what three page-sized ones used to, and the answer is
     # in the top five for roughly nine questions in ten. (The old shortcut of fetching fewer when the question
@@ -734,6 +745,67 @@ def artifact_node(state: AgentState):
         return reply_text(invoke_llm_tracked(llm, state, fix, node=f"artifact_{kind}_repair", messages=[HumanMessage(content=[{"type": "text", "text": fix}])]))
 
     return {"response_text": finalize_artifact(kind, reply_text(response), repair)}
+
+
+def result_payload(final_state: dict, profile_id: str) -> dict:
+    """What the app receives for a finished request."""
+    token_data = get_token_session()
+    return {
+        "intent": final_state["intent"],
+        "response_text": final_state["response_text"],
+        "actions": final_state.get("actions", []),
+        "glossary_terms": final_state.get("glossary_terms", []),
+        "evaluation": final_state.get("evaluation", {}),
+        "sources": sources_from_hits([{**h, "doc": h.get("doc") or final_state.get("doc_title") or ""} for h in (final_state.get("rag_hits") or []) if isinstance(h, dict)]),
+        "cache_summary": final_state.get("cache_summary", ""),
+        "usage": {
+            "profile_id": profile_id,
+            "prompt_tokens": token_data["totals"]["input"],
+            "response_tokens": token_data["totals"]["output"],
+            "total_tokens": token_data["totals"]["input"] + token_data["totals"]["output"],
+            "breakdown": {
+                "context": token_data["totals"]["context"],
+                "history": token_data["totals"]["history"],
+                "selected_text": token_data["totals"]["selected_text"],
+                "prompt": token_data["totals"]["prompt"],
+            },
+            "calls": token_data["calls"],
+        },
+    }
+
+
+def deep_node(state: AgentState):
+    """Start reading the whole document(s) as a background job; the app gets a ticket and follows its progress."""
+    snapshot = dict(state)
+    docs = [d for d in (state.get("docs") or []) if isinstance(d, dict) and d.get("pdfId")] or [{"pdfId": state.get("pdf_id", ""), "title": state.get("doc_title") or "Document"}]
+    want = wants_of(state.get("user_query", ""))
+    as_artifact = bool(state.get("artifacts"))
+    profile_id = str(state.get("profile_id") or "default")
+
+    def work(job):
+        local = threading.local()
+
+        def call(prompt, node):
+            llm = getattr(local, "llm", None)
+            if llm is None:
+                llm = local.llm = create_llm(snapshot)
+            return reply_text(invoke_llm_tracked(llm, snapshot, prompt, node=node, messages=[HumanMessage(content=[{"type": "text", "text": prompt}])]))
+
+        documents = [{"title": d.get("title") or "Document", "pdfId": d["pdfId"], "chunks": deepread.passages_of(state.get("storage_path", ""), d["pdfId"])} for d in docs]
+        out = deepread.run(documents, state.get("user_query", ""), want, call, job, as_artifact=as_artifact)
+        final = {"intent": "deep", "response_text": out["text"], "rag_hits": out["sources"], "cache_summary": ""}
+        # the chat's memory keeps a short note, not the whole document
+        try:
+            sid = cache_id(snapshot)
+            cache = normalize_knowledge_cache(load_knowledge_cache(snapshot.get("storage_path"), sid))
+            append_cache_message(cache, "assistant", f"[Read the whole of {', '.join(d['title'] for d in documents)} and made a document: {out['stats']['questions']} questions answered, {out['stats']['notes']} key points.]")
+            save_knowledge_cache(snapshot.get("storage_path"), sid, cache)
+        except Exception as error:
+            print(f"[deep_node] could not update the chat memory: {error}", flush=True)
+        return result_payload(final, profile_id)
+
+    job = jobs.start(work, state.get("request_id", ""))
+    return {"job_id": job.id, "response_text": "", "intent": "deep"}
 
 
 def highlight_node(state: AgentState):
@@ -1334,6 +1406,7 @@ workflow.add_node("supervisor", supervisor_node)
 workflow.add_node("dictionary", dictionary_node)
 workflow.add_node("ask", ask_node)
 workflow.add_node("artifact", artifact_node)
+workflow.add_node("deep", deep_node)
 workflow.add_node("highlighter", highlight_node)
 workflow.add_node("notes", notes_node)
 workflow.add_node("mindmap", mindmap_node)
@@ -1361,6 +1434,8 @@ def route_intent(state):
         return "notes"
     if intent == "artifact":
         return "artifact"
+    if intent == "deep":
+        return "deep"
     if intent == "mindmap":
         return "mindmap"
     if intent == "search":
@@ -1381,13 +1456,15 @@ workflow.add_conditional_edges(
         "websearch": "websearch",
         "comment": "comment",
         "ask": "ask",
-        "artifact": "artifact"
+        "artifact": "artifact",
+        "deep": "deep"
     }
 )
 
 workflow.add_edge("dictionary", END)
 workflow.add_edge("ask", END)
 workflow.add_edge("artifact", END)
+workflow.add_edge("deep", END)
 workflow.add_edge("highlighter", END)
 workflow.add_edge("notes", "plan")
 workflow.add_edge("plan", "analyze")
@@ -1440,11 +1517,17 @@ def invoke_agent(query_data: dict):
         "docs": [d for d in (query_data.get("docs") or []) if isinstance(d, dict) and d.get("pdfId")][:12],
         "artifacts": bool(query_data.get("artifacts")),
         "doc_title": str(query_data.get("docTitle") or "")[:200],
+        "request_id": str(query_data.get("requestId") or ""),
+        "job_id": "",
+        "profile_id": profile_id,
     }
 
     print(f"[invoke_agent] Provider: format={api_format}, url={api_url or '(default)'}, model={model}", flush=True)
 
     final_state = app.invoke(initial_state)
+
+    if final_state.get("job_id"):   # a long job: the app follows it with the ticket
+        return {"job": final_state["job_id"], "intent": "deep"}
 
     storage_path = query_data.get("storagePath", "")
     pdf_id = cache_id(query_data)

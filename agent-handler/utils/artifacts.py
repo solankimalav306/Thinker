@@ -387,7 +387,7 @@ def validate(kind, data):
         return {"events": out}
     if kind == "document":
         out = []
-        for s in _items(data.get("sections"), 50):
+        for s in _items(data.get("sections"), 150):
             if isinstance(s, str):
                 s = {"text": s}
             if isinstance(s, dict) and (_s(s.get("text"), 6000) or _s(s.get("heading"))):

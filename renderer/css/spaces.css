@@ -840,3 +840,38 @@ body.hide-token-counter .token-tracker {
   font: inherit;
   font-size: 0.85em;
 }
+
+/* copy, re-run, edit and fork under a message of a Thinkspace chat: shown on hover and for the last message */
+.sc-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  white-space: normal;
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease);
+}
+.sc-actions.user { justify-content: flex-end; }
+.sc-msg:hover > .sc-actions,
+.sc-msg:focus-within > .sc-actions,
+.sc-artifact-reply:hover > .sc-actions,
+.sc-artifact-reply:focus-within > .sc-actions,
+.sc-messages > :last-child .sc-actions,
+.sc-messages > :last-child.sc-actions { opacity: 1; }
+.sc-act {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: var(--text-xs);
+  font-weight: 550;
+  cursor: pointer;
+}
+.sc-act:hover { border-color: var(--accent); color: var(--accent-text); }
+
+.sc-msg.user { position: relative; margin-bottom: 26px; }
+.sc-msg.user > .sc-actions.user { position: absolute; right: 4px; top: 100%; margin-top: 4px; }

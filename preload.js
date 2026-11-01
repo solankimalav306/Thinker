@@ -89,6 +89,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   queryPDF: (data) => ipcRenderer.invoke('pdf:query', data),
   invokeAgent: (data) => ipcRenderer.invoke('agent:invoke', data),
   cancelAgent: (requestId) => ipcRenderer.invoke('agent:cancel', requestId),
+  onAgentProgress: (callback) => {
+    const handler = (_event, progress) => callback(progress);
+    ipcRenderer.on('agent:progress', handler);
+    return () => ipcRenderer.removeListener('agent:progress', handler);
+  },
   summarizeCache: (data) => ipcRenderer.invoke('agent:summarizeCache', data),
   appendTokenUsage: (entry) => ipcRenderer.invoke('tokens:append', entry),
   clearTokenUsage: () => ipcRenderer.invoke('tokens:clear'),
@@ -117,6 +122,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   deleteConversation: (id) => ipcRenderer.invoke('conv:delete', id),
   getConversationMessages: (id) => ipcRenderer.invoke('conv:messages', id),
   appendConversationMessage: (id, entry) => ipcRenderer.invoke('conv:append', id, entry),
+  truncateConversation: (id, keep) => ipcRenderer.invoke('conv:truncate', id, keep),
+  forkConversation: (id, keep) => ipcRenderer.invoke('conv:fork', id, keep),
   listInstructions: (scope, scopeId) => ipcRenderer.invoke('ins:list', scope, scopeId),
   saveInstruction: (fields) => ipcRenderer.invoke('ins:save', fields),
   deleteInstruction: (id) => ipcRenderer.invoke('ins:delete', id),

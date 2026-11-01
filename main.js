@@ -694,6 +694,8 @@ function registerIpcHandlers() {
   });
   ipcMain.handle('conv:messages', (_event, id) => store.getMessages(String(id)));
   ipcMain.handle('conv:append', (_event, id, entry) => store.appendMessage(String(id), entry || {}));
+  ipcMain.handle('conv:truncate', (_event, id, keep) => store.truncateMessages(String(id), Number(keep)));
+  ipcMain.handle('conv:fork', (_event, id, keep) => store.forkConversation(String(id), Number(keep)));
 
   // Thinker Remote: share one artifact or project on the local network. Off until asked.
   const remote = createRemoteServer({ appRoot: __dirname });
@@ -970,12 +972,34 @@ function registerIpcHandlers() {
   // Requests in flight, so the chat's Stop button can abandon one.
   const inflightAgentCalls = new Map();
 
-  ipcMain.handle('agent:invoke', async (_event, data) => {
+  // A request that takes minutes (a whole book read part by part) comes back as a ticket; follow it until it is done,
+  // telling the window how far it has got.
+  async function followJob(sender, requestId, job, signal) {
+    const headers = { 'x-thinker-token': BACKEND_TOKEN };
+    const stop = () => axios.post(`${BACKEND_URL}/agent/cancel`, { job }, { headers, timeout: 5000 }).catch(() => {});
+    signal.addEventListener('abort', stop, { once: true });
+    const give_up = Date.now() + 45 * 60 * 1000;
+    while (Date.now() < give_up) {
+      const { data } = await axios.get(`${BACKEND_URL}/agent/job/${encodeURIComponent(job)}`, { headers, timeout: 15000, signal });
+      if (!sender.isDestroyed()) sender.send('agent:progress', { requestId, label: data.label, done: data.done, total: data.total, seconds: data.seconds });
+      if (data.state === 'done') return data.result;
+      if (data.state === 'cancelled') { const e = new Error('Stopped.'); e.code = 'ERR_CANCELED'; throw e; }
+      if (data.state === 'error') return { error: data.error || 'The request failed.' };
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+    stop();
+    return { error: 'This took too long and was stopped.' };
+  }
+
+  ipcMain.handle('agent:invoke', async (event, data) => {
     const requestId = String(data?.requestId || '');
     const controller = new AbortController();
     if (requestId) inflightAgentCalls.set(requestId, controller);
     try {
       const response = await backendPost('/agent/invoke', resolveSecrets(data), controller.signal);
+      if (response.data && response.data.job) {
+        return { ok: true, result: await followJob(event.sender, requestId, response.data.job, controller.signal) };
+      }
       return { ok: true, result: response.data };
     } catch (error) {
       if (axios.isCancel(error) || error.code === 'ERR_CANCELED') {
@@ -991,6 +1015,7 @@ function registerIpcHandlers() {
 
   ipcMain.handle('agent:cancel', (_event, requestId) => {
     inflightAgentCalls.get(String(requestId))?.abort();
+    axios.post(`${BACKEND_URL}/agent/cancel`, { requestId: String(requestId) }, { headers: { 'x-thinker-token': BACKEND_TOKEN }, timeout: 5000 }).catch(() => {});
     return true;
   });
 

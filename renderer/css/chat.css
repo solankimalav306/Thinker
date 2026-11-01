@@ -867,3 +867,24 @@
   color: var(--text-2);
   font-size: var(--text-sm);
 }
+
+/* actions under a question you sent: Edit and Copy, shown on hover */
+.user-msg:hover .message-actions,
+.user-msg:focus-within .message-actions {
+  opacity: 1;
+}
+.user-actions {
+  justify-content: flex-end;
+}
+
+/* the row under a question sits just below the bubble, so the bubble has no empty space inside it */
+.user-msg[data-entry] {
+  position: relative;
+  margin-bottom: 26px;
+}
+.user-msg[data-entry] .user-actions {
+  position: absolute;
+  right: 4px;
+  top: 100%;
+  margin-top: 4px;
+}

@@ -49,7 +49,9 @@ export class ChatController {
     this.instructionsCount = options.instructionsCount;
     this.listOpen = false;
     this.listQuery = "";
-    this.pending = null;
+    // Requests still being answered, by chat. Switching tabs or chats rebuilds the window; this is what lets the chat that
+    // is waiting show its wait again when it is opened, and keeps one slow request from blocking every other chat.
+    this.inflight = new Map();
     this.conversationId = null;
     this.conversations = [];
     this.bindConversationControls();
@@ -75,6 +77,45 @@ export class ChatController {
     }
   }
 
+  convoKey(pdfPath = this.activePdfPath, conversationId = this.conversationId) {
+    return `${pdfPath || ""}|${conversationId || ""}`;
+  }
+
+  // the request being answered in the chat that is open, if any
+  get pending() {
+    return this.inflight.get(this.convoKey()) || null;
+  }
+
+  // the "Thinking..." line of a request, drawn again whenever its chat is shown
+  showThinking(entry) {
+    const id = `typing-${entry.id}`;
+    if (document.getElementById(id)) return;
+    this.chatHistory.insertAdjacentHTML("beforeend", `
+      <div class="bot-msg thinking-container" id="${id}">
+        <div class="typing-dots"><span></span><span></span><span></span></div>
+        <span class="thinking-label" id="${id}-label">${this.thinkingText(entry)}</span>
+      </div>
+    `);
+    this.chatHistory.scrollTop = this.chatHistory.scrollHeight;
+  }
+
+  thinkingText(entry) {
+    const seconds = Math.round((Date.now() - entry.startedAt) / 1000);
+    const p = entry.progress;
+    if (p) {
+      const share = p.total ? ` (${Math.min(100, Math.round((100 * p.done) / p.total))}%)` : "";
+      return `${p.label}${share} \u00b7 ${seconds}s. You can press Stop.`;
+    }
+    return seconds < 15 ? `Thinking... ${seconds}s` : `Still working... ${seconds}s. You can press Stop.`;
+  }
+
+  // after a chat is drawn: the wait it is in the middle of, and the Send / Stop button that goes with it
+  restoreThinking() {
+    const entry = this.pending;
+    if (entry) this.showThinking(entry);
+    this.setBusy(Boolean(entry));
+  }
+
   resetUi() {
     this.chatHistory.innerHTML = "";
     this.clearSelectedText();
@@ -87,9 +128,10 @@ export class ChatController {
   }
 
   // A reply that holds artifacts: plain text and sealed artifact cards, in order.
-  appendArtifactReply(text, sources) {
+  appendArtifactReply(text, sources, index = null) {
     const wrap = document.createElement("div");
     wrap.className = "bot-msg bot-artifact-reply";
+    if (index !== null) wrap.dataset.entry = String(index);
     for (const part of splitArtifacts(text)) {
       if (part.type === "artifact") {
         wrap.appendChild(createArtifactView({
@@ -110,17 +152,19 @@ export class ChatController {
         wrap.appendChild(piece);
       }
     }
+    if (index !== null) wrap.appendChild(this.buildMessageActions("", index));
     this.chatHistory.appendChild(wrap);
     this.chatHistory.scrollTop = this.chatHistory.scrollHeight;
   }
 
-  appendMessage(sender, text, image = null, usage = null) {
+  appendMessage(sender, text, image = null, usage = null, index = null) {
     if (sender === "Bot" && !image && /<artifact\b/i.test(text)) {
-      this.appendArtifactReply(text, usage?.sources);
+      this.appendArtifactReply(text, usage?.sources, index);
       return;
     }
     const msg = document.createElement("div");
     msg.className = sender === "You" ? "user-msg" : "bot-msg";
+    if (index !== null) msg.dataset.entry = String(index);
 
     let html = "";
     if (image) {
@@ -169,28 +213,40 @@ export class ChatController {
     }
 
     msg.innerHTML = html;
-    if (sender === "Bot") msg.appendChild(this.buildMessageActions(text));
+    if (sender === "Bot") msg.appendChild(this.buildMessageActions(text, index));
     this.chatHistory.appendChild(msg);
     this.chatHistory.scrollTop = this.chatHistory.scrollHeight;
   }
 
-  buildMessageActions(text) {
+  // a small button of a message's row of actions
+  actionButton(icon, label, run, title = label) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "message-action-btn";
+    b.title = title;
+    b.innerHTML = `<i class="${icon}"></i> ${label}`;
+    b.addEventListener("click", run);
+    return b;
+  }
+
+  async copyToClipboard(text, what) {
+    try {
+      await navigator.clipboard.writeText(text);
+      this.onStatus(`${what} copied.`);
+    } catch {
+      this.onStatus("Could not copy to the clipboard.");
+    }
+  }
+
+  buildMessageActions(text, index = null) {
     const row = document.createElement("div");
     row.className = "message-actions";
 
-    const copy = document.createElement("button");
-    copy.type = "button";
-    copy.className = "message-action-btn";
-    copy.innerHTML = '<i class="fa-regular fa-copy"></i> Copy';
-    copy.addEventListener("click", async () => {
-      try {
-        await navigator.clipboard.writeText(text);
-        this.onStatus("Answer copied.");
-      } catch {
-        this.onStatus("Could not copy to the clipboard.");
-      }
-    });
-    row.appendChild(copy);
+    if (text) row.appendChild(this.actionButton("fa-regular fa-copy", "Copy", () => this.copyToClipboard(text, "Answer")));
+    if (index !== null) {
+      row.appendChild(this.actionButton("fa-solid fa-rotate-right", "Re-run", () => this.rerun(index), "Ask this question again and replace the answer"));
+      row.appendChild(this.actionButton("fa-solid fa-code-fork", "Fork", () => this.forkFrom(index), "Start a new chat from here"));
+    }
 
     if (this.onSaveNote) {
       const save = document.createElement("button");
@@ -278,7 +334,7 @@ export class ChatController {
 
 
 
-  appendUserMessage(question, quoteText, image = null) {
+  appendUserMessage(question, quoteText, image = null, index = null) {
     const msg = document.createElement("div");
     msg.className = "user-msg";
 
@@ -293,6 +349,14 @@ export class ChatController {
 
     html += `<div class="chat-question">${escapeHtml(question)}</div>`;
     msg.innerHTML = html;
+    if (index !== null) {
+      msg.dataset.entry = String(index);
+      const row = document.createElement("div");
+      row.className = "message-actions user-actions";
+      row.appendChild(this.actionButton("fa-solid fa-pen", "Edit", () => this.editMessage(index), "Change this question and ask again"));
+      row.appendChild(this.actionButton("fa-regular fa-copy", "Copy", () => this.copyToClipboard(question, "Question")));
+      msg.appendChild(row);
+    }
 
     this.chatHistory.appendChild(msg);
     this.chatHistory.scrollTop = this.chatHistory.scrollHeight;
@@ -347,6 +411,7 @@ export class ChatController {
 
     if (!pdfPath) {
       this.renderConversationBar();
+      this.setBusy(false);
       return;
     }
 
@@ -366,14 +431,15 @@ export class ChatController {
       this.appendWelcomeMessage();
     }
 
-    this.entries.forEach((entry) => {
+    this.entries.forEach((entry, i) => {
       if (entry.role === "user") {
-        this.appendUserMessage(entry.question || entry.text || "", entry.quote || "", null);
+        this.appendUserMessage(entry.question || entry.text || "", entry.quote || "", null, i);
       } else {
-        this.appendMessage("Bot", entry.text || "", null, entry.sources ? { sources: entry.sources } : null);
+        this.appendMessage("Bot", entry.text || "", null, entry.sources ? { sources: entry.sources } : null, i);
       }
     });
     this.renderConversationBar();
+    this.restoreThinking();
   }
 
   // The conversation row is created lazily with the first message, so opening a document
@@ -406,6 +472,7 @@ export class ChatController {
     this.resetUi();
     this.appendWelcomeMessage();
     this.renderConversationBar();
+    this.setBusy(false);
     this.chatInput.focus();
   }
 
@@ -763,7 +830,8 @@ export class ChatController {
     return this.askLLM(parts);
   }
 
-  async sendMessage() {
+  async sendMessage(options = {}) {
+    const rerun = Boolean(options.rerun);   // ask the last question again, without adding it to the chat a second time
     if (this.pending) return;
     if (this.enabled && !this.hasModel()) {
       this.appendSetupCard();
@@ -775,7 +843,9 @@ export class ChatController {
       return;
     }
 
-    const text = this.chatInput.value.trim();
+    const last = rerun ? this.entries[this.entries.length - 1] : null;
+    if (rerun && last?.role !== "user") return;
+    const text = rerun ? String(last.question || last.text || "") : this.chatInput.value.trim();
     if (!text && !this.attachedImage) {
       return;
     }
@@ -785,20 +855,22 @@ export class ChatController {
       return;
     }
 
-    const contextText = this.selectedTextBox.textContent.trim();
+    const contextText = rerun ? String(last.quote || "") : this.selectedTextBox.textContent.trim();
     const questionText = text;
     const summary = this.summarizeContext();
 
-    this.appendUserMessage(questionText, contextText, this.attachedImage);
-    const userEntry = {
-      role: "user",
-      text: contextText ? `Quote: "${contextText}"\nQuestion: ${questionText}` : questionText,
-      question: questionText,
-      quote: contextText,
-      ts: Date.now()
-    };
-    this.entries.push(userEntry);
-    await this.persistEntry(userEntry);
+    if (!rerun) {
+      this.appendUserMessage(questionText, contextText, this.attachedImage, this.entries.length);
+      const userEntry = {
+        role: "user",
+        text: contextText ? `Quote: "${contextText}"\nQuestion: ${questionText}` : questionText,
+        question: questionText,
+        quote: contextText,
+        ts: Date.now()
+      };
+      this.entries.push(userEntry);
+      await this.persistEntry(userEntry);
+    }
     const sentTo = { conversationId: this.conversationId, pdfPath: this.activePdfPath };
     const stillOpen = () => this.conversationId === sentTo.conversationId && this.activePdfPath === sentTo.pdfPath;
 
@@ -815,32 +887,32 @@ export class ChatController {
     const storagePath = await window.electronAPI.getUserDataPath();
     const config = this.getChatConfigOrPrompt();
 
-    this.chatInput.value = "";
-    this.clearAttachment();
-    this.clearSelectedText();
+    if (!rerun) {
+      this.chatInput.value = "";
+      this.clearAttachment();
+      this.clearSelectedText();
+    }
     this.onStatus("Agent is thinking...");
 
-    const typingId = "typing-indicator-" + Date.now();
-    this.chatHistory.insertAdjacentHTML("beforeend", `
-      <div class="bot-msg thinking-container" id="${typingId}">
-        <div class="typing-dots"><span></span><span></span><span></span></div>
-        <span class="thinking-label" id="${typingId}-label">Thinking...</span>
-      </div>
-    `);
-    this.chatHistory.scrollTop = this.chatHistory.scrollHeight;
-
     // Real elapsed time instead of invented progress steps.
-    const startedAt = Date.now();
-    const ticker = setInterval(() => {
-      const label = document.getElementById(`${typingId}-label`);
-      if (!label) return;
-      const seconds = Math.round((Date.now() - startedAt) / 1000);
-      label.textContent = seconds < 15 ? `Thinking... ${seconds}s` : `Still working... ${seconds}s. You can press Stop.`;
-    }, 1000);
-
     const requestId = (crypto.randomUUID && crypto.randomUUID()) || String(Date.now());
-    this.pending = { id: requestId };
+    const entry = { id: requestId, key: this.convoKey(sentTo.pdfPath, sentTo.conversationId), startedAt: Date.now(), progress: null };
+    this.inflight.set(entry.key, entry);
+    this.showThinking(entry);
+    const ticker = setInterval(() => {
+      const label = document.getElementById(`typing-${entry.id}-label`);
+      if (label) label.textContent = this.thinkingText(entry);
+    }, 1000);
+    const stopProgress = window.electronAPI.onAgentProgress?.((p) => { if (p.requestId === requestId) entry.progress = p; });
     this.setBusy(true);
+    // however the request ends, its wait line goes and its chat can be used again
+    const finishWait = () => {
+      clearInterval(ticker);
+      stopProgress?.();
+      document.getElementById(`typing-${entry.id}`)?.remove();
+      this.inflight.delete(entry.key);
+      if (stillOpen()) this.setBusy(false);
+    };
 
     try {
       const res = await window.electronAPI.invokeAgent({
@@ -863,8 +935,7 @@ export class ChatController {
         docTitle: this.documentTitle()
       });
 
-      clearInterval(ticker);
-      document.getElementById(typingId)?.remove();
+      finishWait();
 
       if (res.cancelled) {
         this.onStatus("Stopped.");
@@ -907,7 +978,7 @@ export class ChatController {
         if (agentRes.cache_summary) {
           this.appendCacheSummary(agentRes.cache_summary, true);
         }
-        this.appendMessage("Bot", replyText, null, botMetadata);
+        this.appendMessage("Bot", replyText, null, botMetadata, this.entries.length);
       }
 
       if (agentRes.usage) {
@@ -949,15 +1020,55 @@ export class ChatController {
       this.onStatus(stillOpen() ? "Ready." : "An answer arrived in another chat. Open it to read it.");
     } catch (error) {
       console.error(error);
-      clearInterval(ticker);
-      document.getElementById(typingId)?.remove();
+      finishWait();
       if (stillOpen()) this.appendMessage("Bot", friendlyAgentError(error?.message));
       this.onStatus("Agent request failed.");
     } finally {
-      clearInterval(ticker);
-      this.pending = null;
-      this.setBusy(false);
+      finishWait();
     }
+  }
+
+  // ---- re-run, edit and fork ---------------------------------------------------------------------------
+  // `index` is the place of a message in this chat. Going back to a point drops what came after it, so ask first.
+  async goBackTo(keep, what) {
+    if (this.pending) {
+      this.onStatus("Wait for the current answer, or press Stop, first.");
+      return false;
+    }
+    const own = what === "rerun" ? 1 : 2;   // the answer being replaced, or the question being edited with its answer
+    if (this.entries.length > keep + own && !window.confirm("This removes the messages that come after it in this chat. Continue?")) return false;
+    await window.electronAPI.truncateConversation(this.conversationId, keep);
+    this.entries = this.entries.slice(0, keep);
+    await this.showConversation(this.conversationId);
+    await this.refreshConversations();
+    return true;
+  }
+
+  // ask the same question again; the new answer replaces this one
+  async rerun(index) {
+    let u = index;
+    while (u >= 0 && this.entries[u]?.role !== "user") u -= 1;
+    if (u < 0) return;
+    if (await this.goBackTo(u + 1, "rerun")) await this.sendMessage({ rerun: true });
+  }
+
+  // put a question back in the box to change it and send it again
+  async editMessage(index) {
+    const entry = this.entries[index];
+    if (!entry || entry.role !== "user") return;
+    if (!(await this.goBackTo(index, "edit"))) return;
+    this.chatInput.value = String(entry.question || entry.text || "");
+    this.setSelectedText(entry.quote || "");
+    this.chatInput.focus();
+  }
+
+  // a new chat that starts as a copy of this one up to and including this message
+  async forkFrom(index) {
+    if (!this.conversationId) return;
+    const forked = await window.electronAPI.forkConversation(this.conversationId, index + 1);
+    await this.refreshConversations();
+    await this.showConversation(forked.id);
+    this.onStatus("Forked into a new chat. The original is unchanged.");
   }
 
   // While a question is being answered the send button becomes Stop.
@@ -970,7 +1081,8 @@ export class ChatController {
   }
 
   cancelRequest() {
-    if (this.pending) window.electronAPI.cancelAgent(this.pending.id);
+    const entry = this.pending;
+    if (entry) window.electronAPI.cancelAgent(entry.id);
   }
 
   async summarizeKnowledgeCache() {

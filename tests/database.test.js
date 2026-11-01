@@ -161,3 +161,28 @@ test('conversation list carries a message count and the last answer as a preview
   assert.strictEqual(row.messageCount, 3);
   assert.strictEqual(row.preview, 'It is a scheduler.');
 });
+
+test('a chat can be cut back to its first messages and forked from any message', () => {
+  const { dir, store } = freshStore();
+  const pdf = writePdf(dir, 'fork.pdf');
+  const conv = store.createConversation(pdf, { title: 'Scheduler' });
+  store.appendMessage(conv.id, { role: 'user', text: 'q1', question: 'What is it?' });
+  store.appendMessage(conv.id, { role: 'assistant', text: 'a1', sources: [{ doc: '', page: 2 }] });
+  store.appendMessage(conv.id, { role: 'user', text: 'q2', question: 'More?' });
+  store.appendMessage(conv.id, { role: 'assistant', text: 'a2' });
+
+  const fork = store.forkConversation(conv.id, 2);
+  assert.notStrictEqual(fork.id, conv.id);
+  assert.strictEqual(fork.docId, conv.docId);
+  assert.match(fork.title, /^Fork of Scheduler/);
+  const copied = store.getMessages(fork.id);
+  assert.deepStrictEqual(copied.map((m) => m.text), ['q1', 'a1']);
+  assert.deepStrictEqual(copied[1].sources, [{ doc: '', page: 2 }]);
+  assert.strictEqual(store.getMessages(conv.id).length, 4, 'the original is untouched');
+  assert.ok(store.listConversations(pdf).some((c) => c.id === fork.id));
+
+  assert.strictEqual(store.truncateMessages(conv.id, 1), 3);
+  assert.deepStrictEqual(store.getMessages(conv.id).map((m) => m.text), ['q1']);
+  assert.strictEqual(store.truncateMessages(conv.id, 5), 0);
+  assert.throws(() => store.forkConversation('chat-missing', 1), /no longer exists/);
+});

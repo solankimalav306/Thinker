@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 from services.indexing import indexing_service
 from services.retrieval import retrieval_service
 from services.dictionary import dictionary_service
+from services import jobs
 from graph import invoke_agent, summarize_knowledge_cache
 
 app = FastAPI()
@@ -56,6 +57,17 @@ def agent_invoke(data: dict):
     except Exception as e:
         print(f"Agent invocation failed: {e}")
         return {"error": str(e)}
+
+@app.get("/agent/job/{job_id}")
+def agent_job(job_id: str):
+    job = jobs.get(job_id)
+    if job is None:
+        return {"state": "error", "error": "That request is no longer running."}
+    return job.snapshot(with_result=True)
+
+@app.post("/agent/cancel")
+def agent_cancel(data: dict):
+    return {"stopped": jobs.cancel(data.get("job"), data.get("requestId"))}
 
 @app.post("/agent/summarize-cache")
 def agent_summarize_cache(data: dict):

@@ -131,7 +131,7 @@
       return events.length ? { events: events } : null;
     },
     document: function (raw) {
-      var sections = arr(raw.sections, 50).map(function (s) {
+      var sections = arr(raw.sections, 150).map(function (s) {
         if (typeof s === "string") s = { text: s };
         var text = str(s && (s.text || s.body), LIMITS.longText);
         var heading = str(s && s.heading, LIMITS.title);
