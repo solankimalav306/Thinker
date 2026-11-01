@@ -1,7 +1,8 @@
 # Where things stand and what is next (logged 2026-10-31, end of day)
 
 `main` was pushed to GitHub (`solankimalav306/Thinker`) at 3.3.0. **Everything below is committed locally on `main` and NOT pushed.**
-**Built 2026-10-31: `dist/Thinker Setup 3.4.0.exe`** (375 MB, `npm run release:minor`, package.json is 3.4.0) with everything below plus the About card
+**Newest build 2026-11-01: `dist/Thinker Setup 3.4.1.exe`** (e5-small embeddings: indexing about 4x faster, same search quality; fix for questions asked while a document is still indexing). Full log of every benchmark: `docs/SESSION-LOG-2026-10-31.html` (also published as an artifact). **Known gap:** "answer all the questions of whole textbooks" does not work (see docs/RETRIEVAL-EVAL.md, two textbooks); next job.
+Earlier build 2026-10-31: `dist/Thinker Setup 3.4.0.exe` (375 MB, `npm run release:minor`, package.json is 3.4.0) with everything below plus the About card
 in Settings (`6793dc06`). The packaged `backend.exe` was smoke-tested on its own (index + exact-term query work, no errors); the installer itself
 has not been run on a clean machine, and the first-run model downloads from the packaged app are untested.
 

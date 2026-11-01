@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thinker Session Log</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* layout idea: a lab notebook. Left rail of sections, wide column of tables and bars, numbers in mono. */
+:root {
+  --bg: #f6f5f1; --surface: #ffffff; --ink: #1c1d22; --muted: #62646d; --line: #dddbd3;
+  --accent: #1d5fd1; --good: #1c7a4a; --bad: #b3362a; --warn: #9a6a00; --sunk: #eceae3;
+  --display: "Fraunces", Georgia, serif; --body: "IBM Plex Sans", system-ui, sans-serif; --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14161a; --surface: #1b1e24; --ink: #e8e8ea; --muted: #9a9ea8; --line: #2c3038;
+    --accent: #6fa3ff; --good: #5fcf92; --bad: #ff8a7a; --warn: #e6b34a; --sunk: #22262d; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14161a; --surface: #1b1e24; --ink: #e8e8ea; --muted: #9a9ea8; --line: #2c3038;
+  --accent: #6fa3ff; --good: #5fcf92; --bad: #ff8a7a; --warn: #e6b34a; --sunk: #22262d; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 400 15.5px/1.55 var(--body); }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 24px 16px 80px; display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 36px; }
+nav { position: sticky; top: 16px; align-self: start; font-size: 14px; }
+nav b { display: block; font: 600 12px var(--body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+nav a { display: block; padding: 5px 0; color: var(--ink); text-decoration: none; border-left: 2px solid var(--line); padding-left: 10px; }
+nav a:hover, nav a:focus-visible { border-color: var(--accent); color: var(--accent); outline: none; }
+header h1 { font: 600 clamp(30px, 5vw, 44px)/1.1 var(--display); margin: 0 0 8px; text-wrap: balance; }
+header p { margin: 0; color: var(--muted); max-width: 70ch; }
+section { margin-top: 44px; }
+h2 { font: 600 27px/1.2 var(--display); margin: 0 0 6px; text-wrap: balance; }
+h3 { font: 600 17px var(--body); margin: 26px 0 8px; }
+p, li { max-width: 78ch; }
+.lede { color: var(--muted); margin: 0 0 16px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin: 18px 0; }
+.tile { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; }
+.tile .n { font: 500 30px/1.1 var(--mono); font-variant-numeric: tabular-nums; }
+.tile .n small { font-size: 15px; color: var(--muted); }
+.tile .l { color: var(--muted); font-size: 13.5px; margin-top: 4px; }
+.good { color: var(--good); } .bad { color: var(--bad); } .warn { color: var(--warn); }
+.scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); margin: 10px 0 18px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 7px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { background: var(--sunk); font-weight: 600; font-size: 12.5px; letter-spacing: .03em; position: sticky; top: 0; white-space: nowrap; }
+td.num, th.num { text-align: right; font-family: var(--mono); font-size: 13px; white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+tr.hl td { background: color-mix(in srgb, var(--accent) 9%, transparent); font-weight: 500; }
+tr.sub td { color: var(--muted); }
+code, .mono { font-family: var(--mono); font-size: 13px; background: var(--sunk); padding: 1px 5px; border-radius: 4px; }
+.bars { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; margin: 10px 0 18px; }
+.bar { display: grid; grid-template-columns: minmax(120px, 270px) 1fr 52px; gap: 10px; align-items: center; margin: 5px 0; font-size: 13.5px; }
+.bar .t { height: 14px; background: var(--sunk); border-radius: 3px; overflow: hidden; }
+.bar .t i { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+.bar.old .t i { background: var(--bad); } .bar.alt .t i { background: var(--muted); }
+.bar b { font: 500 13px var(--mono); text-align: right; }
+.note { border-left: 3px solid var(--warn); background: var(--surface); padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 14px 0; }
+.note.ok { border-color: var(--good); } .note.no { border-color: var(--bad); }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+ul { padding-left: 20px; margin: 8px 0; }
+@media (max-width: 820px) {
+  .wrap { grid-template-columns: 1fr; gap: 8px; }
+  nav { position: static; display: flex; flex-wrap: wrap; gap: 4px 14px; }
+  nav b { width: 100%; } nav a { border: 0; padding: 2px 0; }
+  .bar { grid-template-columns: 1fr 50px; } .bar .t { grid-column: 1 / -1; order: 3; }
+}
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav aria-label="Sections">
+  <b>Contents</b>
+  <a href="#summary">Summary</a>
+  <a href="#artifacts">Artifacts work</a>
+  <a href="#before">Retrieval before</a>
+  <a href="#method">Benchmark method</a>
+  <a href="#exp">All experiments</a>
+  <a href="#shipped">What shipped</a>
+  <a href="#followups">Follow-ups</a>
+  <a href="#e2e">Chat evaluation</a>
+  <a href="#speed">Indexing speed</a>
+  <a href="#textbooks">Two textbooks</a>
+  <a href="#bugs">Bugs found</a>
+  <a href="#commits">Commits and builds</a>
+  <a href="#limits">Limits and next</a>
+</nav>
+<main>
+<header>
+  <h1>Thinker Session Log</h1>
+  <p>Everything built, tested and measured from 31 Oct to 1 Nov 2026: the artifact system, the retrieval rebuild with every benchmark, the indexing speed-up, the two-textbook test, bugs, builds and what is left. Numbers are copied from the runs; nothing is rounded up.</p>
+</header>
+
+<section id="summary">
+  <h2>Summary</h2>
+  <p class="lede">Retrieval now finds the answer in the top 3 passages for 87.9% of questions, up from 59.7%, and indexing is about four times faster.</p>
+  <div class="tiles">
+    <div class="tile"><div class="n good">59.7 → 87.9<small>%</small></div><div class="l">answer in the top 3 passages (124 questions, 7 papers)</div></div>
+    <div class="tile"><div class="n good">48.6 → 91.9<small>%</small></div><div class="l">follow-up questions found in the top 3</div></div>
+    <div class="tile"><div class="n good">232 → 45<small> s</small></div><div class="l">indexing 930 passages (7 papers)</div></div>
+    <div class="tile"><div class="n good">−40<small>%</small></div><div class="l">words sent to the model per question (1,199 → 725)</div></div>
+    <div class="tile"><div class="n">29 / 30</div><div class="l">end-to-end chat evaluation, same as before, 22% fewer tokens</div></div>
+    <div class="tile"><div class="n bad">gap</div><div class="l">"answer all the questions in both textbooks" does not work yet</div></div>
+  </div>
+  <ul>
+    <li><b>Artifacts</b>: nine data kinds plus slides, open in tabs, a separate builder for full web pages (own HTML, CSS, JavaScript) in a sealed frame, edit-in-place, exports, and a wand menu to make slides, a report, a quiz or a page from any artifact.</li>
+    <li><b>Retrieval</b>: new chunker, keyword + meaning search, reranker, follow-up aware queries, multilingual embeddings, benchmarked end to end.</li>
+    <li><b>About card</b> in Settings with the live version number.</li>
+    <li><b>Side-chat bug</b>: questions asked while a new document was still indexing got "the document has no information". Fixed.</li>
+    <li><b>Builds</b>: 3.4.0 and 3.4.1 installers (see Commits and builds).</li>
+  </ul>
+</section>
+
+<section id="artifacts">
+  <h2>Artifacts work</h2>
+  <p class="lede">Goal from the user: artifacts that behave like Claude's, full interactive pages made by a separate workflow in the agent graph.</p>
+  <h3>What was built</h3>
+  <div class="scroll"><table>
+    <tr><th>Piece</th><th>Detail</th></tr>
+    <tr><td>Kinds</td><td>checklist, steps, quiz, flashcards, table, chart, diagram, timeline, document (drawn from JSON by Thinker's own code, with KaTeX maths and saved progress); slides and page (HTML).</td></tr>
+    <tr><td>Agent workflow</td><td><code>utils/artifacts.py</code>: identify, decide, per-kind prompt (only that kind's shape), validate, one repair, finalize. An <code>artifact</code> node in the graph; the supervisor offers <code>artifact:&lt;kind&gt;</code> only when artifacts are on. Words like "web based notes", "study site", "dashboard", "tracker" choose the page builder.</td></tr>
+    <tr><td>Web pages</td><td>The model writes one complete HTML document with its own CSS and JavaScript. Progress is saved through <code>tk.state</code> and <code>tk.save</code>; citations are <code>Page N</code> chips; d3 and KaTeX available.</td></tr>
+    <tr><td>Edit in place</td><td>"Add a quiz section to it" re-sends the latest artifact of the chat and returns the whole updated one. The card's <code>Change this artifact:</code> keeps the kind.</td></tr>
+    <tr><td>Open in a tab</td><td>Every chat card opens in a tab of its own with an export menu (HTML, PDF, PNG, Word, PowerPoint) and Save to Artifacts.</td></tr>
+    <tr><td>Exports of script pages</td><td>HTML as written; PDF, PNG, Word, PowerPoint from a cleaned snapshot of the running page (scripts removed, buttons and inputs dropped). Checked: text built by scripts appears in all four.</td></tr>
+    <tr><td>Wand menu</td><td>Make slides / a report / a quiz / a web page from an artifact, or ask for a change. Tested with the real model: a quiz turned into a slide deck with citations kept.</td></tr>
+    <tr><td>Citation chips</td><td>Raw labels such as <code>Doc|8</code> now read "Page 8". References not in the answer's sources are dashed and do nothing.</td></tr>
+  </table></div>
+  <h3>How script pages are secured</h3>
+  <ul>
+    <li>Sandboxed frame, scripts only, opaque origin. Header policy: inline scripts allowed; <code>connect-src 'none'</code>, images as data only, no frames, forms, media, objects or eval.</li>
+    <li>Main process: navigation away from the artifact scheme is blocked, WebRTC limited to proxied UDP, any request started by an artifact frame to another address is cancelled.</li>
+    <li>A heartbeat every 2 s; a page silent for 9 s is removed with "Run it again".</li>
+    <li>Checked in the real app: <code>fetch</code> and a remote image were blocked, state saved, a snapshot exported. <span class="warn">Not yet tried: a deliberately hostile page (endless loop, navigation attempt, WebRTC).</span> Script pages are not shared with guests, by decision.</li>
+  </ul>
+  <h3>Real-model check</h3>
+  <p>"make web based notes on this document with a table of contents, a search box and a short quiz" produced a working study site (sidebar contents, search, tick-off notes, quiz, "Page N" chips). Before the wording fix the same request went to the quiz kind.</p>
+  <h3>Tests</h3>
+  <p>Node: 224 (223 pass, 1 skipped). Python: 117. New for this work: page builder, edit and source logic, protocol policy, page text.</p>
+</section>
+
+<section id="before">
+  <h2>Retrieval before</h2>
+  <p class="lede">Read from the code before any change.</p>
+  <ul>
+    <li><b>Chunking</b>: each page cut into 1, 2 or 3 equal slices by word count (under 200 words one, under 600 two, otherwise three). No overlap, no sentence or heading awareness, never across a page, text sent with all line breaks removed.</li>
+    <li><b>Search</b>: <code>bge-base-en-v1.5</code> (English only) with the wrong prefixes (<code>passage:</code> and <code>query:</code> belong to E5), an L2 index, the closest 3 slices, or 1 or 2 when the question resembled the chat summary.</li>
+    <li>No keyword search, and a follow-up was searched exactly as typed.</li>
+    <li>The earlier chat evaluation had already noted it: one 12-page document is the easy case.</li>
+  </ul>
+</section>
+
+<section id="method">
+  <h2>Benchmark method</h2>
+  <p class="lede">Retrieval only, no model answers anything, so it is cheap, exact and repeatable. Files are in <code>evals/retrieval/</code>.</p>
+  <h3>Corpus: 8 papers downloaded, 7 used for questions</h3>
+  <div class="scroll"><table>
+    <tr><th>arXiv id</th><th>Paper</th><th class="num">Pages</th><th class="num">Words</th><th class="num">Questions</th></tr>
+    <tr><td>1412.6980</td><td>Adam</td><td class="num">15</td><td class="num">9,589</td><td class="num">16</td></tr>
+    <tr><td>1512.03385</td><td>ResNet</td><td class="num">12</td><td class="num">10,309</td><td class="num">9</td></tr>
+    <tr><td>1706.03762</td><td>Attention Is All You Need</td><td class="num">15</td><td class="num">6,598</td><td class="num">0 (none passed the checks)</td></tr>
+    <tr><td>1810.04805</td><td>BERT</td><td class="num">16</td><td class="num">10,557</td><td class="num">8</td></tr>
+    <tr><td>2005.11401</td><td>Retrieval-Augmented Generation</td><td class="num">19</td><td class="num">10,622</td><td class="num">17</td></tr>
+    <tr><td>2307.09288</td><td>Llama 2 (tables, long)</td><td class="num">77</td><td class="num">43,062</td><td class="num">41</td></tr>
+    <tr><td>2310.06825</td><td>Mistral 7B</td><td class="num">9</td><td class="num">3,939</td><td class="num">16</td></tr>
+    <tr><td>2401.15884</td><td>(a retrieval paper)</td><td class="num">16</td><td class="num">9,305</td><td class="num">17</td></tr>
+    <tr class="sub"><td colspan="2">Total used</td><td class="num">179</td><td class="num">~104k</td><td class="num">124</td></tr>
+  </table></div>
+  <h3>Text extraction</h3>
+  <p>pdf.js in Node, two ways: <b>flat</b> (pieces joined with a space, exactly what the old reader sent) and <b>lines</b> (a new line where the baseline moves or the piece ends a line).</p>
+  <h3>Questions</h3>
+  <ul>
+    <li>Written by the app's own model (<code>gemini-3.5-flash-lite</code>, called through the app so the key never leaves it) from random passages, 3 per passage: <i>direct</i> (uses the passage's terms), <i>paraphrase</i> (avoids them), <i>detail</i> (a number, name or table value).</li>
+    <li>Each comes with a word-for-word evidence quote, checked against the page (first try 70 questions with a strict check; second try 124 with a 92% word-match check and more passages per long paper). Final mix: 43 direct, 43 paraphrase, 38 detail.</li>
+  </ul>
+  <h3>Scores</h3>
+  <ul>
+    <li><b>span@k</b>: some top-k passage holds the evidence (at least 85% of its words) on the right page. <b>page@k</b>: a top-k passage is on the right page. <b>MRR</b>: 1 / rank of the first span hit. <b>words</b>: words handed to the model.</li>
+  </ul>
+  <div class="note">The questions were written by a model that saw the passage, so they share words with it. That favours keyword search; the meaning search and reranker are probably under-credited. With 124 questions, differences of about 3 points are noise.</div>
+</section>
+
+<section id="exp">
+  <h2>All experiments</h2>
+  <p class="lede">Every configuration run, in order. span@3, @5, @8 in % of questions. Highlighted rows are the ones that decided the design.</p>
+
+  <h3>Headline: answer in the top 3</h3>
+  <div class="bars" role="img" aria-label="Bar chart of span at 3 for selected systems">
+    <div class="bar old"><span>Before (page slices, bge-base)</span><div class="t"><i style="width:59.7%"></i></div><b>59.7</b></div>
+    <div class="bar alt"><span>Overlapping 120-word windows, bge-base</span><div class="t"><i style="width:66.1%"></i></div><b>66.1</b></div>
+    <div class="bar alt"><span>Keyword search alone (BM25)</span><div class="t"><i style="width:79.8%"></i></div><b>79.8</b></div>
+    <div class="bar alt"><span>bge-base + BM25</span><div class="t"><i style="width:80.6%"></i></div><b>80.6</b></div>
+    <div class="bar alt"><span>e5-base + BM25</span><div class="t"><i style="width:83.1%"></i></div><b>83.1</b></div>
+    <div class="bar"><span>Shipped: e5-small + BM25 + reranker</span><div class="t"><i style="width:87.9%"></i></div><b>87.9</b></div>
+    <div class="bar alt"><span>Best seen: bge-m3 + BM25 + bge-reranker</span><div class="t"><i style="width:88.7%"></i></div><b>88.7</b></div>
+  </div>
+
+  <h3>Round 1: chunking and the prefixes (bge-base, dense only unless noted)</h3>
+  <div class="scroll"><table>
+    <tr><th>Id</th><th>System</th><th class="num">@3</th><th class="num">@5</th><th class="num">@8</th><th class="num">page@5</th><th class="num">MRR@5</th><th class="num">words@5</th></tr>
+    <tr class="hl"><td>A0</td><td>Current app: page slices, <code>passage:</code>/<code>query:</code>, L2</td><td class="num">59.7</td><td class="num">68.5</td><td class="num">77.4</td><td class="num">79.0</td><td class="num">.503</td><td class="num">1,199</td></tr>
+    <tr><td>A1</td><td>Same chunks, correct BGE prefixes</td><td class="num">58.1</td><td class="num">66.9</td><td class="num">79.0</td><td class="num">79.0</td><td class="num">.515</td><td class="num">1,192</td></tr>
+    <tr><td>B1</td><td>Sentence windows 200 words, 40 overlap</td><td class="num">62.9</td><td class="num">72.6</td><td class="num">85.5</td><td class="num">84.7</td><td class="num">.529</td><td class="num">1,100</td></tr>
+    <tr><td>B2</td><td>200/40 + title and heading header</td><td class="num">60.5</td><td class="num">70.2</td><td class="num">80.6</td><td class="num">83.1</td><td class="num">.515</td><td class="num">1,099</td></tr>
+    <tr class="hl"><td>B3</td><td>120/30 + header</td><td class="num">66.1</td><td class="num">76.6</td><td class="num">81.5</td><td class="num">87.1</td><td class="num">.602</td><td class="num">693</td></tr>
+    <tr><td>B4</td><td>300/60 + header</td><td class="num">63.7</td><td class="num">73.4</td><td class="num">86.3</td><td class="num">86.3</td><td class="num">.511</td><td class="num">1,589</td></tr>
+    <tr><td>C1</td><td>B2 chunks + BM25 hybrid (RRF)</td><td class="num">77.4</td><td class="num">83.1</td><td class="num">92.7</td><td class="num">88.7</td><td class="num">.636</td><td class="num">1,088</td></tr>
+    <tr><td>C2</td><td>Current page slices + BM25 hybrid</td><td class="num">76.6</td><td class="num">87.1</td><td class="num">89.5</td><td class="num">93.5</td><td class="num">.638</td><td class="num">1,216</td></tr>
+    <tr class="hl"><td>C3</td><td>BM25 alone (B2 chunks)</td><td class="num">77.4</td><td class="num">86.3</td><td class="num">92.7</td><td class="num">88.7</td><td class="num">.689</td><td class="num">1,079</td></tr>
+  </table></div>
+  <p>Finding: keyword search alone beats the current embedding search by 18 points at 3. Smaller overlapping passages give the same recall for 40% fewer words. The prefix error cost almost nothing.</p>
+
+  <h3>Round 2: stemming, passage size, embedding models</h3>
+  <div class="scroll"><table>
+    <tr><th>Id</th><th>System</th><th class="num">@3</th><th class="num">@5</th><th class="num">@8</th><th class="num">page@5</th><th class="num">MRR@5</th><th class="num">words@5</th></tr>
+    <tr class="hl"><td>D1</td><td>BM25 with stemming and stop words, 120/30</td><td class="num">79.8</td><td class="num">87.9</td><td class="num">90.3</td><td class="num">89.5</td><td class="num">.742</td><td class="num">693</td></tr>
+    <tr><td>D2</td><td>same, 200/40</td><td class="num">77.4</td><td class="num">88.7</td><td class="num">91.9</td><td class="num">91.1</td><td class="num">.704</td><td class="num">1,080</td></tr>
+    <tr><td>D3</td><td>same, 80/20</td><td class="num">78.2</td><td class="num">83.9</td><td class="num">87.9</td><td class="num">87.9</td><td class="num">.693</td><td class="num">490</td></tr>
+    <tr><td>D4</td><td>bge-base + BM25 (stemmed), RRF</td><td class="num">78.2</td><td class="num">86.3</td><td class="num">91.1</td><td class="num">92.7</td><td class="num">.689</td><td class="num">687</td></tr>
+    <tr class="hl"><td>D5</td><td>same, keyword weight 2</td><td class="num">80.6</td><td class="num">87.9</td><td class="num">92.7</td><td class="num">92.7</td><td class="num">.729</td><td class="num">687</td></tr>
+    <tr class="sub"><td>E1, E5</td><td>gte-multilingual-base (alone, and with BM25)</td><td colspan="6">failed to load (an index error in the model's remote code); not measured</td></tr>
+    <tr><td>E2</td><td>bge-m3 dense, 120/30 (indexing 566 s, 2.2 GB model)</td><td class="num">79.8</td><td class="num">87.1</td><td class="num">90.3</td><td class="num">94.4</td><td class="num">.739</td><td class="num">701</td></tr>
+    <tr><td>E3</td><td>multilingual-e5-base dense (indexing 146 s)</td><td class="num">76.6</td><td class="num">82.3</td><td class="num">87.9</td><td class="num">93.5</td><td class="num">.652</td><td class="num">684</td></tr>
+    <tr><td>E4</td><td>bge-small dense (indexing 69 s)</td><td class="num">67.7</td><td class="num">75.0</td><td class="num">80.6</td><td class="num">87.1</td><td class="num">.609</td><td class="num">687</td></tr>
+    <tr class="hl"><td>E6</td><td>bge-m3 + BM25</td><td class="num">83.9</td><td class="num">91.1</td><td class="num">94.4</td><td class="num">94.4</td><td class="num">.767</td><td class="num">690</td></tr>
+  </table></div>
+  <p>Finding: weighting the keyword ranking double is better than equal. e5-base beats bge-base as a plain embedding (76.6 against 66.1) at the same speed, and is multilingual.</p>
+
+  <h3>Round 3: rerankers and extraction details (bge-base + BM25 weight 2, 120/30)</h3>
+  <div class="scroll"><table>
+    <tr><th>Id</th><th>System</th><th class="num">@3</th><th class="num">@5</th><th class="num">@8</th><th class="num">page@5</th><th class="num">MRR@5</th><th class="num">ms / query</th></tr>
+    <tr><td>F0</td><td>Reference, no reranker</td><td class="num">80.6</td><td class="num">87.9</td><td class="num">92.7</td><td class="num">92.7</td><td class="num">.729</td><td class="num">0.5</td></tr>
+    <tr><td>F1</td><td>+ ms-marco MiniLM-L6 (English), pool 20</td><td class="num">84.7</td><td class="num">88.7</td><td class="num">92.7</td><td class="num">94.4</td><td class="num">.791</td><td class="num">710</td></tr>
+    <tr><td>F2</td><td>+ bge-reranker-base</td><td class="num">85.5</td><td class="num">90.3</td><td class="num">93.5</td><td class="num">94.4</td><td class="num">.781</td><td class="num">3,476</td></tr>
+    <tr><td>F3</td><td>+ mmarco mMiniLM (multilingual)</td><td class="num">87.9</td><td class="num">90.3</td><td class="num">91.9</td><td class="num">93.5</td><td class="num">.799</td><td class="num">1,042</td></tr>
+    <tr class="hl"><td>F4</td><td>bge-m3 + BM25 + bge-reranker-base</td><td class="num">88.7</td><td class="num">93.5</td><td class="num">95.2</td><td class="num">96.8</td><td class="num">.802</td><td class="num">3,007</td></tr>
+    <tr><td>F5</td><td>Reference on FLAT text (as the app extracted)</td><td class="num">79.8</td><td class="num">87.9</td><td class="num">89.5</td><td class="num">92.7</td><td class="num">.691</td><td class="num">0.5</td></tr>
+    <tr><td>F6</td><td>Reference without the heading header</td><td class="num">82.3</td><td class="num">87.1</td><td class="num">91.9</td><td class="num">91.1</td><td class="num">.724</td><td class="num">0.7</td></tr>
+    <tr><td>F7</td><td>Reference, 160 words / 40</td><td class="num">82.3</td><td class="num">89.5</td><td class="num">93.5</td><td class="num">94.4</td><td class="num">.688</td><td class="num">0.4</td></tr>
+    <tr><td>F8</td><td>Reference, 100 words / 25</td><td class="num">83.1</td><td class="num">87.9</td><td class="num">91.1</td><td class="num">94.4</td><td class="num">.722</td><td class="num">0.5</td></tr>
+  </table></div>
+  <p>Finding: a reranker adds 4 to 7 points at 3 and about 0.05 MRR. Chunk size from 100 to 300 words and the heading header are within noise. Structured text is a little better than flat.</p>
+
+  <h3>Round 4: multilingual e5-base, 140/35 passages</h3>
+  <div class="scroll"><table>
+    <tr><th>Id</th><th>System</th><th class="num">@3</th><th class="num">@5</th><th class="num">@8</th><th class="num">page@5</th><th class="num">MRR@5</th><th class="num">ms / query</th></tr>
+    <tr><td>G0</td><td>e5-base dense only (indexing 143 s)</td><td class="num">76.6</td><td class="num">83.1</td><td class="num">86.3</td><td class="num">90.3</td><td class="num">.658</td><td class="num">0</td></tr>
+    <tr class="hl"><td>G1</td><td>+ BM25, keyword weight 2</td><td class="num">83.1</td><td class="num">87.9</td><td class="num">91.1</td><td class="num">92.7</td><td class="num">.728</td><td class="num">0.5</td></tr>
+    <tr><td>G1b</td><td>+ BM25, equal weight</td><td class="num">80.6</td><td class="num">87.1</td><td class="num">91.9</td><td class="num">93.5</td><td class="num">.728</td><td class="num">0.4</td></tr>
+    <tr class="hl"><td>G2</td><td>G1 + mmarco reranker, pool 20</td><td class="num">83.9</td><td class="num">89.5</td><td class="num">92.7</td><td class="num">94.4</td><td class="num">.778</td><td class="num">1,180</td></tr>
+    <tr><td>G3</td><td>G1 + MiniLM-L6, pool 20</td><td class="num">83.9</td><td class="num">89.5</td><td class="num">93.5</td><td class="num">93.5</td><td class="num">.782</td><td class="num">580</td></tr>
+    <tr><td>G4</td><td>G1 + bge-reranker-base, pool 20</td><td class="num">87.1</td><td class="num">90.3</td><td class="num">94.4</td><td class="num">96.0</td><td class="num">.793</td><td class="num">4,803</td></tr>
+    <tr><td>G5</td><td>G1 + mmarco, pool 12</td><td class="num">84.7</td><td class="num">88.7</td><td class="num">91.9</td><td class="num">96.0</td><td class="num">.778</td><td class="num">1,031</td></tr>
+    <tr class="sub"><td>G6</td><td>mmarco, pool 30</td><td colspan="6">run was ended before this result was recorded</td></tr>
+  </table></div>
+  <p>Choice: multilingual e5 + BM25 (weight 2) + mmarco reranker. bge-reranker-base is slightly better but costs 4 to 5 seconds a question on a laptop CPU.</p>
+</section>
+
+<section id="shipped">
+  <h2>What shipped</h2>
+  <p class="lede">The real services (the code in the app), run on the same 124 questions.</p>
+  <div class="scroll"><table>
+    <tr><th>System</th><th class="num">@3</th><th class="num">@5</th><th class="num">@8</th><th class="num">page@3</th><th class="num">MRR</th><th class="num">words@5</th><th class="num">ms / query</th></tr>
+    <tr class="hl"><td>Before (A0)</td><td class="num">59.7</td><td class="num">68.5</td><td class="num">77.4</td><td class="num">n/a</td><td class="num">.503</td><td class="num">1,199</td><td class="num">~0</td></tr>
+    <tr><td>New code, e5-base, flat text, reranker off</td><td class="num">83.9</td><td class="num">89.5</td><td class="num">89.5</td><td class="num">89.5</td><td class="num">.711</td><td class="num">789</td><td class="num">71</td></tr>
+    <tr><td>New code, e5-base, line text, reranker off</td><td class="num">85.5</td><td class="num">89.5</td><td class="num">91.9</td><td class="num">90.3</td><td class="num">.731</td><td class="num">720</td><td class="num">72</td></tr>
+    <tr><td>New code, e5-base, line text, reranker on</td><td class="num">88.7</td><td class="num">91.9</td><td class="num">93.5</td><td class="num">93.5</td><td class="num">.813</td><td class="num">725</td><td class="num">1,725*</td></tr>
+    <tr><td>e5-small, reranker off</td><td class="num">85.5</td><td class="num">87.9</td><td class="num">90.3</td><td class="num">91.1</td><td class="num">.737</td><td class="num">720</td><td class="num">16</td></tr>
+    <tr class="hl"><td>e5-small, 256-token cap, reranker on (shipped)</td><td class="num">87.9</td><td class="num">91.1</td><td class="num">93.5</td><td class="num">93.5</td><td class="num">.805</td><td class="num">721</td><td class="num">1,172</td></tr>
+  </table></div>
+  <p class="mono">* measured while other jobs used the CPU; about 1.2 s alone.</p>
+  <h3>The design</h3>
+  <ul>
+    <li><b>Passages</b>: sentence-aware, about 140 words, 35 words of overlap, running across page breaks (each passage lists its pages and where each begins, so quotations carry the right page), breaking at section headings, keeping the heading, dropping running headers and page numbers (unless that would delete most of the document), joining hyphenated line ends, not splitting after "et al." or "Fig.", cutting run-on lines into windows.</li>
+    <li><b>Search</b>: BM25 (own implementation, any script, light stemming for plain English words) and the embedding index, merged by reciprocal-rank fusion with the keyword ranking weighted 2, then an optional cross-encoder (<code>mmarco-mMiniLMv2-L12</code>) that loads in the background and never makes a question wait. Across documents the candidates of all are read together, capped per document.</li>
+    <li><b>Agent</b>: 5 passages (8 across documents) instead of 3; the "fetch one passage when the question resembles the chat" shortcut removed; a passage that crosses a page is shown as two parts, each under its own page.</li>
+    <li><b>Old indexes</b>: searched by keywords until their document is reopened, then rebuilt automatically.</li>
+    <li><b>Reader</b>: sends page text with its line breaks; shows "Getting this document ready for questions…".</li>
+    <li>Switches: <code>THINKER_RERANK=off</code>, <code>THINKER_EMBED_MODEL=…</code>.</li>
+  </ul>
+</section>
+
+<section id="followups">
+  <h2>Follow-up questions</h2>
+  <p class="lede">The old code searched "and what about its cost?" exactly as typed. Now a short or pointing question is searched with the selected text and the previous question in front of it, with no extra model call.</p>
+  <div class="scroll"><table>
+    <tr><th>Searched</th><th class="num">span@3</th><th class="num">@5</th><th class="num">MRR</th></tr>
+    <tr><td>as written (before)</td><td class="num bad">48.6</td><td class="num">62.2</td><td class="num">0.426</td></tr>
+    <tr class="hl"><td>with the previous question (now)</td><td class="num good">91.9</td><td class="num">97.3</td><td class="num">0.829</td></tr>
+  </table></div>
+  <p>37 follow-ups written by the model from questions about the same passage ("Why is having a smaller one a desirable property?", "What about the stepsize?"). They stay on the earlier topic, which is the usual case; a topic change with a short question would carry the old topic along.</p>
+</section>
+
+<section id="e2e">
+  <h2>End-to-end chat evaluation</h2>
+  <p class="lede">The existing 30-question suite on the 12-page fictional shipping manual, through the real app, key and agent.</p>
+  <div class="scroll"><table>
+    <tr><th>Run</th><th class="num">Correct</th><th>Notes</th></tr>
+    <tr><td>Earlier: before its fixes (29 Oct)</td><td class="num">21 / 30</td><td>mostly model timeouts shown as blank answers</td></tr>
+    <tr><td>Earlier: after its fixes</td><td class="num">29 / 30</td><td>miss was a general-knowledge question</td></tr>
+    <tr class="hl"><td>After the retrieval rebuild (this session)</td><td class="num">29 / 30</td><td>L1 to L8 passed in a first run cut short by the free-tier request limit; the other 22 re-run in paced batches: 21 correct</td></tr>
+  </table></div>
+  <ul>
+    <li>Right page retrieved for 17 of 18 checked questions; citations right for 14 of 15; average 914 tokens an answer (was 1,166, 22% fewer).</li>
+    <li>The one miss, U3 ("port fee at Hamburg", not in the document), is a grader false alarm: the answer correctly says the document does not list Hamburg, then names the fees of the ports it does list, and the pattern forbids any fee figure.</li>
+    <li>The first attempt hit the free-tier limit (15 model requests a minute), so <code>evals/run-paced.sh</code> runs batches of five with a pause.</li>
+    <li>Old indexes were rebuilt on first open during the run, so the upgrade path was exercised.</li>
+  </ul>
+</section>
+
+<section id="speed">
+  <h2>Indexing speed</h2>
+  <p class="lede">The wait is the model turning every passage into a vector on the CPU. Measured on 160 real passages of Llama 2 (16 logical cores).</p>
+  <div class="scroll"><table>
+    <tr><th>Variant</th><th class="num">Seconds for 160</th><th class="num">ms a passage</th><th>Similarity to full precision</th></tr>
+    <tr><td>e5-base, 4 threads</td><td class="num">35.2</td><td class="num">220</td><td></td></tr>
+    <tr><td>e5-base, 8 threads (default)</td><td class="num">24.1</td><td class="num">151</td><td>1.000</td></tr>
+    <tr><td>e5-base, 12 threads</td><td class="num">19.5</td><td class="num">122</td><td></td></tr>
+    <tr><td>e5-base, 16 threads</td><td class="num">21.5</td><td class="num">134</td><td></td></tr>
+    <tr><td>batch 8 / 32 / 64</td><td class="num">21.1 / 22.3 / 24.3</td><td class="num">132 / 139 / 152</td><td>1.000</td></tr>
+    <tr class="hl"><td>passages capped at 256 tokens</td><td class="num">17.2</td><td class="num">107</td><td>0.997 (adopted)</td></tr>
+    <tr><td>int8 quantisation</td><td class="num">13.6</td><td class="num">85</td><td class="bad">0.897 (rejected: vectors change too much)</td></tr>
+    <tr class="hl"><td>e5-small</td><td class="num">7.1</td><td class="num">44</td><td>different model, checked on the benchmark</td></tr>
+    <tr class="sub"><td>e5-small, int8</td><td class="num">5.2</td><td class="num">32</td><td>not adopted (quality risk)</td></tr>
+  </table></div>
+  <ul>
+    <li>Real services, 7 papers, 930 passages: e5-base <b>232 s</b>, e5-small <b>57 s</b>, e5-small with the 256-token cap <b>45 s</b>.</li>
+    <li>Search quality with e5-small is the same within noise (table in "What shipped"), and the download is about half (0.5 GB instead of 1.1 GB).</li>
+    <li>Questions no longer wait for it: passages are saved first and answered by keyword search at once; vectors fill in behind.</li>
+    <li>Two 250-page textbooks took 210 s to index with e5-base, including text extraction; expect about a quarter of that now.</li>
+  </ul>
+</section>
+
+<section id="textbooks">
+  <h2>Two textbooks in a Thinkspace</h2>
+  <p class="lede">The user asked whether uploading two textbooks and asking for notes, answers to all the questions and a pattern analysis would work.</p>
+  <p>Setup: Think Python (about 250 pages) and Think Stats (about 200 pages), one Thinkspace. Request: "Make an artifact with notes from both books and give answers to all the questions in them. Analyse the pattern of the questions too."</p>
+  <div class="note no"><b>It does not work yet.</b> In 8 seconds the agent returned a three-section document of about 1,300 characters built from 9 passages (Think Stats pages 6, 8, 35, 146; Think Python pages 7, 76, 77, 148, 151): a few notes, a short generic "question analysis", and no answers to the books' questions.</div>
+  <p><b>Why</b>: the agent searches, takes the best 8 passages (4 per document) and writes from them. A request about every question in whole books needs another workflow.</p>
+  <p><b>Plan, not built</b>: detect whole-document requests; walk each book chapter by chapter in rate-limit-aware batches with visible progress; collect the exercises; answer them in batches; then assemble the artifact (notes, answers, question-pattern analysis). On a free-tier key (15 requests a minute) about 30 to 40 model calls take a few minutes.</p>
+</section>
+
+<section id="bugs">
+  <h2>Bugs found and fixed</h2>
+  <div class="scroll"><table>
+    <tr><th>Problem</th><th>Cause</th><th>Fix</th></tr>
+    <tr><td>Side chat: questions about a document "did not work" (answer: the document has no information)</td><td>A newly opened document is indexed in the background. Until the index existed, retrieval returned nothing and the model said the document lacked the information. Reproduced on the 77-page paper; after indexing, the same questions were answered correctly (4,096 tokens; 2 trillion tokens).</td><td>Passages are saved before vectors, so keyword search works at once; one indexing per document at a time; a clear "not ready" note instead of a false claim; status text in the reader; Thinkspace waits for a half-built index.</td></tr>
+    <tr><td>"[Page 1, 2, 3, 4, 5]" showed one button and stray text</td><td>The citation renderer handled a single page number.</td><td>One button per page for lists such as "Page 4, 5 and 9".</td></tr>
+    <tr><td>Page-style artifact showed raw <code>Doc|8</code> chips</td><td>The model wrote the reference as the label.</td><td>Labels containing a bar are rewritten to "Page N" in both frames.</td></tr>
+    <tr><td>"web based notes … with a quiz" produced a quiz</td><td>A named kind beat the page builder.</td><td>Website-style words now choose the page kind first.</td></tr>
+    <tr><td>Passage chunk labelled with the wrong page when it crossed a break</td><td>Only the first page was recorded.</td><td>Passages keep every page and where each starts; each part is labelled and citable.</td></tr>
+    <tr><td>The old "fetch fewer passages when the question resembles the chat" shortcut</td><td>It fetched one passage for follow-ups, and e5 similarities are high for everything.</td><td>Removed; k is 5.</td></tr>
+    <tr><td>Evaluation runs failed with 429</td><td>Free-tier key allows 15 requests a minute.</td><td>Paced batch runner.</td></tr>
+  </table></div>
+</section>
+
+<section id="commits">
+  <h2>Commits and builds</h2>
+  <div class="scroll"><table>
+    <tr><th>Commit</th><th>What</th><th>Pushed</th></tr>
+    <tr><td class="mono">266217f7</td><td>Artifact kinds drawn from data, separate identify/generate/check path</td><td>yes</td></tr>
+    <tr><td class="mono">06ea2a7f</td><td>Artifacts open in tabs, export menu</td><td>yes</td></tr>
+    <tr><td class="mono">4ff1b758</td><td>Claude-style web pages, edit in place, sealed script frame</td><td>yes</td></tr>
+    <tr><td class="mono">e433775b</td><td>Script pages export to PDF, PNG, Word, PowerPoint</td><td>yes</td></tr>
+    <tr><td class="mono">79167c0a</td><td>Wand menu: make slides, report, quiz or page from an artifact</td><td>yes</td></tr>
+    <tr><td class="mono">c9984334</td><td>Retrieval rebuilt, with the benchmark and write-up</td><td>yes</td></tr>
+    <tr><td class="mono">868bdeae</td><td>Day's log and to-do list</td><td>yes</td></tr>
+    <tr><td class="mono">6793dc06</td><td>About card in Settings, with the app version</td><td>yes</td></tr>
+    <tr><td class="mono">4e4e25b7</td><td>3.4.0 version bump</td><td>yes (15 commits in one push)</td></tr>
+    <tr><td class="mono">6adc3539</td><td>Indexing gap fix, multi-page citations</td><td class="warn">local</td></tr>
+    <tr><td class="mono">8ccca71e</td><td>e5-small with 256-token cap, speed experiment</td><td class="warn">local</td></tr>
+    <tr><td>then</td><td>Two-textbook finding logged; 3.4.1 version bump and this log</td><td class="warn">local</td></tr>
+  </table></div>
+  <h3>Installers</h3>
+  <ul>
+    <li><b>3.4.0</b>: 375 MB, signed. The packaged backend was started on its own and answered an index and an exact-term query with no errors. Not run on a clean machine.</li>
+    <li><b>3.4.1</b>: 375 MB, signed, built after the e5-small switch. The packaged backend was started on its own and indexed a small document and answered an exact-term query with the small model and no errors (first call 11 s including model load). Not run on a clean machine.</li>
+  </ul>
+  <h3>Tests</h3>
+  <p>Node 224 (223 pass, 1 skipped). Python 117 (new: chunker, keyword search, hybrid search, old-index fallback and rebuild, indexing in progress, one indexing per document, follow-ups, page labels, sources).</p>
+</section>
+
+<section id="limits">
+  <h2>Limits and what is next</h2>
+  <h3>Limits to remember</h3>
+  <ul>
+    <li>124 English questions on 7 papers; differences of 3 points or less are noise. Questions share words with their passages, which favours keyword search.</li>
+    <li>It measures finding the passage. The 30-question chat evaluation is one document.</li>
+    <li>Scanned PDFs without text, equations, tables as tables and figures are not searched properly; that needs OCR and layout extraction.</li>
+    <li>First use downloads two models, each about 0.5 GB (the second in the background). Not tested from the packaged app on a clean machine.</li>
+    <li>Script-page security: a hostile page has not been run against the watchdog and blocks.</li>
+  </ul>
+  <h3>Next, in priority order</h3>
+  <ol>
+    <li><b>Whole-document requests</b> (answer all the questions in whole textbooks): the workflow above.</li>
+    <li>Install the new build on a clean machine and check the first-run downloads.</li>
+    <li>Hostile test of the script frame.</li>
+    <li>Try the new search and web pages on real documents (scans, tables, the CS-MRI report).</li>
+    <li>Retrieval ideas not done: model-written context per passage, model-based query rewriting, OCR, a larger reranker, answer-level evaluation on more documents.</li>
+    <li>Artifact leftovers: the wand menu uses the chat's latest artifact, not the card clicked; absent inside an opened tab; pie chart seen only in code; Help topic and screenshots.</li>
+  </ol>
+</section>
+</main>
+</div>
+</body>
+</html>
