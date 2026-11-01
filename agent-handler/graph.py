@@ -619,6 +619,7 @@ Return ONLY the intent label (one of: ask, define, highlight, note, mindmap, sea
         })
 
     hits = rag_res.get("chunks", []) if isinstance(rag_res, dict) else []
+    not_ready = isinstance(rag_res, dict) and rag_res.get("error") == "Index not found" and not state.get("docs")
 
     # A question that names a page ("summarise page 10") is answered from that page, not from whatever
     # happens to be closest in meaning.
@@ -639,6 +640,9 @@ Return ONLY the intent label (one of: ask, define, highlight, note, mindmap, sea
             else:
                 chunks.append(f"[Page {page}] {text}")
     
+    if not_ready:
+        chunks = ["[Note] This document has not finished being prepared for search, so no passages could be found. "
+                  "Say so plainly, do not claim the document lacks the information, and ask the person to try again in a minute."]
     return {
         "intent": intent,
         "rag_chunks": chunks,

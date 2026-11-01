@@ -31,17 +31,17 @@ def _load(storage, pdf_id):
     """The index, passages and keyword index of one document, or None when it has not been indexed."""
     index_path = os.path.join(storage, f"{pdf_id}.index")
     meta_path = os.path.join(storage, f"{pdf_id}.json")
-    if not pdf_id or not os.path.exists(index_path) or not os.path.exists(meta_path):
+    if not pdf_id or not os.path.exists(meta_path):
         return None
-    key = (meta_path, os.path.getmtime(meta_path), os.path.getmtime(index_path))
+    # the passages are saved first and the vectors later: in between, the document is searched by words alone
+    has_index = os.path.exists(index_path)
+    key = (meta_path, os.path.getmtime(meta_path), os.path.getmtime(index_path) if has_index else 0)
     if key in _cache:
         return _cache[key]
-    index = load_index(index_path)
-    if index is None:
-        return None
+    index = load_index(index_path) if has_index else None
     meta = load_metadata(meta_path)
-    modern = bool(meta) and meta[0].get("v") == VERSION and meta[0].get("model") == embeddings.DEFAULT_MODEL and index.ntotal == len(meta)
-    doc = {"index": index, "meta": meta, "modern": modern, "bm25": BM25([embed_text(c) for c in meta])}
+    modern = index is not None and bool(meta) and meta[0].get("v") == VERSION and meta[0].get("model") == embeddings.DEFAULT_MODEL and index.ntotal == len(meta)
+    doc = {"index": index, "meta": meta, "modern": modern, "preparing": index is None, "bm25": BM25([embed_text(c) for c in meta])}
     for stale in [k for k in _cache if k[0] == meta_path]:
         del _cache[stale]
     if len(_cache) >= MAX_CACHED:
@@ -95,6 +95,7 @@ def retrieval_service(data):
     meta = doc["meta"]
     if not meta:
         return {"chunks": [], "legacy": False}   # nothing to search: a scan with no text is not worth rebuilding
+    preparing = doc["preparing"]
 
     q_vec = _question_vector(query) if doc["modern"] else None
     candidates = _candidates(doc, query, q_vec, max(POOL, k))
@@ -105,7 +106,7 @@ def retrieval_service(data):
         chunk = dict(meta[i])
         chunk["score"] = reranked[n] if reranked else merged
         results.append(chunk)
-    return {"chunks": results, "legacy": not doc["modern"]}
+    return {"chunks": results, "legacy": not doc["modern"] and not preparing, "preparing": preparing}
 
 
 def pages_service(data):

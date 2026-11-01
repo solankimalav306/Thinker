@@ -76,3 +76,37 @@ def test_keyword_search_ranks_the_rare_word_first_and_ignores_stop_words():
 def test_keyword_search_handles_other_scripts():
     bm = BM25(["नमस्ते दुनिया", "hello world"])
     assert bm.ranked("दुनिया")[0] == 0
+
+
+def test_a_document_still_being_indexed_is_searched_by_words(tmp_path):
+    from utils.chunking import chunk_pages
+    from db.metadata import save_metadata
+    pid = "d" * 64
+    chunks = chunk_pages([{"page": 1, "text": "The reactor coolant temperature limit is 330 degrees."}])
+    for c in chunks:
+        c["model"] = retrieval.embeddings.DEFAULT_MODEL
+    save_metadata(str(tmp_path / f"{pid}.json"), chunks)    # passages saved, vectors not yet
+    res = retrieval.retrieval_service({"query": "coolant temperature limit", "pdfId": pid, "storagePath": str(tmp_path), "k": 3})
+    assert res["chunks"][0]["page"] == 1 and res["preparing"] and not res["legacy"]
+    assert retrieval.retrieval_service({"query": "x", "pdfId": "e" * 64, "storagePath": str(tmp_path), "k": 3}) == {"error": "Index not found"}
+
+
+def test_two_requests_to_index_one_document_do_the_work_once(tmp_path):
+    import threading
+    calls = []
+    real = indexing.embed
+
+    def counting(texts):
+        calls.append(1)
+        return real(texts)
+
+    indexing.embed = counting
+    try:
+        pages = [{"page": 1, "text": filler("a") + " " + filler("b")}]
+        results = []
+        threads = [threading.Thread(target=lambda: results.append(indexing.indexing_service({"pages": pages, "storagePath": str(tmp_path), "pdfId": "f" * 64}))) for _ in range(2)]
+        [t.start() for t in threads]
+        [t.join() for t in threads]
+    finally:
+        indexing.embed = real
+    assert sorted(r["status"] for r in results) == ["already indexed", "indexed"] and len(calls) == 1

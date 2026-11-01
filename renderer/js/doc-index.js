@@ -11,7 +11,7 @@ export async function ensureIndexed(path, { api = window.electronAPI, onProgress
   // a cheap question tells whether the index is already there
   const probe = await api.queryPDF({ query: "index check", pdfId, storagePath, k: 1 });
   // an index made by an older version of the app is rebuilt, so the document gets the better search
-  if (probe?.ok && !probe.result?.error && !probe.result?.legacy) return pdfId;
+  if (probe?.ok && !probe.result?.error && !probe.result?.legacy && !probe.result?.preparing) return pdfId;
 
   const doc = await pdfjsLib.getDocument({ url: toPdfSource(path) }).promise;
   const pages = [];

@@ -1,5 +1,7 @@
 import os
 
+import threading
+
 import numpy as np
 
 import embeddings
@@ -21,7 +23,23 @@ def _current(meta_path):
     return chunks[0].get("v") == VERSION and chunks[0].get("model") == embeddings.DEFAULT_MODEL
 
 
+_locks = {}
+_locks_guard = threading.Lock()
+
+
+def _lock_for(pdf_id):
+    with _locks_guard:
+        return _locks.setdefault(pdf_id, threading.Lock())
+
+
 def indexing_service(data):
+    # a second request for a document that is being indexed waits for the first and then finds it done,
+    # instead of doing the same work twice
+    with _lock_for(data["pdfId"]):
+        return _index(data)
+
+
+def _index(data):
     pages = data["pages"]
     storage = data["storagePath"]
     pdf_id = data["pdfId"]
@@ -41,6 +59,10 @@ def indexing_service(data):
     for c in chunks:
         c["model"] = embeddings.DEFAULT_MODEL
 
+    # The passages are saved before the slow part (the vectors), so questions asked while a long document is still
+    # being prepared are already answered by word search.
+    save_metadata(meta_path, chunks)
+
     if chunks:
         prefix = embeddings.passage_prefix()
         vectors = np.asarray(embed([prefix + embed_text(c) for c in chunks]), dtype="float32")
@@ -50,7 +72,6 @@ def indexing_service(data):
     else:   # a document with no text (a scan): an empty index, so it is not retried on every open
         index = create_index(1)
 
-    save_metadata(meta_path, chunks)
     tmp_index_path = f"{index_path}.tmp"
     save_index(index, tmp_index_path)
     os.replace(tmp_index_path, index_path)

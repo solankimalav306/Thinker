@@ -245,6 +245,7 @@ export class PdfController {
     if (!this.pdfDoc) return;
 
     const pagesText = [];
+    this.onStatus?.("Getting this document ready for questions\u2026");
 
     for (let i = 1; i <= this.pdfDoc.numPages; i++) {
       const page = await this.pdfDoc.getPage(i);
@@ -266,6 +267,7 @@ export class PdfController {
       pdfId: pdfId,
       storagePath: this.storagePath
     });
+    this.onStatus?.("Ready for questions.");
   }
   
   // Re-fits the page when the available space changes (window resized, panels opened, or the
