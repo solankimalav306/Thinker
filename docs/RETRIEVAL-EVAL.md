@@ -101,6 +101,16 @@ pattern for "unanswerable" forbids any fee figure. It passed before only because
 The run used `evals/run-paced.sh` (batches of five with a pause), because a free-tier key allows 15 model requests a minute.
 Old indexes were rebuilt on first open during this run, so the upgrade path was exercised too.
 
+## Two textbooks in a Thinkspace (2026-11-01): a known gap
+Think Python (about 250 pages) and Think Stats (about 200 pages) in one Thinkspace; both indexed in 210 s. Request: "Make an artifact
+with notes from both books and give answers to all the questions in them. Analyse the pattern of the questions too."
+Result (8 s): a three-section document of about 1,300 characters built from **9 passages** (Think Stats p. 6, 8, 35, 146; Think Python
+p. 7, 76, 77, 148, 151). It had a few notes and a short, generic "question analysis", and **no answers to the questions of the books**.
+Cause: the agent searches, takes the best 8 passages (4 per document) and writes from them; a request about *every* question in
+*whole* books needs a different workflow (read each chapter in turn, collect the exercises, answer them in batches, then assemble and
+analyse), which does not exist yet. Plan: detect whole-document requests, go through the document by chapter in rate-limit-aware
+batches with visible progress, then build the artifact from the collected material.
+
 ## Honest limits
 - 124 questions on 7 English papers: differences of 3 points or less are noise. The questions were written by a model that
   saw the passage, so they share words with it; that favours keyword search. The real gain from the meaning search is
