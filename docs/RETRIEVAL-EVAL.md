@@ -33,7 +33,7 @@ words handed to the model are reported too. No model answers anything in this be
 | e5-base + BM25 + mmarco reranker | 83.9 | 89.5 | 92.7 | 796 | multilingual, 1.2 s |
 | e5-base + BM25 + bge-reranker-base | 87.1 | 90.3 | 94.4 | 790 | 4.8 s a question on this CPU |
 | bge-m3 + BM25 + bge-reranker-base | 88.7 | 93.5 | 95.2 | 693 | best seen; 6 GB of models, 3 s |
-| **Shipped, measured with the real services** (e5-base + BM25 + mmarco reranker, structured text) | **88.7** | **91.9** | **93.5** | **725** | MRR 0.81 (was 0.50); 72 ms a question without the reranker, about 1.2 s with it |
+| **Shipped, measured with the real services** (e5-base + BM25 + mmarco reranker, structured text; later swapped to e5-small, see Indexing speed) | **88.7** | **91.9** | **93.5** | **725** | MRR 0.81 (was 0.50); 72 ms a question without the reranker, about 1.2 s with it |
 
 Other findings: text with line breaks (headings, running titles removed) is slightly better than the old flat text (85.5 vs
 83.9 at 3, 0.731 vs 0.711 MRR); chunk size from 100 to 300 words is a wash within noise (±3 points on 124 questions), so
@@ -45,7 +45,7 @@ about 140 words with 35 words of overlap was chosen for cost; adding the heading
   section headings, keeping the heading with the passage, dropping running headers/footers and page numbers (unless that would
   drop most of the document), joining hyphenated line ends, not splitting after "et al.", "Fig." and the like, cutting a run-on
   line (a table, an unpunctuated list) into windows. Works on text with no line breaks too.
-- `embeddings.py`: `multilingual-e5-base` (handles Hindi and other languages the old one could not), correct prefixes per model,
+- `embeddings.py`: `multilingual-e5-small` since 2026-11-01 (first shipped as -base; handles Hindi and other languages the old one could not), correct prefixes per model,
   unit vectors with an inner-product index, loaded on first use instead of at startup.
 - `utils/bm25.py` and `services/retrieval.py`: keyword search (plain, no extra dependency; works on any script) merged with the
   meaning search by weighted reciprocal-rank fusion (words count double: measured), then an optional cross-encoder
@@ -59,6 +59,26 @@ about 140 words with 35 words of overlap was chosen for cost; adding the heading
 - `utils/followup.py`: a short or pointing question ("and what about the Meridian?", "explain this") is searched together with the
   selected text and the previous question.
 - 23 new Python tests (chunker, keyword search, hybrid search, old-index fallback and rebuild, follow-ups, page labels) and 3 for the line text.
+
+## Indexing speed (2026-11-01)
+Cause of the wait: turning every passage into a vector on the CPU (about 151 ms a passage with e5-base). Measured on 160 real passages
+(`evals/retrieval/speed.py`, 16 logical cores):
+
+| Variant | s for 160 | ms a passage | similarity to full precision |
+|---|---|---|---|
+| e5-base, 4 / 8 / 12 / 16 threads | 35.2 / 24.1 / 19.5 / 21.5 | 220 / 151 / 122 / 134 | |
+| e5-base, batch 8 / 32 / 64 | 21.1 / 22.3 / 24.3 | 132 / 139 / 152 | 1.000 |
+| e5-base, passages capped at 256 tokens | 17.2 | 107 | 0.997 (adopted) |
+| e5-base, int8 quantisation | 13.6 | 85 | 0.897 (rejected: changes the vectors too much) |
+| e5-small | 7.1 | 44 | different model |
+| e5-small, int8 | 5.2 | 32 | not tried: quality risk |
+
+Real services on the 7-paper benchmark (930 passages, reranker off): e5-base took 232 s, **e5-small 57 s** (45 s with the 256-token cap),
+with the same search quality: top 3 85.5% vs 85.5%, top 5 87.9% vs 89.5%, MRR 0.737 vs 0.731. With the reranker on, e5-small:
+**87.9 / 91.1 / 93.5** at 3 / 5 / 8, MRR 0.805 (e5-base: 88.7 / 91.9 / 93.5, 0.813): the difference is noise on 124 questions.
+**Shipped: e5-small, 256-token cap.** Two textbooks of 250 pages each took 210 s to index with e5-base; expect about a quarter of that.
+Also from this work: questions asked while a document is still being indexed are answered by word search at once (passages are saved
+before the vectors are computed), and the reader says "Getting this document ready for questions…".
 
 ## Follow-up questions
 37 follow-ups ("Why is having a smaller one a desirable property?", "What about the stepsize?") each written to depend on an
@@ -88,9 +108,9 @@ Old indexes were rebuilt on first open during this run, so the upgrade path was 
 - The benchmark measures finding the passage, not the final answer; the end-to-end chat evaluation above is one document and 30 questions.
 - Scanned PDFs without text, equations, tables as tables, and figures are not searched properly: that needs OCR and layout
   extraction, not a better chunker.
-- First use downloads two models: the embedding model (about 1.1 GB, was 0.4 GB) and, in the background, the reranker (0.5 GB).
-  Set `THINKER_RERANK=off` to skip the second, or `THINKER_EMBED_MODEL=BAAI/bge-base-en-v1.5` for the smaller English model.
-- Indexing a 150k-word document takes about 6 minutes on a laptop CPU (the old one was similar); it runs in the background.
+- First use downloads two models: the embedding model (about 0.5 GB) and, in the background, the reranker (0.5 GB).
+  Set `THINKER_RERANK=off` to skip the second, or `THINKER_EMBED_MODEL=intfloat/multilingual-e5-base` for the larger one.
+- Indexing a 150k-word document: see Indexing speed. It runs in the background and the document can be questioned by words from the first second.
 
 ## What "state of the art" would still add (not done)
 1. **Contextual passages**: have the model write a one-sentence situating context for every passage at indexing time (the
